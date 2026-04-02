@@ -87,4 +87,4 @@ Techos orientativos para **mensajes comerciales** y **límites técnicos** cuand
 
 ## 6. Próximo paso formal
 
-**Fase 1:** migración SQL + políticas RLS alineadas a §2 y §3 de este documento (y plan principal).
+**Fase 1 (SQL):** entregada en repo → `supabase/migrations/20260402140000_academia_miembros_rls.sql`. **Acción:** ejecutar en el proyecto Supabase (SQL Editor, en orden con migraciones previas). **Fase 2 (app):** pantalla unirse a academia, `codigo_club`, ajuste de sync / `ensureAcademiaId` para miembros.

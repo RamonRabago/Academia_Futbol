@@ -63,20 +63,20 @@ Documento vivo para auditoría y trazabilidad de decisiones e implementación.
 
 | Artefacto | Ruta |
 |-----------|------|
-| Script de creación de tablas, triggers `updated_at` y políticas RLS | `supabase/migrations/20260331120000_academia_cloud.sql` |
+| Script inicial tablas + Storage + RLS (dueño = `academias.user_id`) | `supabase/migrations/20260331120000_academia_cloud.sql` |
+| Fase 1 membresías + RLS híbrido (dueño **o** miembro activo) | `supabase/migrations/20260402140000_academia_miembros_rls.sql` |
 
-**Tablas creadas (schema `public`):**
+**Tablas (schema `public`):**
 
-- `academias` — una fila por usuario (`user_id` → `auth.users`), datos alineados con configuración local; columnas opcionales `color_primario_hex` / `color_secundario_hex` para tema de la app.
-- `categorias` — ligadas a `academias`; columna opcional `portada_url` (URL pública en Storage).
-- `jugadores` — ligadas a `academias`.
-- `jugador_historial` — eventos ALTA/BAJA ligados a `jugadores`.
-- `asistencias` — ligadas a `jugadores` y `academias`; unicidad `(jugador_id, fecha_dia_ms)`.
-- `equipo_staff` — personal del club ligado a `academias`.
+- `academias` — `user_id` = dueño del tenant; opcional `codigo_club` (único si no null); colores tema; `unique(user_id)`.
+- `academia_miembros` — `academia_id`, `user_id`, `rol` (owner/admin/coordinator/coach/parent), `activo`, `invited_by`; `unique(academia_id, user_id)`.
+- `academia_miembro_categorias` — asignación entrenador ↔ categoría (`miembro_id`, `categoria_id`).
+- `academia_padres_alumnos` — vínculo tutor en Auth ↔ `jugador_id` (RLS de lectura para padres).
+- `categorias`, `jugadores`, `jugador_historial`, `asistencias`, `equipo_staff` — como antes, ligadas a `academias`.
 
-**Seguridad (RLS):** políticas para que cada usuario solo acceda a su academia y a filas cuyo `academia_id` pertenezca a esa academia.
+**Seguridad (RLS):** acceso a datos operativos si el usuario es **dueño** de la academia o **miembro activo** con rol staff (`owner`, `admin`, `coordinator`, `coach`). Padres: `SELECT` en `jugadores` solo con fila en `academia_padres_alumnos`. Funciones helper `academia_is_owner`, `academia_staff_data_access`, etc. (ver migración Fase 1).
 
-**Ejecución:** Supabase Dashboard → **SQL Editor** → pegar y ejecutar el script completo (re-ejecución parcial: incluye `DROP POLICY IF EXISTS` donde aplica).
+**Ejecución:** Supabase → **SQL Editor** — ejecutar migraciones **en orden** por nombre/fecha; la Fase 1 sustituye políticas `*_by_academia` / `academias_own` definidas en el script inicial.
 
 ---
 
@@ -128,7 +128,8 @@ escuela_futbol_api/
 │   ├── data/sync/                # AcademiaCloudSync, AcademiaStorageUpload
 │   └── ui/                       # Compose, Auth, AcademiaRoot, etc.
 ├── supabase/migrations/
-│   └── 20260331120000_academia_cloud.sql
+│   ├── 20260331120000_academia_cloud.sql
+│   └── 20260402140000_academia_miembros_rls.sql
 └── docs/
     ├── EVIDENCIA_Y_SEGUIMIENTO.md        # este archivo
     ├── PLAN_MEMBRESIA_Y_TENANTS.md       # plan por fases + anexos A/B
@@ -141,6 +142,7 @@ escuela_futbol_api/
 
 | Fecha | Cambio |
 |-------|--------|
+| 2026-04-02 | **Fase 1 (SQL en repo):** `supabase/migrations/20260402140000_academia_miembros_rls.sql` — miembros, categorías por coach, padres↔jugador, `codigo_club`, funciones y RLS híbrido. **Aplicar manualmente en Supabase** antes de depender de cuentas staff/padre. App Android: sin cambios en esta entrega (Fase 2: unión por código + `ensureAcademiaId`). |
 | 2026-04-02 | **Git:** repositorio inicializado en la raíz (`git init`), `.gitignore` ampliado (`.kotlin/`, keystores, `google-services.json`), primer commit `08bcaca` — *Commit inicial: app Academia Fútbol, docs y migraciones Supabase*. `local.properties` y `.gradle/` excluidos. **Remoto GitHub:** `origin` → `https://github.com/RamonRabago/Academia_Futbol.git`, rama `master` publicada con `push -u`. |
 | 2026-04-02 | **Fase 0 CERRADA:** creado `docs/FASE_0_DECISIONES_CERRADAS.md` — self-serve + código club + invitación email; padres MVP **con cuenta**; multi-academia por usuario; roles owner/admin/coordinator/coach/parent; **punto 6:** modelo **híbrido** (`academias.user_id` + tabla miembros + RLS dueño O membresía); **punto 7:** planes Esencial (120/8), Club (350/25/400 padres), Academia (900/60/1500 padres). `PLAN_MEMBRESIA_Y_TENANTS.md` §Fase 0 enlaza a este archivo. Implementación técnica pendiente (Fase 1+). |
 | 2026-04-02 | **Plan membresías:** `PLAN_MEMBRESIA_Y_TENANTS.md` ampliado con **Anexo A** (recomendaciones Fase 0, producto genérico multi-club) y **Anexo B** (modelo de negocio: unidad de cobro, palancas de precio, planes, alineación técnica). |

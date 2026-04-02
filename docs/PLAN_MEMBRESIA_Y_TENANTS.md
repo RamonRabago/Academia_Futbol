@@ -130,22 +130,13 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 ## Fase 1 — Modelo de datos y RLS (Supabase)
 
-**Entregables:**
+**Estado (repo):** script `supabase/migrations/20260402140000_academia_miembros_rls.sql` — tablas `academia_miembros`, `academia_miembro_categorias`, `academia_padres_alumnos`; `academias.codigo_club`; funciones `academia_is_owner`, `academia_staff_data_access`, `academia_any_access`, `academia_can_manage_members`; RLS en `academias`, `categorias`, `jugadores`, `jugador_historial`, `asistencias`, `equipo_staff`; lectura de `jugadores` para padres solo con fila en `academia_padres_alumnos`. **En Supabase:** ejecutar ese archivo en SQL Editor tras las migraciones previas. Invitaciones por token: Fase 2. Storage: sin cambio (sigue `{auth.uid()}/{academiaId}/...`).
 
-- Nueva migración SQL (no editar a ciegas la inicial sin orden): p. ej. `academia_miembros` (o `organization_members`) con:
-  - `academia_id` (FK), `user_id` (FK auth), `rol` (enum/texto), `created_at`, opcional `invited_by`.
-- Opcional: tabla `invitaciones` (token, email, academia_id, rol, expiración, usada).
-- Para entrenadores por categoría: tabla `miembro_categorias` (`miembro_id` o `user_id`+`academia_id`, `categoria_id` o identificador remoto estable).
+**Entregables originales (cubiertos):** miembros con `rol` ∈ owner, admin, coordinator, coach, parent; asignación coach↔categoría; vínculo padre↔jugador para RLS.
 
-**RLS (crítico):**
+**Criterio de cierre:** migración aplicada en proyecto de prueba; dueño histórico conserva acceso; segundo usuario con miembro `coach` valida sync; rol `parent` sin vínculo no lee `jugadores`.
 
-- Políticas que permitan a un usuario leer/escribir filas de **su** `academia_id` si existe fila de membresía activa y el rol lo permite.
-- El dueño actual (`academias.user_id`) debe seguir pudiendo administrar “su” academia o migrar a “solo miembros con rol owner”; **decidir en Fase 0** para no romper datos existentes.
-- Storage: rutas y políticas del bucket deben alinearse con `academia_id` + permisos (hoy muchas rutas usan `auth.uid()`; puede requerir convención nueva).
-
-**Criterio de cierre:** migración aplicada en proyecto de prueba; pruebas manuales con 2 usuarios en SQL Editor o PostgREST (usuario A no ve datos de academia B).
-
-**Evidencia:** archivo en `supabase/migrations/` + nota en `EVIDENCIA_Y_SEGUIMIENTO.md` §4 y §7.
+**Evidencia:** `supabase/migrations/20260402140000_academia_miembros_rls.sql` + `EVIDENCIA_Y_SEGUIMIENTO.md` §4 y §7.
 
 ---
 
