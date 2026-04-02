@@ -25,6 +25,8 @@ data class AcademiaConfig(
     val pinStaffHash: String? = null,
     /** UUID de la fila `academias` en Supabase para este usuario. */
     val remoteAcademiaId: String? = null,
+    /** Código de club en nube (`academias.codigo_club`); solo referencia local tras pull/sync. */
+    val codigoClubRemoto: String? = null,
     /** Color primario de la interfaz (#RRGGBB). Null = tema por defecto de la app. */
     val temaColorPrimarioHex: String? = null,
     /** Color secundario / acentos (#RRGGBB). Null = tema por defecto. */
@@ -44,6 +46,7 @@ data class AcademiaConfig(
             rolDispositivo = RolDispositivo.PADRE_TUTOR.name,
             pinStaffHash = null,
             remoteAcademiaId = null,
+            codigoClubRemoto = null,
             temaColorPrimarioHex = null,
             temaColorSecundarioHex = null,
         )

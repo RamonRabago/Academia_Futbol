@@ -65,6 +65,7 @@ Documento vivo para auditoría y trazabilidad de decisiones e implementación.
 |-----------|------|
 | Script inicial tablas + Storage + RLS (dueño = `academias.user_id`) | `supabase/migrations/20260331120000_academia_cloud.sql` |
 | Fase 1 membresías + RLS híbrido (dueño **o** miembro activo) | `supabase/migrations/20260402140000_academia_miembros_rls.sql` |
+| Fase 2 RPC unión por código | `supabase/migrations/20260403150000_join_academia_rpc.sql` (`join_academia_by_code`) |
 
 **Tablas (schema `public`):**
 
@@ -129,7 +130,8 @@ escuela_futbol_api/
 │   └── ui/                       # Compose, Auth, AcademiaRoot, etc.
 ├── supabase/migrations/
 │   ├── 20260331120000_academia_cloud.sql
-│   └── 20260402140000_academia_miembros_rls.sql
+│   ├── 20260402140000_academia_miembros_rls.sql
+│   └── 20260403150000_join_academia_rpc.sql
 └── docs/
     ├── EVIDENCIA_Y_SEGUIMIENTO.md        # este archivo
     ├── PLAN_MEMBRESIA_Y_TENANTS.md       # plan por fases + anexos A/B
@@ -142,7 +144,8 @@ escuela_futbol_api/
 
 | Fecha | Cambio |
 |-------|--------|
-| 2026-04-02 | **Fase 1 (SQL en repo):** `supabase/migrations/20260402140000_academia_miembros_rls.sql` — miembros, categorías por coach, padres↔jugador, `codigo_club`, funciones y RLS híbrido. **Aplicar manualmente en Supabase** antes de depender de cuentas staff/padre. App Android: sin cambios en esta entrega (Fase 2: unión por código + `ensureAcademiaId`). |
+| 2026-04-02 | **Fase 2 (app + SQL):** binding post-login (`AcademiaBindingViewModel`, pantallas en `ui/auth`), `AcademiaCloudSync.resolveAcademiaBinding` / `joinAcademiaByCode` / `createOwnedAcademia`, Room v18 `codigoClubRemoto`, sección código en `AcademiaScreen`, RPC `20260403150000_join_academia_rpc.sql`. Ejecutar el SQL en Supabase tras Fase 1. |
+| 2026-04-02 | **Fase 1 (SQL en repo):** `supabase/migrations/20260402140000_academia_miembros_rls.sql` — miembros, categorías por coach, padres↔jugador, `codigo_club`, funciones y RLS híbrido. **Aplicar manualmente en Supabase** antes de depender de cuentas staff/padre. |
 | 2026-04-02 | **Git:** repositorio inicializado en la raíz (`git init`), `.gitignore` ampliado (`.kotlin/`, keystores, `google-services.json`), primer commit `08bcaca` — *Commit inicial: app Academia Fútbol, docs y migraciones Supabase*. `local.properties` y `.gradle/` excluidos. **Remoto GitHub:** `origin` → `https://github.com/RamonRabago/Academia_Futbol.git`, rama `master` publicada con `push -u`. |
 | 2026-04-02 | **Fase 0 CERRADA:** creado `docs/FASE_0_DECISIONES_CERRADAS.md` — self-serve + código club + invitación email; padres MVP **con cuenta**; multi-academia por usuario; roles owner/admin/coordinator/coach/parent; **punto 6:** modelo **híbrido** (`academias.user_id` + tabla miembros + RLS dueño O membresía); **punto 7:** planes Esencial (120/8), Club (350/25/400 padres), Academia (900/60/1500 padres). `PLAN_MEMBRESIA_Y_TENANTS.md` §Fase 0 enlaza a este archivo. Implementación técnica pendiente (Fase 1+). |
 | 2026-04-02 | **Plan membresías:** `PLAN_MEMBRESIA_Y_TENANTS.md` ampliado con **Anexo A** (recomendaciones Fase 0, producto genérico multi-club) y **Anexo B** (modelo de negocio: unidad de cobro, palancas de precio, planes, alineación técnica). |

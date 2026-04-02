@@ -142,15 +142,13 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 ## Fase 2 — App: flujo “unirse a una academia”
 
-**Entregables:**
+**Estado (repo):** implementado — `AcademiaBindingViewModel` + pantallas `AcademiaOnboardingScreens.kt`; `AcademiaRoot` muestra onboarding / selector / app principal; `AcademiaCloudSync.resolveAcademiaBinding`, `joinAcademiaByCode` (RPC `join_academia_by_code`), `createOwnedAcademia`, `bindAcademiaIdAndPullConfig`; sync usa `ensureAcademiaIdForSync` (falla con mensajes `NEEDS_*` si falta enlace); dueño genera código en Academia (`regenerarCodigoClub`). **Invitación por email:** pendiente (Fase 0). **SQL:** `supabase/migrations/20260403150000_join_academia_rpc.sql`.
 
-- Pantalla o paso post-login: “Introducir código de club” / “Aceptar invitación” / lista si multi-academia.
-- Tras unión exitosa: guardar `remoteAcademiaId` (y quizá rol remoto) en Room; **no** llamar a lógica que cree otra fila `academias` para ese usuario si ya es miembro.
-- Ajustar `ensureAcademiaId` / sync: resolver academia activa por **membresía** o por ser dueño, no solo por `academias.user_id = uid`.
+**Entregables originales:** cubiertos salvo invitación por correo.
 
-**Criterio de cierre:** usuario entrenador nuevo se registra, ingresa código, sincroniza y ve datos del club correcto; no crea academia duplicada.
+**Criterio de cierre:** probar en dispositivo con Supabase actualizado (Fase 1 + RPC): staff nuevo con código; dueño crea academia; usuario con varias membresías elige una.
 
-**Evidencia:** rutas de archivos en §7; prueba manual anotada.
+**Evidencia:** `EVIDENCIA_Y_SEGUIMIENTO.md` §7; archivos citados arriba.
 
 ---
 

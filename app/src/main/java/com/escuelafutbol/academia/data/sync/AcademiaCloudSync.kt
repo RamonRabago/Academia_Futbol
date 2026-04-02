@@ -5,9 +5,12 @@ import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
+import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
+import com.escuelafutbol.academia.data.remote.dto.AcademiaCodigoClubPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
+import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaRow
 import com.escuelafutbol.academia.data.remote.dto.AsistenciaRow
@@ -26,7 +29,11 @@ import com.escuelafutbol.academia.data.remote.dto.toLocalMerged
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import java.io.File
+import kotlin.random.Random
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -43,7 +50,7 @@ class AcademiaCloudSync(
         runCatching {
             val uid = client.auth.currentUserOrNull()?.id?.toString()
                 ?: error("No hay sesión. Inicia sesión antes de sincronizar.")
-            val academiaId = ensureAcademiaId(uid)
+            val academiaId = ensureAcademiaIdForSync(uid)
             pushAcademiaThemeColors(academiaId)
             pushAcademiaMedia(uid, academiaId)
             pushCategorias(academiaId)
@@ -64,31 +71,79 @@ class AcademiaCloudSync(
         }
     }
 
-    private suspend fun ensureAcademiaId(uid: String): String {
+    /**
+     * Resuelve dueño, caché válida o membresías. No crea academia ni filas de miembro.
+     */
+    suspend fun resolveAcademiaBinding(uid: String): AcademiaBindingResult {
         val dao = db.academiaConfigDao()
-        val cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
-        cfg.remoteAcademiaId?.let { return it }
+        var cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
 
-        val existing = client.from("academias").select {
+        val cached = cfg.remoteAcademiaId
+        if (cached != null) {
+            if (userCanAccessAcademia(uid, cached)) {
+                return AcademiaBindingResult.Ok(cached)
+            }
+            dao.upsert(
+                cfg.copy(
+                    remoteAcademiaId = null,
+                    codigoClubRemoto = null,
+                ),
+            )
+            cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
+        }
+
+        val owned = client.from("academias").select {
             filter { eq("user_id", uid) }
         }.decodeList<AcademiaRow>()
 
-        if (existing.isNotEmpty()) {
-            val row = existing.first()
-            dao.upsert(
-                cfg.copy(
-                    remoteAcademiaId = row.id,
-                    logoUrlSupabase = row.logoUrl?.takeIf { it.isNotBlank() } ?: cfg.logoUrlSupabase,
-                    portadaUrlSupabase = row.portadaUrl?.takeIf { it.isNotBlank() } ?: cfg.portadaUrlSupabase,
-                    temaColorPrimarioHex = row.colorPrimarioHex?.takeIf { it.isNotBlank() }
-                        ?: cfg.temaColorPrimarioHex,
-                    temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
-                        ?: cfg.temaColorSecundarioHex,
-                ),
-            )
-            return row.id
+        if (owned.isNotEmpty()) {
+            val row = owned.first()
+            mergeAcademiaRowIntoLocal(dao, cfg, row)
+            return AcademiaBindingResult.Ok(row.id)
         }
 
+        val members = client.from("academia_miembros").select {
+            filter {
+                eq("user_id", uid)
+                eq("activo", true)
+            }
+        }.decodeList<AcademiaMiembroRow>()
+
+        return when {
+            members.isEmpty() -> AcademiaBindingResult.NeedsOnboarding
+            members.size == 1 -> {
+                val aid = members.first().academiaId
+                val row = client.from("academias").select {
+                    filter { eq("id", aid) }
+                }.decodeSingle<AcademiaRow>()
+                mergeAcademiaRowIntoLocal(dao, cfg, row)
+                AcademiaBindingResult.Ok(aid)
+            }
+            else -> {
+                val options = members.mapNotNull { m ->
+                    runCatching {
+                        val a = client.from("academias").select {
+                            filter { eq("id", m.academiaId) }
+                        }.decodeSingle<AcademiaRow>()
+                        AcademiaBindingOption(m.academiaId, a.nombre, m.rol)
+                    }.getOrNull()
+                }
+                AcademiaBindingResult.PickAcademy(options)
+            }
+        }
+    }
+
+    suspend fun createOwnedAcademia(uid: String): Result<String> = runCatching {
+        val dao = db.academiaConfigDao()
+        var cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
+        val existing = client.from("academias").select {
+            filter { eq("user_id", uid) }
+        }.decodeList<AcademiaRow>()
+        if (existing.isNotEmpty()) {
+            val row = existing.first()
+            mergeAcademiaRowIntoLocal(dao, cfg, row)
+            return@runCatching row.id
+        }
         val insert = AcademiaInsert(
             userId = uid,
             nombre = cfg.nombreAcademia,
@@ -105,8 +160,102 @@ class AcademiaCloudSync(
         val row = client.from("academias").insert(insert) {
             select()
         }.decodeSingle<AcademiaRow>()
-        dao.upsert(cfg.copy(remoteAcademiaId = row.id))
-        return row.id
+        mergeAcademiaRowIntoLocal(dao, cfg, row)
+        row.id
+    }
+
+    suspend fun joinAcademiaByCode(code: String, rolMembresia: String): Result<String> = runCatching {
+        val normalizedRol = rolMembresia.trim().lowercase()
+        val aid = client.postgrest.rpc(
+            "join_academia_by_code",
+            JoinAcademiaRpcParams(
+                pCodigo = code.trim().uppercase(),
+                pRol = normalizedRol,
+            ),
+        ).decodeAs<String>()
+        bindAcademiaIdAndPullConfig(aid)
+        aid
+    }
+
+    suspend fun bindAcademiaIdAndPullConfig(academiaId: String) {
+        val dao = db.academiaConfigDao()
+        val cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
+        val row = client.from("academias").select {
+            filter { eq("id", academiaId) }
+        }.decodeSingle<AcademiaRow>()
+        mergeAcademiaRowIntoLocal(dao, cfg, row)
+    }
+
+    suspend fun regenerateClubCode(academiaId: String): Result<String> = runCatching {
+        val charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        repeat(15) {
+            val code = buildString(6) {
+                repeat(6) {
+                    append(charset[Random.nextInt(charset.length)])
+                }
+            }
+            runCatching {
+                client.from("academias").update(AcademiaCodigoClubPatch(code)) {
+                    filter { eq("id", academiaId) }
+                }
+            }.onSuccess {
+                val dao = db.academiaConfigDao()
+                val cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
+                dao.upsert(cfg.copy(codigoClubRemoto = code))
+                return@runCatching code
+            }
+        }
+        error("no_unique_club_code")
+    }
+
+    private suspend fun userCanAccessAcademia(uid: String, academiaId: String): Boolean {
+        val asOwner = client.from("academias").select {
+            filter {
+                eq("id", academiaId)
+                eq("user_id", uid)
+            }
+        }.decodeList<AcademiaRow>().isNotEmpty()
+        if (asOwner) return true
+        return client.from("academia_miembros").select {
+            filter {
+                eq("academia_id", academiaId)
+                eq("user_id", uid)
+                eq("activo", true)
+            }
+        }.decodeList<AcademiaMiembroRow>().isNotEmpty()
+    }
+
+    private suspend fun mergeAcademiaRowIntoLocal(
+        dao: AcademiaConfigDao,
+        cfg: AcademiaConfig,
+        row: AcademiaRow,
+    ) {
+        dao.upsert(
+            cfg.copy(
+                remoteAcademiaId = row.id,
+                nombreAcademia = row.nombre.ifBlank { cfg.nombreAcademia },
+                logoUrlSupabase = row.logoUrl?.takeIf { it.isNotBlank() } ?: cfg.logoUrlSupabase,
+                portadaUrlSupabase = row.portadaUrl?.takeIf { it.isNotBlank() } ?: cfg.portadaUrlSupabase,
+                mensualidadVisibleProfesor = row.mensualidadVisibleProfesor,
+                mensualidadVisibleCoordinador = row.mensualidadVisibleCoordinador,
+                mensualidadVisibleDueno = row.mensualidadVisibleDueno,
+                rolDispositivo = row.rolDispositivo.ifBlank { cfg.rolDispositivo },
+                pinStaffHash = row.pinStaffHash ?: cfg.pinStaffHash,
+                temaColorPrimarioHex = row.colorPrimarioHex?.takeIf { it.isNotBlank() }
+                    ?: cfg.temaColorPrimarioHex,
+                temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
+                    ?: cfg.temaColorSecundarioHex,
+                codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
+            ),
+        )
+    }
+
+    private suspend fun ensureAcademiaIdForSync(uid: String): String {
+        when (val r = resolveAcademiaBinding(uid)) {
+            is AcademiaBindingResult.Ok -> return r.academiaId
+            AcademiaBindingResult.NeedsOnboarding -> error("NEEDS_ACADEMY_ONBOARDING")
+            is AcademiaBindingResult.PickAcademy -> error("NEEDS_ACADEMY_PICK")
+        }
     }
 
     private suspend fun pushAcademiaThemeColors(academiaId: String) {
@@ -444,7 +593,14 @@ class AcademiaCloudSync(
                     ?: cfg.temaColorPrimarioHex,
                 temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorSecundarioHex,
+                codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
             ),
         )
     }
 }
+
+@Serializable
+private data class JoinAcademiaRpcParams(
+    @SerialName("p_codigo") val pCodigo: String,
+    @SerialName("p_rol") val pRol: String,
+)

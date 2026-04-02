@@ -41,9 +41,18 @@ data class AcademiaRow(
 
     @SerialName("color_secundario_hex") val colorSecundarioHex: String? = null,
 
+    @SerialName("codigo_club") val codigoClub: String? = null,
+
 )
 
-
+@Serializable
+data class AcademiaMiembroRow(
+    val id: String,
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("user_id") val userId: String,
+    val rol: String,
+    val activo: Boolean = true,
+)
 
 @Serializable
 
@@ -473,5 +482,10 @@ data class StaffFotoUrlPatch(@SerialName("foto_url") val fotoUrl: String)
 data class AcademiaColoresPatch(
     @SerialName("color_primario_hex") val colorPrimarioHex: String? = null,
     @SerialName("color_secundario_hex") val colorSecundarioHex: String? = null,
+)
+
+@Serializable
+data class AcademiaCodigoClubPatch(
+    @SerialName("codigo_club") val codigoClub: String,
 )
 

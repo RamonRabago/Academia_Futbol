@@ -1,0 +1,134 @@
+package com.escuelafutbol.academia.ui.auth
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.AcademiaApplication
+import com.escuelafutbol.academia.data.sync.AcademiaBindingOption
+import com.escuelafutbol.academia.data.sync.AcademiaBindingResult
+import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
+import io.github.jan.supabase.auth.auth
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed class AcademiaBindingUiState {
+    data object Loading : AcademiaBindingUiState()
+    data object Ready : AcademiaBindingUiState()
+    data object NeedsOnboarding : AcademiaBindingUiState()
+    data class PickAcademy(val options: List<AcademiaBindingOption>) : AcademiaBindingUiState()
+    data class Error(val message: String) : AcademiaBindingUiState()
+}
+
+class AcademiaBindingViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
+
+    private val _uiState = MutableStateFlow<AcademiaBindingUiState>(AcademiaBindingUiState.Loading)
+    val uiState: StateFlow<AcademiaBindingUiState> = _uiState.asStateFlow()
+
+    fun refresh() {
+        val app = getApplication<AcademiaApplication>()
+        val client = app.supabaseClient ?: run {
+            _uiState.value = AcademiaBindingUiState.Error("Supabase no configurado.")
+            return
+        }
+        val uid = client.auth.currentUserOrNull()?.id?.toString() ?: run {
+            _uiState.value = AcademiaBindingUiState.Error("Sin sesión.")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = AcademiaBindingUiState.Loading
+            runCatching {
+                AcademiaCloudSync(client, app.database).resolveAcademiaBinding(uid)
+            }.fold(
+                onSuccess = { r ->
+                    _uiState.value = when (r) {
+                        is AcademiaBindingResult.Ok -> AcademiaBindingUiState.Ready
+                        AcademiaBindingResult.NeedsOnboarding -> AcademiaBindingUiState.NeedsOnboarding
+                        is AcademiaBindingResult.PickAcademy ->
+                            if (r.options.isEmpty()) {
+                                AcademiaBindingUiState.NeedsOnboarding
+                            } else {
+                                AcademiaBindingUiState.PickAcademy(r.options)
+                            }
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.value = AcademiaBindingUiState.Error(
+                        e.message ?: "No se pudo comprobar la academia.",
+                    )
+                },
+            )
+        }
+    }
+
+    fun createOwnedAcademia(onDone: (Result<Unit>) -> Unit) {
+        val app = getApplication<AcademiaApplication>()
+        val client = app.supabaseClient ?: return
+        val uid = client.auth.currentUserOrNull()?.id?.toString() ?: return
+        viewModelScope.launch {
+            _uiState.value = AcademiaBindingUiState.Loading
+            val result = AcademiaCloudSync(client, app.database).createOwnedAcademia(uid)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = AcademiaBindingUiState.Ready
+                    onDone(Result.success(Unit))
+                },
+                onFailure = { e ->
+                    _uiState.value = AcademiaBindingUiState.Error(e.message ?: "Error al crear academia.")
+                    onDone(Result.failure(e))
+                },
+            )
+        }
+    }
+
+    fun joinByCode(code: String, rol: String, onDone: (Result<Unit>) -> Unit) {
+        val app = getApplication<AcademiaApplication>()
+        val client = app.supabaseClient ?: return
+        viewModelScope.launch {
+            _uiState.value = AcademiaBindingUiState.Loading
+            val result = AcademiaCloudSync(client, app.database).joinAcademiaByCode(code, rol)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = AcademiaBindingUiState.Ready
+                    onDone(Result.success(Unit))
+                },
+                onFailure = { e ->
+                    val msg = when {
+                        e.message?.contains("code_not_found", ignoreCase = true) == true ->
+                            "Código no encontrado. Revisa e intenta de nuevo."
+                        e.message?.contains("invalid_code", ignoreCase = true) == true ->
+                            "Código demasiado corto."
+                        e.message?.contains("invalid_role", ignoreCase = true) == true ->
+                            "Rol no válido."
+                        else -> e.message ?: "No se pudo unir a la academia."
+                    }
+                    _uiState.value = AcademiaBindingUiState.NeedsOnboarding
+                    onDone(Result.failure(Exception(msg)))
+                },
+            )
+        }
+    }
+
+    fun selectAcademia(academiaId: String, onDone: (Result<Unit>) -> Unit) {
+        val app = getApplication<AcademiaApplication>()
+        val client = app.supabaseClient ?: return
+        viewModelScope.launch {
+            _uiState.value = AcademiaBindingUiState.Loading
+            runCatching {
+                AcademiaCloudSync(client, app.database).bindAcademiaIdAndPullConfig(academiaId)
+            }.fold(
+                onSuccess = {
+                    _uiState.value = AcademiaBindingUiState.Ready
+                    onDone(Result.success(Unit))
+                },
+                onFailure = { e ->
+                    _uiState.value = AcademiaBindingUiState.Error(e.message ?: "Error al elegir academia.")
+                    onDone(Result.failure(e))
+                },
+            )
+        }
+    }
+}

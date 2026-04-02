@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -71,6 +72,12 @@ import com.escuelafutbol.academia.ui.players.PlayersScreen
 import com.escuelafutbol.academia.ui.players.PlayersViewModel
 import com.escuelafutbol.academia.ui.stats.StatsScreen
 import com.escuelafutbol.academia.ui.stats.StatsViewModel
+import com.escuelafutbol.academia.ui.auth.AcademiaBindingErrorScreen
+import com.escuelafutbol.academia.ui.auth.AcademiaBindingLoadingScreen
+import com.escuelafutbol.academia.ui.auth.AcademiaBindingUiState
+import com.escuelafutbol.academia.ui.auth.AcademiaBindingViewModel
+import com.escuelafutbol.academia.ui.auth.AcademiaOnboardingScreen
+import com.escuelafutbol.academia.ui.auth.AcademiaPickAcademyScreen
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import com.escuelafutbol.academia.ui.auth.LoginScreen
 import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
@@ -99,8 +106,6 @@ private sealed class Tab(
 fun AcademiaRoot(factory: ViewModelProvider.Factory) {
     val context = LocalContext.current
     val app = context.applicationContext as AcademiaApplication
-    val application = context.applicationContext as Application
-    val sessionVm: SessionViewModel = viewModel(factory = factory)
     val authVm: AuthViewModel = viewModel(factory = factory)
     val authSession by authVm.sessionStatus.collectAsState()
 
@@ -132,6 +137,38 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
         }
     }
 
+    val bindingVm: AcademiaBindingViewModel = viewModel(factory = factory)
+    val bindingState by bindingVm.uiState.collectAsState()
+    LaunchedEffect(authSession) {
+        if (authSession is SessionStatus.Authenticated) {
+            bindingVm.refresh()
+        }
+    }
+
+    AcademiaFutbolTheme {
+        when (val bs = bindingState) {
+            AcademiaBindingUiState.Loading -> AcademiaBindingLoadingScreen()
+            is AcademiaBindingUiState.Error -> AcademiaBindingErrorScreen(bs.message) {
+                bindingVm.refresh()
+            }
+            AcademiaBindingUiState.NeedsOnboarding -> AcademiaOnboardingScreen(bindingVm)
+            is AcademiaBindingUiState.PickAcademy -> AcademiaPickAcademyScreen(bindingVm, bs.options)
+            AcademiaBindingUiState.Ready -> {
+                AcademiaRootAuthenticatedContent(factory = factory, authVm = authVm)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcademiaRootAuthenticatedContent(
+    factory: ViewModelProvider.Factory,
+    authVm: AuthViewModel,
+) {
+    val context = LocalContext.current
+    val app = context.applicationContext as AcademiaApplication
+    val application = context.applicationContext as Application
+    val sessionVm: SessionViewModel = viewModel(factory = factory)
     val configVm: AcademiaConfigViewModel = viewModel(factory = factory)
     val config by configVm.config.collectAsState()
     val enPrincipal by sessionVm.enMenuPrincipal.collectAsState()

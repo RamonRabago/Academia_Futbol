@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.AcademiaApplication
+import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,9 +36,14 @@ class CloudSyncViewModel(
             _syncing.value = true
             _syncMessage.value = null
             val result = AcademiaCloudSync(client, app.database).syncAll()
-            _syncMessage.value =
-                result.exceptionOrNull()?.message
-                    ?: "Sincronización con la nube completada."
+            _syncMessage.value = when (val err = result.exceptionOrNull()?.message) {
+                "NEEDS_ACADEMY_ONBOARDING" ->
+                    application.getString(R.string.sync_needs_onboarding)
+                "NEEDS_ACADEMY_PICK" ->
+                    application.getString(R.string.sync_needs_pick_academy)
+                null -> application.getString(R.string.sync_cloud_done)
+                else -> err
+            }
             _syncing.value = false
         }
     }

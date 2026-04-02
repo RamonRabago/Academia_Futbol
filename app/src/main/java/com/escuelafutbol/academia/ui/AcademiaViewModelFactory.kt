@@ -8,6 +8,7 @@ import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.ui.academia.AcademiaConfigViewModel
 import com.escuelafutbol.academia.ui.academia.StaffViewModel
 import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
+import com.escuelafutbol.academia.ui.auth.AcademiaBindingViewModel
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
@@ -32,6 +33,8 @@ class AcademiaViewModelFactory(
             }
             modelClass.isAssignableFrom(CloudSyncViewModel::class.java) ->
                 return CloudSyncViewModel(application) as T
+            modelClass.isAssignableFrom(AcademiaBindingViewModel::class.java) ->
+                return AcademiaBindingViewModel(application) as T
             modelClass.isAssignableFrom(CategoriaPickerViewModel::class.java) ->
                 return CategoriaPickerViewModel(
                     application,

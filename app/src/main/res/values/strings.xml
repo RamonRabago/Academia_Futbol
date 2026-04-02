@@ -204,4 +204,24 @@
     <string name="sync_cloud_hint">Sube datos locales que aún no tienen ID remoto, sube imágenes al bucket academia-media y descarga cambios del servidor. Ejecuta antes el SQL completo del proyecto en Supabase (carpeta supabase/migrations), incluida la sección Storage.</string>
     <string name="sync_cloud_button">Sincronizar ahora</string>
     <string name="sync_cloud_running">Sincronizando…</string>
+    <string name="sync_cloud_done">Sincronización con la nube completada.</string>
+    <string name="sync_needs_onboarding">Primero crea tu academia o únete con el código del club.</string>
+    <string name="sync_needs_pick_academy">Tienes varias academias: elige con cuál trabajar en esta pantalla.</string>
+    <string name="onboarding_academia_title">Tu academia en la nube</string>
+    <string name="onboarding_academia_subtitle">Crea un espacio nuevo para tu club o entra con el código que te dio el administrador.</string>
+    <string name="onboarding_create_academy">Crear mi academia</string>
+    <string name="onboarding_join_code_hint">Código del club (ej. ABC123)</string>
+    <string name="onboarding_join_button">Unirme</string>
+    <string name="onboarding_role_coach">Entrenador</string>
+    <string name="onboarding_role_coordinator">Coordinador</string>
+    <string name="onboarding_role_parent">Padre o tutor</string>
+    <string name="onboarding_join_as">Te unes como</string>
+    <string name="pick_academy_title">Elige academia</string>
+    <string name="pick_academy_open">Continuar</string>
+    <string name="binding_retry">Reintentar</string>
+    <string name="binding_loading">Comprobando academia…</string>
+    <string name="academy_club_code_section">Código para unir dispositivos</string>
+    <string name="academy_club_code_hint">Comparte este código con entrenadores o familias para que se unan desde la app (Fase membresías).</string>
+    <string name="academy_club_code_generate">Generar código</string>
+    <string name="academy_club_code_none">Aún no hay código. Pulsa «Generar código».</string>
 </resources>

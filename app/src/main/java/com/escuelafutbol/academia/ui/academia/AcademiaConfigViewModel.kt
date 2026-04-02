@@ -4,7 +4,9 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
+import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.security.StaffPinHasher
@@ -63,6 +65,22 @@ class AcademiaConfigViewModel(
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
             dao.upsert(actual.copy(nombreAcademia = nombre.trim()))
+        }
+    }
+
+    /** Genera o renueva `codigo_club` en Supabase (dueño/admin vía RLS). */
+    fun regenerarCodigoClub(onResult: (Result<String>) -> Unit = {}) {
+        viewModelScope.launch {
+            val app = getApplication<Application>() as AcademiaApplication
+            val client = app.supabaseClient ?: run {
+                onResult(Result.failure(Exception("Supabase no configurado.")))
+                return@launch
+            }
+            val aid = database.academiaConfigDao().getActual()?.remoteAcademiaId ?: run {
+                onResult(Result.failure(Exception("Sincroniza primero con la nube.")))
+                return@launch
+            }
+            onResult(AcademiaCloudSync(client, database).regenerateClubCode(aid))
         }
     }
 

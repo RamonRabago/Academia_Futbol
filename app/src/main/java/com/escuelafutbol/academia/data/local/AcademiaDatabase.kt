@@ -27,7 +27,7 @@ import com.escuelafutbol.academia.data.local.entity.Staff
         AcademiaConfig::class,
         Staff::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -244,6 +244,13 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_17_18 =
+            object : Migration(17, 18) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE academia_config ADD COLUMN codigoClubRemoto TEXT")
+                }
+            }
+
         fun create(context: Context): AcademiaDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -267,6 +274,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_14_15,
                     MIGRATION_15_16,
                     MIGRATION_16_17,
+                    MIGRATION_17_18,
                 )
                 .build()
     }

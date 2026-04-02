@@ -2,6 +2,7 @@ package com.escuelafutbol.academia.ui.academia
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -211,6 +212,60 @@ fun AcademiaScreen(
                         modifier = Modifier.padding(top = 8.dp),
                         color = MaterialTheme.colorScheme.primary,
                     )
+                }
+            }
+            item {
+                if (config.remoteAcademiaId != null) {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        ),
+                    ) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.academy_club_code_section),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                stringResource(R.string.academy_club_code_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                config.codigoClubRemoto
+                                    ?: stringResource(R.string.academy_club_code_none),
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Button(
+                                onClick = {
+                                    configVm.regenerarCodigoClub { r ->
+                                        r.onFailure { e ->
+                                            Toast.makeText(
+                                                context,
+                                                e.message,
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                        r.onSuccess { code ->
+                                            Toast.makeText(
+                                                context,
+                                                code,
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(stringResource(R.string.academy_club_code_generate))
+                            }
+                        }
+                    }
                 }
             }
             } else {
