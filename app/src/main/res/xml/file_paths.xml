@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="camera_cache" path="." />
+    <files-path name="staff_photos" path="staff_photos/" />
+    <files-path name="jugador_photos" path="jugador_photos/" />
+</paths>

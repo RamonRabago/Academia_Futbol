@@ -1,0 +1,1160 @@
+package com.escuelafutbol.academia.ui.players
+
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import com.yalantis.ucrop.UCrop
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.escuelafutbol.academia.ui.util.coilFotoModel
+import com.escuelafutbol.academia.ui.util.formatearFechaCalendarioUtc
+import com.escuelafutbol.academia.ui.util.formatearFechaDiaLocal
+import com.escuelafutbol.academia.ui.util.formatearFechaHoraLocal
+import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import com.escuelafutbol.academia.data.local.entity.Jugador
+import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
+import com.escuelafutbol.academia.data.local.model.JugadorHistorialTipo
+import java.io.File
+import java.text.NumberFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.util.Locale
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private fun formatImporte(valor: Double): String =
+    NumberFormat.getCurrencyInstance(Locale.getDefault()).format(valor)
+
+private fun extensionParaActa(context: Context, uri: Uri): String {
+    val mime = context.contentResolver.getType(uri)
+    return when {
+        mime == "application/pdf" -> "pdf"
+        mime?.startsWith("image/png") == true -> "png"
+        mime?.startsWith("image/webp") == true -> "webp"
+        mime?.startsWith("image/") == true -> "jpg"
+        else -> {
+            val name = context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (i >= 0) c.getString(i) else null
+                } else {
+                    null
+                }
+            }
+            val ext = name?.substringAfterLast('.', "")?.lowercase()?.takeIf { it.length <= 5 }
+            when (ext) {
+                "pdf", "png", "webp" -> ext
+                "jpeg", "jpg" -> "jpg"
+                else -> null
+            } ?: "pdf"
+        }
+    }
+}
+
+@Composable
+private fun MensualidadVisibilidadAviso(config: AcademiaConfig) {
+    val texto = when (RolDispositivo.fromStored(config.rolDispositivo)) {
+        RolDispositivo.PADRE_TUTOR -> stringResource(R.string.fee_visibility_as_padre)
+        else -> stringResource(R.string.fee_visibility_as_staff_off)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Text(
+            texto,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.padding(12.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlayersScreen(
+    viewModel: PlayersViewModel,
+    categoriaFiltro: String?,
+    configAcademia: AcademiaConfig,
+) {
+    val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo()
+    val jugadores by viewModel.jugadores.collectAsState()
+    var mostrarAlta by remember { mutableStateOf(false) }
+    var altaFormKey by remember { mutableStateOf(0) }
+    var jugadorHistorial by remember { mutableStateOf<Jugador?>(null) }
+    var jugadorBaja by remember { mutableStateOf<Jugador?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.tab_players)) },
+                windowInsets = WindowInsets.statusBars,
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    altaFormKey++
+                    mostrarAlta = true
+                },
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
+            }
+        },
+    ) { padding ->
+        if (jugadores.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+            ) {
+                if (!puedeVerMensualidad) {
+                    MensualidadVisibilidadAviso(configAcademia)
+                    Spacer(Modifier.height(12.dp))
+                }
+                Text(
+                    if (categoriaFiltro != null) {
+                        stringResource(R.string.no_players_in_category)
+                    } else {
+                        stringResource(R.string.no_players_yet)
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (!puedeVerMensualidad) {
+                    item(key = "aviso_mensualidad") {
+                        MensualidadVisibilidadAviso(configAcademia)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+                items(jugadores, key = { it.id }) { j ->
+                    JugadorCard(
+                        jugador = j,
+                        puedeVerMensualidad = puedeVerMensualidad,
+                        onHistorial = { jugadorHistorial = j },
+                        onDarBaja = { jugadorBaja = j },
+                    )
+                }
+            }
+        }
+    }
+
+    if (mostrarAlta) {
+        key(altaFormKey) {
+            JugadorFormDialog(
+                categoriaInicial = categoriaFiltro.orEmpty(),
+                puedeVerMensualidad = puedeVerMensualidad,
+                onDismiss = { mostrarAlta = false },
+                onGuardar = { nombre, categoria, fechaNacMs, tel, email, notas, foto, curpVal, curpDocRuta, actaRuta, becadoVal, mensualidad ->
+                    viewModel.guardarJugador(
+                        nombre,
+                        categoria,
+                        fechaNacMs,
+                        tel,
+                        email,
+                        notas,
+                        foto,
+                        curpVal,
+                        curpDocRuta,
+                        actaRuta,
+                        becadoVal,
+                        mensualidad,
+                    )
+                    mostrarAlta = false
+                },
+            )
+        }
+    }
+
+    jugadorHistorial?.let { j ->
+        val historial by viewModel.historialFlow(j.id).collectAsState(initial = emptyList())
+        AlertDialog(
+            onDismissRequest = { jugadorHistorial = null },
+            title = { Text(stringResource(R.string.player_history_title, j.nombre)) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        stringResource(R.string.player_joined_date, formatearFechaDiaLocal(j.fechaAltaMillis)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    if (puedeVerMensualidad) {
+                        when {
+                            j.becado -> Text(
+                                stringResource(R.string.player_scholarship),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                            j.mensualidad != null && j.mensualidad > 0 -> Text(
+                                stringResource(R.string.player_monthly_fee, formatImporte(j.mensualidad)),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                            else -> Text(
+                                stringResource(R.string.player_fee_undefined),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                        }
+                    }
+                    historial.forEach { ev ->
+                        Text(
+                            stringResource(
+                                R.string.historial_event_at,
+                                when (ev.tipo) {
+                                    JugadorHistorialTipo.ALTA.name ->
+                                        stringResource(R.string.historial_event_alta)
+                                    JugadorHistorialTipo.BAJA.name ->
+                                        stringResource(R.string.historial_event_baja)
+                                    else -> ev.tipo
+                                },
+                                formatearFechaHoraLocal(ev.fechaMillis),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                        ev.detalle?.takeIf { it.isNotBlank() }?.let { d ->
+                            Text(
+                                d,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { jugadorHistorial = null }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        )
+    }
+
+    jugadorBaja?.let { j ->
+        AlertDialog(
+            onDismissRequest = { jugadorBaja = null },
+            title = { Text(stringResource(R.string.discharge_confirm_title)) },
+            text = { Text(stringResource(R.string.discharge_confirm_message, j.nombre)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.darBaja(j)
+                        jugadorBaja = null
+                    },
+                ) { Text(stringResource(R.string.player_discharge)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { jugadorBaja = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun JugadorCard(
+    jugador: Jugador,
+    puedeVerMensualidad: Boolean,
+    onHistorial: () -> Unit,
+    onDarBaja: () -> Unit,
+) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                val fotoModel = jugador.coilFotoModel(context)
+                if (fotoModel != null) {
+                    AsyncImage(
+                        model = fotoModel,
+                        contentDescription = stringResource(R.string.player_photo_cd),
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Image,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(jugador.nombre, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        jugador.categoria,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        stringResource(R.string.player_joined_date, formatearFechaDiaLocal(jugador.fechaAltaMillis)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (puedeVerMensualidad) {
+                        when {
+                            jugador.becado -> Text(
+                                stringResource(R.string.player_scholarship),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                            jugador.mensualidad != null && jugador.mensualidad > 0 -> Text(
+                                stringResource(
+                                    R.string.player_monthly_fee,
+                                    formatImporte(jugador.mensualidad),
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                            else -> Text(
+                                stringResource(R.string.player_fee_undefined),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+            jugador.fechaNacimientoMillis?.let { ms ->
+                Text(
+                    stringResource(R.string.birth_date) + ": " + formatearFechaCalendarioUtc(ms),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } ?: jugador.anioNacimiento?.let { anio ->
+                Text(
+                    stringResource(R.string.birth_year_only, anio),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            jugador.curp?.takeIf { it.isNotBlank() }?.let { c ->
+                Text(
+                    stringResource(R.string.player_curp) + ": $c",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            val curpDocLocal = jugador.curpDocumentoRutaAbsoluta?.let { File(it).exists() } == true
+            val curpDocUrl = jugador.curpDocumentoUrlSupabase?.takeIf { it.isNotBlank() }
+            if (curpDocLocal || curpDocUrl != null) {
+                Text(
+                    stringResource(R.string.player_curp_doc_attached),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                curpDocUrl?.let { url ->
+                    TextButton(
+                        onClick = { uriHandler.openUri(url) },
+                        modifier = Modifier.padding(top = 0.dp),
+                    ) {
+                        Text(stringResource(R.string.player_curp_doc_open))
+                    }
+                }
+            }
+            val actaLocal = jugador.actaNacimientoRutaAbsoluta?.let { File(it).exists() } == true
+            val actaUrl = jugador.actaNacimientoUrlSupabase?.takeIf { it.isNotBlank() }
+            if (actaLocal || actaUrl != null) {
+                Text(
+                    stringResource(R.string.player_birth_cert_attached),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                actaUrl?.let { url ->
+                    TextButton(
+                        onClick = { uriHandler.openUri(url) },
+                        modifier = Modifier.padding(top = 0.dp),
+                    ) {
+                        Text(stringResource(R.string.player_birth_cert_open))
+                    }
+                }
+            }
+            val contacto = listOfNotNull(jugador.telefonoTutor, jugador.emailTutor).joinToString(" · ")
+            if (contacto.isNotEmpty()) {
+                Text(contacto, style = MaterialTheme.typography.bodySmall)
+            }
+            jugador.notas?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(onClick = onHistorial, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.player_history))
+                }
+                TextButton(onClick = onDarBaja, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.player_discharge))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun JugadorFormDialog(
+    categoriaInicial: String,
+    puedeVerMensualidad: Boolean,
+    onDismiss: () -> Unit,
+    onGuardar: (
+        nombre: String,
+        categoria: String,
+        fechaNacimientoMillis: Long?,
+        tel: String?,
+        email: String?,
+        notas: String?,
+        fotoRuta: String?,
+        curp: String?,
+        curpDocumentoRuta: String?,
+        actaRuta: String?,
+        becado: Boolean,
+        mensualidad: Double?,
+    ) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var nombre by remember { mutableStateOf("") }
+    var categoria by remember { mutableStateOf(categoriaInicial) }
+    var fechaNacMs by remember { mutableStateOf<Long?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val maxYear = remember { LocalDate.now(ZoneOffset.UTC).year }
+    val minYear = remember { maxYear - 100 }
+    val selectableDates = remember {
+        object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val d = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                val today = LocalDate.now(ZoneOffset.UTC)
+                val oldest = today.minusYears(100)
+                return !d.isAfter(today) && !d.isBefore(oldest)
+            }
+        }
+    }
+    var tel by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var notas by remember { mutableStateOf("") }
+    var mensualidadTxt by remember { mutableStateOf("") }
+    var becado by remember { mutableStateOf(false) }
+    var fotoPath by remember { mutableStateOf<String?>(null) }
+    var cameraFile by remember { mutableStateOf<File?>(null) }
+    var curpTxt by remember { mutableStateOf("") }
+    var curpDocPath by remember { mutableStateOf<String?>(null) }
+    var actaPath by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(becado) {
+        if (becado) mensualidadTxt = ""
+    }
+
+    fun jugadorPhotoDest(): File {
+        val dir = File(context.filesDir, "jugador_photos").apply { mkdirs() }
+        return File(dir, "${UUID.randomUUID()}.jpg")
+    }
+
+    var cropDestFile by remember { mutableStateOf<File?>(null) }
+    var deleteAfterCrop by remember { mutableStateOf<File?>(null) }
+
+    val cropLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val cam = deleteAfterCrop
+        deleteAfterCrop = null
+        runCatching { cam?.takeIf { it.exists() }?.delete() }
+
+        val dest = cropDestFile
+        cropDestFile = null
+        if (result.resultCode == Activity.RESULT_OK && dest != null && dest.exists() && dest.length() > 0L) {
+            fotoPath?.let { runCatching { File(it).delete() } }
+            fotoPath = dest.absolutePath
+        } else {
+            runCatching { dest?.delete() }
+        }
+    }
+
+    fun iniciarRecorteFoto(origen: Uri, archivoCamaraABorrar: File?) {
+        val destinoArchivo = jugadorPhotoDest()
+        cropDestFile = destinoArchivo
+        deleteAfterCrop = archivoCamaraABorrar
+        val destinoUri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            destinoArchivo,
+        )
+        val opciones = UCrop.Options().apply {
+            setCompressionFormat(Bitmap.CompressFormat.JPEG)
+            setCompressionQuality(90)
+            setCircleDimmedLayer(true)
+            setShowCropGrid(true)
+            setShowCropFrame(true)
+            setToolbarTitle(context.getString(R.string.player_photo_crop_title))
+        }
+        val intent = UCrop.of(origen, destinoUri)
+            .withAspectRatio(1f, 1f)
+            .withMaxResultSize(1024, 1024)
+            .withOptions(opciones)
+            .getIntent(context)
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        cropLauncher.launch(intent)
+    }
+
+    fun jugadorActaDest(ext: String): File {
+        val dir = File(context.filesDir, "jugador_actas").apply { mkdirs() }
+        return File(dir, "${UUID.randomUUID()}.$ext")
+    }
+
+    fun jugadorCurpDocDest(ext: String): File {
+        val dir = File(context.filesDir, "jugador_curp_docs").apply { mkdirs() }
+        return File(dir, "${UUID.randomUUID()}.$ext")
+    }
+
+    val pickCurpDoc = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            val ext = extensionParaActa(context, uri)
+            val dest = jugadorCurpDocDest(ext)
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    dest.outputStream().use { out -> input.copyTo(out) }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                if (dest.exists() && dest.length() > 0) {
+                    curpDocPath?.let { runCatching { File(it).delete() } }
+                    curpDocPath = dest.absolutePath
+                }
+            }
+        }
+    }
+
+    val pickActa = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            val ext = extensionParaActa(context, uri)
+            val dest = jugadorActaDest(ext)
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    dest.outputStream().use { out -> input.copyTo(out) }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                if (dest.exists() && dest.length() > 0) {
+                    actaPath?.let { runCatching { File(it).delete() } }
+                    actaPath = dest.absolutePath
+                }
+            }
+        }
+    }
+
+    val pickGallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        iniciarRecorteFoto(uri, null)
+    }
+
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val f = cameraFile
+        if (f == null) return@rememberLauncherForActivityResult
+        if (!success || !f.exists()) {
+            runCatching { f.delete() }
+            return@rememberLauncherForActivityResult
+        }
+        val srcUri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            f,
+        )
+        iniciarRecorteFoto(srcUri, f)
+    }
+
+    fun launchCameraCapture() {
+        val f = File(context.cacheDir, "jug_cam_${System.currentTimeMillis()}.jpg")
+        runCatching { if (!f.exists()) f.createNewFile() }
+        cameraFile = f
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            f,
+        )
+        takePicture.launch(uri)
+    }
+
+    val requestCameraPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) launchCameraCapture()
+    }
+
+    fun openCamera() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED -> launchCameraCapture()
+            else -> requestCameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    val configuration = LocalConfiguration.current
+    val scrollMaxHeight = configuration.screenHeightDp.dp * 0.55f
+    val formScroll = rememberScrollState()
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 3.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                Text(
+                    stringResource(R.string.add_player),
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                Spacer(Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = scrollMaxHeight)
+                        .verticalScroll(formScroll),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.player_photo_section),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                stringResource(R.string.player_photo_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val path = fotoPath
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .clickable { pickGallery.launch("image/*") },
+                                ) {
+                                    if (path != null && File(path).exists()) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(File(path))
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = stringResource(R.string.player_photo_cd),
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Add,
+                                                contentDescription = stringResource(R.string.staff_pick_gallery),
+                                                modifier = Modifier.size(26.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { pickGallery.launch("image/*") },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .defaultMinSize(minHeight = 44.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Image,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp),
+                                                )
+                                                Text(
+                                                    stringResource(R.string.staff_pick_gallery),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    maxLines = 1,
+                                                )
+                                            }
+                                        }
+                                        OutlinedButton(
+                                            onClick = { openCamera() },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .defaultMinSize(minHeight = 44.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.PhotoCamera,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp),
+                                                )
+                                                Text(
+                                                    stringResource(R.string.staff_take_photo),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    maxLines = 1,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (fotoPath != null) {
+                                        TextButton(
+                                            modifier = Modifier.align(Alignment.End),
+                                            onClick = {
+                                                fotoPath?.let { runCatching { File(it).delete() } }
+                                                fotoPath = null
+                                            },
+                                        ) {
+                                            Text(stringResource(R.string.staff_remove_photo))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = nombre,
+                        onValueChange = { nombre = it },
+                        label = { Text(stringResource(R.string.name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = categoria,
+                        onValueChange = { categoria = it },
+                        label = { Text(stringResource(R.string.category)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = fechaNacMs?.let { formatearFechaCalendarioUtc(it) } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.birth_date)) },
+                        placeholder = { Text(stringResource(R.string.birth_date_hint)) },
+                        trailingIcon = {
+                            IconButton(onClick = { showDatePicker = true }) {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = stringResource(R.string.calendar_pick_cd),
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showDatePicker = true },
+                    )
+                    if (fechaNacMs != null) {
+                        TextButton(
+                            onClick = { fechaNacMs = null },
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Text(stringResource(R.string.birth_date_clear))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = curpTxt,
+                        onValueChange = { s ->
+                            curpTxt = s.uppercase().filter { it.isLetterOrDigit() }.take(18)
+                        },
+                        label = { Text(stringResource(R.string.player_curp)) },
+                        placeholder = { Text(stringResource(R.string.player_curp_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.player_curp_doc_section),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                stringResource(R.string.player_curp_doc_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = { pickCurpDoc.launch("*/*") },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.player_curp_doc_pick))
+                                }
+                            }
+                            curpDocPath?.let { p ->
+                                val f = File(p)
+                                if (f.exists()) {
+                                    Text(
+                                        f.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            runCatching { f.delete() }
+                                            curpDocPath = null
+                                        },
+                                        modifier = Modifier.align(Alignment.End),
+                                    ) {
+                                        Text(stringResource(R.string.player_curp_doc_remove))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.player_birth_cert_section),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                stringResource(R.string.player_birth_cert_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = { pickActa.launch("*/*") },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.player_birth_cert_pick))
+                                }
+                            }
+                            actaPath?.let { p ->
+                                val f = File(p)
+                                if (f.exists()) {
+                                    Text(
+                                        f.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            runCatching { f.delete() }
+                                            actaPath = null
+                                        },
+                                        modifier = Modifier.align(Alignment.End),
+                                    ) {
+                                        Text(stringResource(R.string.player_birth_cert_remove))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = tel,
+                        onValueChange = { tel = it },
+                        label = { Text(stringResource(R.string.parent_phone)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text(stringResource(R.string.parent_email)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = notas,
+                        onValueChange = { notas = it },
+                        label = { Text(stringResource(R.string.notes)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (puedeVerMensualidad) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.fee_scholarship_switch),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                Text(
+                                    stringResource(R.string.fee_scholarship_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = becado,
+                                onCheckedChange = { becado = it },
+                            )
+                        }
+                        OutlinedTextField(
+                            value = mensualidadTxt,
+                            onValueChange = { mensualidadTxt = it },
+                            label = { Text(stringResource(R.string.fee_monthly_label)) },
+                            placeholder = { Text(stringResource(R.string.fee_monthly_hint)) },
+                            singleLine = true,
+                            enabled = !becado,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            val men = mensualidadTxt
+                                .trim()
+                                .replace(',', '.')
+                                .takeIf { it.isNotEmpty() }
+                                ?.toDoubleOrNull()
+                            val menFinal = if (puedeVerMensualidad && !becado) men else null
+                            onGuardar(
+                                nombre,
+                                categoria,
+                                fechaNacMs,
+                                tel,
+                                email,
+                                notas,
+                                fotoPath,
+                                curpTxt.trim().takeIf { it.isNotEmpty() },
+                                curpDocPath,
+                                actaPath,
+                                becado && puedeVerMensualidad,
+                                menFinal,
+                            )
+                        },
+                        enabled = nombre.isNotBlank() && categoria.isNotBlank(),
+                    ) { Text(stringResource(R.string.save)) }
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = fechaNacMs,
+            yearRange = minYear..maxYear,
+            selectableDates = selectableDates,
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pickerState.selectedDateMillis?.let { fechaNacMs = it }
+                        showDatePicker = false
+                    },
+                ) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
+}
