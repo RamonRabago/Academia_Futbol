@@ -154,6 +154,8 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 ## Fase 3 — Permisos en app (coordinar con servidor)
 
+**Estado (repo, 2026-03):** **en curso (parcial).** Hecho: restricción de la pestaña **Academia** a **owner/admin** (o dueño de `academias.user_id`) vía `academiaGestionNubePermitida` + Room v20; staff local con **categorías asignadas** (`staff_categorias`, `equipo_staff_categorias`, sync push/pull, formulario en `AcademiaScreen`). Pendiente respecto al plan original: **mapear rol de membresía** a todas las pestañas; **filtrar jugadores/asistencia/estadísticas** en la app según categorías del `coach` miembro; **UI de invitar/revocar** miembros en Supabase (no solo código club).
+
 **Entregables:**
 
 - Mapear rol de membresía → qué pestañas y acciones se muestran (además de `RolDispositivo` local si aplica).
@@ -162,7 +164,7 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 **Criterio de cierre:** entrenador con 2 categorías asignadas no ve jugadores de otras; dueño ve todo.
 
-**Evidencia:** checklist de pantallas en anexo o §7.
+**Evidencia:** checklist de pantallas en anexo o §7; `CHANGELOG.md` (cambios recientes de permisos y nombre/sync).
 
 ---
 
@@ -212,4 +214,4 @@ flowchart LR
 3. Mantener este archivo como **índice del plan**; los detalles de API pueden vivir en comentarios de migración o en un anexo `docs/ANEXO_ROLES.md` si crece mucho.
 
 **Creado / alineado con conversación multi-tenant:** 2026-04-02.  
-**Actualizado:** 2026-04-02 — Anexos A y B; **Fase 0 cerrada** documentada en `docs/FASE_0_DECISIONES_CERRADAS.md`.
+**Actualizado:** 2026-04-02 — Anexos A y B; **Fase 0 cerrada** documentada en `docs/FASE_0_DECISIONES_CERRADAS.md`. **2026-03-31** — §Fase 3: estado *parcial* en repo (permisos Academia + staff/categorías; pendiente filtrado global coach y gestión de miembros).

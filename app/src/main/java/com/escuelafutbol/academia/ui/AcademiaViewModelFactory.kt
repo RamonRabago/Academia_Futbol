@@ -29,7 +29,7 @@ class AcademiaViewModelFactory(
                 return SessionViewModel() as T
             modelClass.isAssignableFrom(AuthViewModel::class.java) -> {
                 val app = application as AcademiaApplication
-                return AuthViewModel(app.supabaseClient) as T
+                return AuthViewModel(application, app.supabaseClient) as T
             }
             modelClass.isAssignableFrom(CloudSyncViewModel::class.java) ->
                 return CloudSyncViewModel(application) as T
@@ -44,7 +44,13 @@ class AcademiaViewModelFactory(
             modelClass.isAssignableFrom(AcademiaConfigViewModel::class.java) ->
                 return AcademiaConfigViewModel(application, database) as T
             modelClass.isAssignableFrom(StaffViewModel::class.java) ->
-                return StaffViewModel(application, database.staffDao()) as T
+                return StaffViewModel(
+                    application,
+                    database.staffDao(),
+                    database.staffCategoriaDao(),
+                    database.categoriaDao(),
+                    database.academiaConfigDao(),
+                ) as T
         }
         val s = session
             ?: throw IllegalStateException("Se requiere SessionViewModel para ${modelClass.name}")

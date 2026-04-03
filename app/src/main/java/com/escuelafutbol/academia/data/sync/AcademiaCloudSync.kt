@@ -3,6 +3,7 @@ package com.escuelafutbol.academia.data.sync
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Categoria
+import com.escuelafutbol.academia.data.local.entity.StaffCategoria
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
@@ -11,6 +12,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
+import com.escuelafutbol.academia.data.remote.dto.AcademiaNombrePatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaRow
 import com.escuelafutbol.academia.data.remote.dto.AsistenciaRow
@@ -22,6 +24,8 @@ import com.escuelafutbol.academia.data.remote.dto.JugadorActaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.JugadorCurpDocUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.JugadorFotoUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.JugadorRow
+import com.escuelafutbol.academia.data.remote.dto.StaffCategoriaInsert
+import com.escuelafutbol.academia.data.remote.dto.StaffCategoriaRow
 import com.escuelafutbol.academia.data.remote.dto.StaffFotoUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.StaffRow
 import com.escuelafutbol.academia.data.remote.dto.toCloudInsert
@@ -31,9 +35,10 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import java.io.File
+import java.util.Locale
 import kotlin.random.Random
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -51,6 +56,7 @@ class AcademiaCloudSync(
             val uid = client.auth.currentUserOrNull()?.id?.toString()
                 ?: error("No hay sesión. Inicia sesión antes de sincronizar.")
             val academiaId = ensureAcademiaIdForSync(uid)
+            pushAcademiaNombre(academiaId)
             pushAcademiaThemeColors(academiaId)
             pushAcademiaMedia(uid, academiaId)
             pushCategorias(academiaId)
@@ -61,12 +67,14 @@ class AcademiaCloudSync(
             pushAsistencias(academiaId)
             pushStaff(academiaId)
             pushStaffFotosLocales(uid, academiaId)
+            pushStaffCategorias(academiaId)
             pullCategorias(academiaId)
             pullJugadores(academiaId)
             val jugadorMap = buildJugadorRemoteMap()
             pullHistorial(academiaId, jugadorMap)
             pullAsistencias(academiaId, jugadorMap)
             pullStaff(academiaId)
+            pullStaffCategorias(academiaId)
             pullAcademiaConfig(academiaId)
         }
     }
@@ -87,6 +95,7 @@ class AcademiaCloudSync(
                 cfg.copy(
                     remoteAcademiaId = null,
                     codigoClubRemoto = null,
+                    academiaGestionNubePermitida = true,
                 ),
             )
             cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
@@ -166,13 +175,12 @@ class AcademiaCloudSync(
 
     suspend fun joinAcademiaByCode(code: String, rolMembresia: String): Result<String> = runCatching {
         val normalizedRol = rolMembresia.trim().lowercase()
-        val aid = client.postgrest.rpc(
-            "join_academia_by_code",
-            JoinAcademiaRpcParams(
-                pCodigo = code.trim().uppercase(),
-                pRol = normalizedRol,
-            ),
-        ).decodeAs<String>()
+        val params = buildJsonObject {
+            put("p_codigo", code.trim().uppercase())
+            put("p_rol", normalizedRol)
+        }
+        val result = client.postgrest.rpc("join_academia_by_code", params)
+        val aid = result.decodeAs<String>()
         bindAcademiaIdAndPullConfig(aid)
         aid
     }
@@ -208,6 +216,20 @@ class AcademiaCloudSync(
         error("no_unique_club_code")
     }
 
+    /** Dueño de la fila `academias` o miembro activo con rol owner/admin (PostgREST). */
+    private suspend fun computeAcademiaGestionNubePermitida(uid: String, row: AcademiaRow): Boolean {
+        if (row.userId == uid) return true
+        val members = client.from("academia_miembros").select {
+            filter {
+                eq("academia_id", row.id)
+                eq("user_id", uid)
+                eq("activo", true)
+            }
+        }.decodeList<AcademiaMiembroRow>()
+        val r = members.firstOrNull()?.rol?.trim()?.lowercase(Locale.ROOT) ?: return false
+        return r == "owner" || r == "admin"
+    }
+
     private suspend fun userCanAccessAcademia(uid: String, academiaId: String): Boolean {
         val asOwner = client.from("academias").select {
             filter {
@@ -230,6 +252,9 @@ class AcademiaCloudSync(
         cfg: AcademiaConfig,
         row: AcademiaRow,
     ) {
+        val uid = client.auth.currentUserOrNull()?.id?.toString()
+        val puedeGestionar = uid?.let { computeAcademiaGestionNubePermitida(it, row) }
+            ?: cfg.academiaGestionNubePermitida
         dao.upsert(
             cfg.copy(
                 remoteAcademiaId = row.id,
@@ -246,6 +271,7 @@ class AcademiaCloudSync(
                 temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorSecundarioHex,
                 codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
+                academiaGestionNubePermitida = puedeGestionar,
             ),
         )
     }
@@ -258,8 +284,24 @@ class AcademiaCloudSync(
         }
     }
 
+    /**
+     * Persiste el nombre local en `academias` para que el pull posterior no lo pise con el valor antiguo.
+     */
+    suspend fun pushAcademiaNombre(academiaId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val cfg = db.academiaConfigDao().getActual() ?: error("no config")
+            if (cfg.remoteAcademiaId != null && !cfg.academiaGestionNubePermitida) return@runCatching
+            val n = cfg.nombreAcademia.trim()
+            if (n.isEmpty()) return@runCatching
+            client.from("academias").update(AcademiaNombrePatch(nombre = n)) {
+                filter { eq("id", academiaId) }
+            }
+        }
+    }
+
     private suspend fun pushAcademiaThemeColors(academiaId: String) {
         val cfg = db.academiaConfigDao().getActual() ?: return
+        if (cfg.remoteAcademiaId != null && !cfg.academiaGestionNubePermitida) return
         client.from("academias").update(
             AcademiaColoresPatch(
                 colorPrimarioHex = cfg.temaColorPrimarioHex,
@@ -287,6 +329,7 @@ class AcademiaCloudSync(
     private suspend fun pushAcademiaMedia(uid: String, academiaId: String) {
         val dao = db.academiaConfigDao()
         var cfg = dao.getActual() ?: return
+        if (cfg.remoteAcademiaId != null && !cfg.academiaGestionNubePermitida) return
         var changed = false
 
         cfg.logoRutaAbsoluta?.let { p ->
@@ -578,15 +621,71 @@ class AcademiaCloudSync(
         }
     }
 
+    private suspend fun pushStaffCategorias(academiaId: String) {
+        val staffDao = db.staffDao()
+        val catDao = db.categoriaDao()
+        val scDao = db.staffCategoriaDao()
+        for (staff in staffDao.getAll()) {
+            val staffR = staff.remoteId ?: continue
+            val localNombres = scDao.getNombresForStaff(staff.id)
+            val desiredCatIds = localNombres.mapNotNull { n -> catDao.getByNombre(n)?.remoteId }.toSet()
+            val existing = client.from("equipo_staff_categorias").select {
+                filter { eq("staff_id", staffR) }
+            }.decodeList<StaffCategoriaRow>()
+            val existingCatIds = existing.map { it.categoriaId }.toSet()
+            for (row in existing) {
+                if (row.categoriaId !in desiredCatIds) {
+                    client.from("equipo_staff_categorias").delete {
+                        filter { eq("id", row.id) }
+                    }
+                }
+            }
+            for (catId in desiredCatIds - existingCatIds) {
+                client.from("equipo_staff_categorias").insert(
+                    StaffCategoriaInsert(
+                        academiaId = academiaId,
+                        staffId = staffR,
+                        categoriaId = catId,
+                    ),
+                )
+            }
+        }
+    }
+
+    private suspend fun pullStaffCategorias(academiaId: String) {
+        val rows = client.from("equipo_staff_categorias").select {
+            filter { eq("academia_id", academiaId) }
+        }.decodeList<StaffCategoriaRow>()
+        val cloudByStaff = rows.groupBy { it.staffId }
+        val catByRemote = db.categoriaDao().getAll().associateBy { it.remoteId }
+        val scDao = db.staffCategoriaDao()
+        for (staff in db.staffDao().getAll()) {
+            val staffR = staff.remoteId ?: continue
+            scDao.deleteForStaff(staff.id)
+            for (link in cloudByStaff[staffR].orEmpty()) {
+                val nombre = catByRemote[link.categoriaId]?.nombre ?: continue
+                scDao.insert(
+                    StaffCategoria(
+                        staffId = staff.id,
+                        categoriaNombre = nombre,
+                    ),
+                )
+            }
+        }
+    }
+
     private suspend fun pullAcademiaConfig(academiaId: String) {
         val row = client.from("academias").select {
             filter { eq("id", academiaId) }
         }.decodeSingle<AcademiaRow>()
         val dao = db.academiaConfigDao()
         val cfg = dao.getActual() ?: return
+        val uid = client.auth.currentUserOrNull()?.id?.toString()
+        val puedeGestionar = uid?.let { computeAcademiaGestionNubePermitida(it, row) }
+            ?: cfg.academiaGestionNubePermitida
         dao.upsert(
             cfg.copy(
-                nombreAcademia = row.nombre,
+                nombreAcademia = row.nombre.ifBlank { cfg.nombreAcademia },
                 logoUrlSupabase = row.logoUrl?.takeIf { it.isNotBlank() } ?: cfg.logoUrlSupabase,
                 portadaUrlSupabase = row.portadaUrl?.takeIf { it.isNotBlank() } ?: cfg.portadaUrlSupabase,
                 temaColorPrimarioHex = row.colorPrimarioHex?.takeIf { it.isNotBlank() }
@@ -594,13 +693,8 @@ class AcademiaCloudSync(
                 temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorSecundarioHex,
                 codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
+                academiaGestionNubePermitida = puedeGestionar,
             ),
         )
     }
 }
-
-@Serializable
-private data class JoinAcademiaRpcParams(
-    @SerialName("p_codigo") val pCodigo: String,
-    @SerialName("p_rol") val pRol: String,
-)

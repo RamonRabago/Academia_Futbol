@@ -10,6 +10,7 @@ import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
+import com.escuelafutbol.academia.data.local.dao.StaffCategoriaDao
 import com.escuelafutbol.academia.data.local.dao.StaffDao
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Asistencia
@@ -17,6 +18,7 @@ import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.entity.Staff
+import com.escuelafutbol.academia.data.local.entity.StaffCategoria
 
 @Database(
     entities = [
@@ -26,8 +28,9 @@ import com.escuelafutbol.academia.data.local.entity.Staff
         Categoria::class,
         AcademiaConfig::class,
         Staff::class,
+        StaffCategoria::class,
     ],
-    version = 18,
+    version = 20,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -36,6 +39,8 @@ abstract class AcademiaDatabase : RoomDatabase() {
     abstract fun categoriaDao(): CategoriaDao
     abstract fun academiaConfigDao(): AcademiaConfigDao
     abstract fun staffDao(): StaffDao
+
+    abstract fun staffCategoriaDao(): StaffCategoriaDao
 
     companion object {
 
@@ -251,6 +256,38 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_19_20 =
+            object : Migration(19, 20) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "ALTER TABLE academia_config ADD COLUMN academiaGestionNubePermitida INTEGER NOT NULL DEFAULT 1",
+                    )
+                }
+            }
+
+        private val MIGRATION_18_19 =
+            object : Migration(18, 19) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `staff_categorias` (
+                          `staffId` INTEGER NOT NULL,
+                          `categoriaNombre` TEXT NOT NULL,
+                          PRIMARY KEY(`staffId`, `categoriaNombre`),
+                          FOREIGN KEY(`staffId`) REFERENCES `staff`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                          FOREIGN KEY(`categoriaNombre`) REFERENCES `categorias`(`nombre`) ON UPDATE NO ACTION ON DELETE CASCADE
+                        )
+                        """.trimIndent().replace("\n", " "),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_staff_categorias_staffId` ON `staff_categorias` (`staffId`)",
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_staff_categorias_categoriaNombre` ON `staff_categorias` (`categoriaNombre`)",
+                    )
+                }
+            }
+
         fun create(context: Context): AcademiaDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -275,6 +312,8 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_15_16,
                     MIGRATION_16_17,
                     MIGRATION_17_18,
+                    MIGRATION_18_19,
+                    MIGRATION_19_20,
                 )
                 .build()
     }

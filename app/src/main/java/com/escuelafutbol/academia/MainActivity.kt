@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.escuelafutbol.academia.ui.AcademiaRoot
 import com.escuelafutbol.academia.ui.AcademiaViewModelFactory
+import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
@@ -29,15 +30,20 @@ class MainActivity : ComponentActivity() {
         procesarDeepLinkAuth(intent)
     }
 
-    /** Tras confirmar el correo, si Supabase redirige a academiafutbol://auth/... se muestra un mensaje en la app. */
+    /** Confirmación de correo o recuperación de contraseña vía academiafutbol://auth/... */
     private fun procesarDeepLinkAuth(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme != "academiafutbol" || uri.host != "auth") return
         val client = (application as AcademiaApplication).supabaseClient ?: return
-        client.handleDeeplinks(intent) {
+        val recoveryInFragment = uri.fragment?.contains("type=recovery") == true
+        client.handleDeeplinks(intent) { session ->
+            val recovery = recoveryInFragment || isPasswordRecoverySession(session)
             Toast.makeText(
                 this@MainActivity,
-                getString(R.string.auth_email_confirmed_toast),
+                getString(
+                    if (recovery) R.string.auth_recovery_toast
+                    else R.string.auth_email_confirmed_toast,
+                ),
                 Toast.LENGTH_LONG,
             ).show()
         }

@@ -31,6 +31,11 @@ data class AcademiaConfig(
     val temaColorPrimarioHex: String? = null,
     /** Color secundario / acentos (#RRGGBB). Null = tema por defecto. */
     val temaColorSecundarioHex: String? = null,
+    /**
+     * Si la academia está enlazada a la nube: el usuario actual puede editar marca, nombre, staff, etc.
+     * (dueño de `academias.user_id` o miembro con rol owner/admin). Sin nube o valor true = sin restricción local.
+     */
+    val academiaGestionNubePermitida: Boolean = true,
 ) {
     companion object {
         val DEFAULT = AcademiaConfig(
@@ -49,6 +54,7 @@ data class AcademiaConfig(
             codigoClubRemoto = null,
             temaColorPrimarioHex = null,
             temaColorSecundarioHex = null,
+            academiaGestionNubePermitida = true,
         )
     }
 }

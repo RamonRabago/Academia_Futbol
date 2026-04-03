@@ -405,6 +405,21 @@ data class StaffInsert(
 
 )
 
+@Serializable
+data class StaffCategoriaRow(
+    val id: String,
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("staff_id") val staffId: String,
+    @SerialName("categoria_id") val categoriaId: String,
+)
+
+@Serializable
+data class StaffCategoriaInsert(
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("staff_id") val staffId: String,
+    @SerialName("categoria_id") val categoriaId: String,
+)
+
 
 
 fun Staff.toCloudInsert(academiaId: String) = StaffInsert(
@@ -465,6 +480,9 @@ data class AcademiaLogoUrlPatch(@SerialName("logo_url") val logoUrl: String)
 
 @Serializable
 data class AcademiaPortadaUrlPatch(@SerialName("portada_url") val portadaUrl: String)
+
+@Serializable
+data class AcademiaNombrePatch(val nombre: String)
 
 @Serializable
 data class JugadorFotoUrlPatch(@SerialName("foto_url") val fotoUrl: String)

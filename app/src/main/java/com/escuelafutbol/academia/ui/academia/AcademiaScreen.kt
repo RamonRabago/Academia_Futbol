@@ -2,12 +2,14 @@ package com.escuelafutbol.academia.ui.academia
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +52,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -61,6 +66,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -70,17 +76,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.escuelafutbol.academia.R
-import com.escuelafutbol.academia.ui.sync.CloudSyncViewModel
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
@@ -102,17 +108,19 @@ fun AcademiaScreen(
     configVm: AcademiaConfigViewModel,
     staffVm: StaffViewModel,
     onSignOut: (() -> Unit)? = null,
-    viewModelFactory: ViewModelProvider.Factory,
 ) {
-    val syncVm: CloudSyncViewModel = viewModel(factory = viewModelFactory)
-    val syncing by syncVm.syncing.collectAsState()
-    val syncMsg by syncVm.syncMessage.collectAsState()
-
     val config by configVm.config.collectAsState()
     val staff by staffVm.staff.collectAsState()
     val rolDispositivo = RolDispositivo.fromStored(config.rolDispositivo)
     val esPersonalClub = rolDispositivo.esPersonalClub()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val viewRoot = LocalView.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val nombreGuardadoMsg = stringResource(R.string.academy_name_saved)
+    val nombreDenegadoMsg = stringResource(R.string.academy_name_save_denied)
 
     var nombreAcademiaEdit by remember(config.nombreAcademia) { mutableStateOf(config.nombreAcademia) }
     var dialogoStaff by remember { mutableStateOf(false) }
@@ -157,6 +165,7 @@ fun AcademiaScreen(
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.tab_academy)) })
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -165,6 +174,8 @@ fun AcademiaScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            val puedeGestionarAcademia =
+                config.remoteAcademiaId == null || config.academiaGestionNubePermitida
             item {
                 SeccionModoDispositivo(
                     rolDispositivo = rolDispositivo,
@@ -176,99 +187,7 @@ fun AcademiaScreen(
                     },
                 )
             }
-            if (esPersonalClub) {
-            item {
-                Text(
-                    stringResource(R.string.sync_cloud_section),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    stringResource(R.string.sync_cloud_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Button(
-                    onClick = {
-                        syncVm.clearMessage()
-                        syncVm.syncNow()
-                    },
-                    enabled = !syncing,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                ) {
-                    Text(
-                        if (syncing) {
-                            stringResource(R.string.sync_cloud_running)
-                        } else {
-                            stringResource(R.string.sync_cloud_button)
-                        },
-                    )
-                }
-                syncMsg?.let { m ->
-                    Text(
-                        m,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-            item {
-                if (config.remoteAcademiaId != null) {
-                    OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ),
-                    ) {
-                        Column(
-                            Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                stringResource(R.string.academy_club_code_section),
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                stringResource(R.string.academy_club_code_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                config.codigoClubRemoto
-                                    ?: stringResource(R.string.academy_club_code_none),
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Button(
-                                onClick = {
-                                    configVm.regenerarCodigoClub { r ->
-                                        r.onFailure { e ->
-                                            Toast.makeText(
-                                                context,
-                                                e.message,
-                                                Toast.LENGTH_LONG,
-                                            ).show()
-                                        }
-                                        r.onSuccess { code ->
-                                            Toast.makeText(
-                                                context,
-                                                code,
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(stringResource(R.string.academy_club_code_generate))
-                            }
-                        }
-                    }
-                }
-            }
-            } else {
+            if (!esPersonalClub) {
                 item {
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -294,19 +213,98 @@ fun AcademiaScreen(
                         }
                     }
                 }
-            }
-            if (esPersonalClub) {
-            item {
-                Text(
-                    stringResource(R.string.academy_branding_section),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    stringResource(R.string.academy_branding_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            } else if (!puedeGestionarAcademia) {
+                item {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        ),
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                stringResource(R.string.academy_readonly_no_admin_title),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                stringResource(R.string.academy_readonly_no_admin_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                config.nombreAcademia,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            } else {
+                item {
+                    if (config.remoteAcademiaId != null) {
+                        OutlinedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            ),
+                        ) {
+                            Column(
+                                Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    stringResource(R.string.academy_club_code_section),
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(
+                                    stringResource(R.string.academy_club_code_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(
+                                    config.codigoClubRemoto
+                                        ?: stringResource(R.string.academy_club_code_none),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Button(
+                                    onClick = {
+                                        configVm.regenerarCodigoClub { r ->
+                                            r.onFailure { e ->
+                                                Toast.makeText(
+                                                    context,
+                                                    e.message,
+                                                    Toast.LENGTH_LONG,
+                                                ).show()
+                                            }
+                                            r.onSuccess { code ->
+                                                Toast.makeText(
+                                                    context,
+                                                    code,
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.academy_club_code_generate))
+                                }
+                            }
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        stringResource(R.string.academy_branding_section),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(R.string.academy_branding_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             item {
                 Text(
                     stringResource(R.string.academy_cover_section),
@@ -431,7 +429,21 @@ fun AcademiaScreen(
                     singleLine = true,
                 )
                 Button(
-                    onClick = { configVm.guardarNombre(nombreAcademiaEdit) },
+                    onClick = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        configVm.guardarNombre(nombreAcademiaEdit) { ok ->
+                            if (ok) {
+                                viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            }
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = if (ok) nombreGuardadoMsg else nombreDenegadoMsg,
+                                    duration = SnackbarDuration.Short,
+                                )
+                            }
+                        }
+                    },
                     enabled = nombreAcademiaEdit.isNotBlank(),
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
@@ -702,8 +714,11 @@ fun AcademiaScreen(
                 }
             }
             items(staff, key = { it.id }) { m ->
+                val categoriasStaff by staffVm.categoriasFlowPara(m.id)
+                    .collectAsState(initial = emptyList())
                 StaffCard(
                     staff = m,
+                    categorias = categoriasStaff,
                     onEdit = {
                         dialogoStaff = false
                         staffFormInstance++
@@ -740,19 +755,40 @@ fun AcademiaScreen(
     }
 
     if (dialogoStaff || staffEditar != null) {
+        val categoriasDisponibles by staffVm.categoriasDisponibles.collectAsState()
+        val categoriasIniciales by produceState(
+            emptySet<String>(),
+            staffEditar?.id,
+            staffFormInstance,
+            dialogoStaff,
+        ) {
+            val s = staffEditar
+            value = if (s == null) emptySet() else staffVm.getCategoriasForStaffOnce(s.id).toSet()
+        }
         key(staffFormInstance) {
             StaffFormDialog(
                 staffExistente = staffEditar,
+                categoriasDisponibles = categoriasDisponibles,
+                initialCategoriasSeleccionadas = categoriasIniciales,
                 onDismiss = {
                     dialogoStaff = false
                     staffEditar = null
                 },
-                onGuardar = { nombre, rol, tel, email, fotoPath, quitarFoto ->
+                onGuardar = { nombre, rol, tel, email, fotoPath, quitarFoto, categorias ->
                     val editando = staffEditar
                     if (editando != null) {
-                        staffVm.actualizar(editando, nombre, rol, tel, email, fotoPath, quitarFoto)
+                        staffVm.actualizar(
+                            editando,
+                            nombre,
+                            rol,
+                            tel,
+                            email,
+                            fotoPath,
+                            quitarFoto,
+                            categorias,
+                        )
                     } else {
-                        staffVm.agregar(nombre, rol, tel, email, fotoPath)
+                        staffVm.agregar(nombre, rol, tel, email, fotoPath, categorias)
                     }
                     dialogoStaff = false
                     staffEditar = null
@@ -901,6 +937,7 @@ private fun SeccionModoDispositivo(
 @Composable
 private fun StaffCard(
     staff: Staff,
+    categorias: List<String>,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -958,6 +995,19 @@ private fun StaffCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                    Text(
+                        if (categorias.isNotEmpty()) {
+                            categorias.joinToString(", ")
+                        } else {
+                            stringResource(R.string.staff_categories_card_empty)
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (categorias.isNotEmpty()) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                    )
                     listOfNotNull(staff.telefono, staff.email).joinToString(" · ").takeIf { it.isNotEmpty() }
                         ?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
@@ -978,6 +1028,8 @@ private fun StaffCard(
 @Composable
 private fun StaffFormDialog(
     staffExistente: Staff?,
+    categoriasDisponibles: List<String>,
+    initialCategoriasSeleccionadas: Set<String>,
     onDismiss: () -> Unit,
     onGuardar: (
         nombre: String,
@@ -986,6 +1038,7 @@ private fun StaffFormDialog(
         email: String?,
         fotoRutaAbsoluta: String?,
         quitarFoto: Boolean,
+        categorias: Set<String>,
     ) -> Unit,
 ) {
     val context = LocalContext.current
@@ -997,6 +1050,11 @@ private fun StaffFormDialog(
     var fotoPath by remember { mutableStateOf<String?>(null) }
     var sinFoto by remember { mutableStateOf(false) }
     var cameraFile by remember { mutableStateOf<File?>(null) }
+    var seleccionCategorias by remember { mutableStateOf(setOf<String>()) }
+
+    LaunchedEffect(initialCategoriasSeleccionadas) {
+        seleccionCategorias = initialCategoriasSeleccionadas.toSet()
+    }
 
     LaunchedEffect(staffExistente) {
         val s = staffExistente
@@ -1279,6 +1337,45 @@ private fun StaffFormDialog(
                             label = { Text(stringResource(R.string.rol_coordinador)) },
                         )
                     }
+                    Text(
+                        stringResource(R.string.staff_categories_label),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        stringResource(R.string.staff_categories_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val chipScroll = rememberScrollState()
+                    if (categoriasDisponibles.isEmpty()) {
+                        Text(
+                            stringResource(R.string.staff_categories_none_created),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(chipScroll),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            categoriasDisponibles.forEach { cat ->
+                                FilterChip(
+                                    selected = cat in seleccionCategorias,
+                                    onClick = {
+                                        seleccionCategorias =
+                                            if (cat in seleccionCategorias) {
+                                                seleccionCategorias - cat
+                                            } else {
+                                                seleccionCategorias + cat
+                                            }
+                                    },
+                                    label = { Text(cat, maxLines = 1) },
+                                )
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = tel,
                         onValueChange = { tel = it },
@@ -1305,7 +1402,17 @@ private fun StaffFormDialog(
                     }
                     Spacer(Modifier.width(8.dp))
                     TextButton(
-                        onClick = { onGuardar(nombre, rol, tel, email, fotoPath, sinFoto) },
+                        onClick = {
+                            onGuardar(
+                                nombre,
+                                rol,
+                                tel,
+                                email,
+                                fotoPath,
+                                sinFoto,
+                                seleccionCategorias,
+                            )
+                        },
                         enabled = nombre.isNotBlank(),
                     ) {
                         Text(stringResource(R.string.save))

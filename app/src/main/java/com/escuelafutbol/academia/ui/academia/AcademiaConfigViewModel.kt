@@ -24,12 +24,19 @@ class AcademiaConfigViewModel(
     private val database: AcademiaDatabase,
 ) : AndroidViewModel(application) {
 
+    private suspend fun puedeMutarConfigAcademiaAdmin(): Boolean {
+        val actual = database.academiaConfigDao().getActual() ?: return true
+        if (actual.remoteAcademiaId == null) return true
+        return actual.academiaGestionNubePermitida
+    }
+
     val config = database.academiaConfigDao().observe()
         .map { it ?: AcademiaConfig.DEFAULT }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AcademiaConfig.DEFAULT)
 
     fun guardarColoresTema(primarioInput: String?, secundarioInput: String?) {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
             val pRaw = primarioInput?.trim()
@@ -49,6 +56,7 @@ class AcademiaConfigViewModel(
 
     fun restaurarColoresTemaPorDefecto() {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
             dao.upsert(
@@ -60,17 +68,34 @@ class AcademiaConfigViewModel(
         }
     }
 
-    fun guardarNombre(nombre: String) {
+    fun guardarNombre(nombre: String, onResult: ((Boolean) -> Unit)? = null) {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) {
+                onResult?.invoke(false)
+                return@launch
+            }
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
-            dao.upsert(actual.copy(nombreAcademia = nombre.trim()))
+            val trimmed = nombre.trim()
+            dao.upsert(actual.copy(nombreAcademia = trimmed))
+            val aid = actual.remoteAcademiaId
+            if (aid != null) {
+                val app = getApplication<Application>() as AcademiaApplication
+                app.supabaseClient?.let { client ->
+                    AcademiaCloudSync(client, database).pushAcademiaNombre(aid)
+                }
+            }
+            onResult?.invoke(true)
         }
     }
 
     /** Genera o renueva `codigo_club` en Supabase (dueño/admin vía RLS). */
     fun regenerarCodigoClub(onResult: (Result<String>) -> Unit = {}) {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) {
+                onResult(Result.failure(Exception("Sin permiso para administrar la academia.")))
+                return@launch
+            }
             val app = getApplication<Application>() as AcademiaApplication
             val client = app.supabaseClient ?: run {
                 onResult(Result.failure(Exception("Supabase no configurado.")))
@@ -86,6 +111,7 @@ class AcademiaConfigViewModel(
 
     fun guardarLogo(uri: Uri) {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val app = getApplication<Application>()
             val dest = File(app.filesDir, "academy_logo")
             withContext(Dispatchers.IO) {
@@ -103,6 +129,7 @@ class AcademiaConfigViewModel(
 
     fun quitarLogo() {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
             actual.logoRutaAbsoluta?.let { runCatching { File(it).delete() } }
@@ -112,6 +139,7 @@ class AcademiaConfigViewModel(
 
     fun guardarPortada(uri: Uri) {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val app = getApplication<Application>()
             val dest = File(app.filesDir, "academy_portada")
             withContext(Dispatchers.IO) {
@@ -129,6 +157,7 @@ class AcademiaConfigViewModel(
 
     fun quitarPortada() {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
             actual.portadaRutaAbsoluta?.let { runCatching { File(it).delete() } }
@@ -142,6 +171,7 @@ class AcademiaConfigViewModel(
         visibleDueno: Boolean,
     ) {
         viewModelScope.launch {
+            if (!puedeMutarConfigAcademiaAdmin()) return@launch
             val dao = database.academiaConfigDao()
             val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
             dao.upsert(

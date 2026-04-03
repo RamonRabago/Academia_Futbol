@@ -30,9 +30,13 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,7 +50,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -72,6 +79,7 @@ import com.escuelafutbol.academia.ui.players.PlayersScreen
 import com.escuelafutbol.academia.ui.players.PlayersViewModel
 import com.escuelafutbol.academia.ui.stats.StatsScreen
 import com.escuelafutbol.academia.ui.stats.StatsViewModel
+import com.escuelafutbol.academia.ui.sync.CloudSyncViewModel
 import com.escuelafutbol.academia.ui.auth.AcademiaBindingErrorScreen
 import com.escuelafutbol.academia.ui.auth.AcademiaBindingLoadingScreen
 import com.escuelafutbol.academia.ui.auth.AcademiaBindingUiState
@@ -80,7 +88,9 @@ import com.escuelafutbol.academia.ui.auth.AcademiaOnboardingScreen
 import com.escuelafutbol.academia.ui.auth.AcademiaPickAcademyScreen
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import com.escuelafutbol.academia.ui.auth.LoginScreen
+import com.escuelafutbol.academia.ui.auth.SetNewPasswordScreen
 import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
+import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
@@ -128,7 +138,15 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
             }
             return
         }
-        is SessionStatus.Authenticated -> { /* continúa abajo */ }
+        is SessionStatus.Authenticated -> {
+            val signedIn = authSession as SessionStatus.Authenticated
+            if (isPasswordRecoverySession(signedIn.session)) {
+                AcademiaFutbolTheme {
+                    SetNewPasswordScreen(authVm)
+                }
+                return
+            }
+        }
         else -> {
             AcademiaFutbolTheme {
                 LoginScreen(authVm)
@@ -234,7 +252,35 @@ private fun AcademiaMainScaffold(
         }
     }
 
+    val syncVm: CloudSyncViewModel = viewModel(factory = factory)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(Unit) {
+        syncVm.scheduleInitialDelayedSync()
+    }
+
+    LaunchedEffect(snackbarHostState) {
+        syncVm.userVisibleSyncIssues.collect { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long,
+            )
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                syncVm.onLifecycleResume()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             Surface(
                 tonalElevation = 1.dp,
@@ -389,7 +435,6 @@ private fun AcademiaMainScaffold(
                     configVm = cfg,
                     staffVm = stf,
                     onSignOut = { authVm.signOut() },
-                    viewModelFactory = factory,
                 )
             }
         }

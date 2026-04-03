@@ -1,0 +1,26 @@
+---
+description: Mantener CHANGELOG.md actualizado con cambios sustantivos del proyecto
+alwaysApply: true
+---
+
+# Documentación de cambios
+
+## Obligatorio
+
+Tras **cualquier cambio sustantivo** en este repositorio, actualiza **`CHANGELOG.md`** en la raíz (sección `[Sin publicar]` o la versión en curso), salvo que el usuario pida explícitamente no documentar.
+
+Incluye al menos una línea por tema cuando afecte a:
+
+- Comportamiento de la app (UI, permisos, auth, sync).
+- Esquema **Room** (migraciones, entidades).
+- Contrato con **Supabase** (tablas, RLS, DTOs, sync).
+- **ViewModels** o flujos que el usuario final perciba.
+
+## Estilo
+
+- Idioma: **español**, frases breves, bullets bajo `### Añadido`, `### Cambiado`, `### Corregido`, `### Eliminado` según encaje.
+- Nombres de archivos o clases solo cuando ayuden a ubicar el cambio; no copies diffs enteros.
+
+## Al cerrar una tarea
+
+Antes de dar por terminado el trabajo, comprobar: *¿hay entrada en `CHANGELOG.md` que lo cubra?* Si no, añadirla en el mismo turno.
