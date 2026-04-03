@@ -5,10 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Jugador
+import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
 import com.escuelafutbol.academia.util.anioDesdeMillisUtcDia
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -18,11 +20,14 @@ class PlayersViewModel(
     application: Application,
     private val jugadorDao: JugadorDao,
     private val filtroCategoria: StateFlow<String?>,
+    categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : AndroidViewModel(application) {
 
-    val jugadores = filtroCategoria
-        .flatMapLatest { cat ->
-            if (cat == null) jugadorDao.observeAll() else jugadorDao.observeByCategoria(cat)
+    val jugadores = combine(filtroCategoria, categoriasPermitidasOperacion) { cat, permitidas ->
+        Pair(cat, permitidas)
+    }
+        .flatMapLatest { (cat, permitidas) ->
+            jugadoresActivosFlow(jugadorDao, cat, permitidas)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

@@ -52,6 +52,8 @@
     <string name="category_all_hint">Incluye jugadores de cualquier categoría</string>
     <string name="pick_category_title">¿Con qué categoría trabajas?</string>
     <string name="pick_category_subtitle">Jugadores, asistencia y estadísticas se filtrarán. Con el icono de imagen asignas una portada por categoría: en Inicio se verá al elegir esa categoría (si no hay, se usa la portada de la academia).</string>
+    <string name="pick_category_coach_hint">Tu cuenta solo puede trabajar en las categorías que te asignó el club.</string>
+    <string name="pick_category_coach_empty">No tienes categorías asignadas. Pide al administrador que te vincule a categorías en la academia (tabla academia_miembro_categorias en Supabase).</string>
     <string name="category_row_work_hint">Toca el texto para entrar con esta categoría.</string>
     <string name="category_pick_cover_cd">Elegir portada de la categoría</string>
     <string name="category_clear_cover_cd">Quitar portada de la categoría</string>

@@ -55,6 +55,11 @@ data class AcademiaMiembroRow(
 )
 
 @Serializable
+data class AcademiaMiembroCategoriaLinkRow(
+    @SerialName("categoria_id") val categoriaId: String,
+)
+
+@Serializable
 
 data class AcademiaInsert(
 

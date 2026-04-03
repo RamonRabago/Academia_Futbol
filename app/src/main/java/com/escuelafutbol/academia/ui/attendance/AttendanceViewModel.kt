@@ -7,6 +7,7 @@ import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.ui.util.DayMillis
+import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.time.ZoneId
@@ -28,13 +29,18 @@ class AttendanceViewModel(
     private val jugadorDao: JugadorDao,
     private val asistenciaDao: AsistenciaDao,
     private val filtroCategoria: StateFlow<String?>,
+    categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : ViewModel() {
 
     val fechaDia = MutableStateFlow(DayMillis.today())
 
-    private val jugadoresFiltrados = filtroCategoria.flatMapLatest { cat ->
-        if (cat == null) jugadorDao.observeAll() else jugadorDao.observeByCategoria(cat)
-    }
+    private val jugadoresFiltrados = combine(
+        filtroCategoria,
+        categoriasPermitidasOperacion,
+    ) { cat, permitidas -> Pair(cat, permitidas) }
+        .flatMapLatest { (cat, permitidas) ->
+            jugadoresActivosFlow(jugadorDao, cat, permitidas)
+        }
 
     private val asistenciasDelDia = fechaDia.flatMapLatest { día ->
         asistenciaDao.observeForDay(día)

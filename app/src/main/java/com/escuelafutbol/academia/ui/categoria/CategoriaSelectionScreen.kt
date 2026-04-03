@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.escuelafutbol.academia.data.local.model.puedeEditarCategoriasEnSelector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,9 +64,18 @@ fun CategoriaSelectionScreen(
     sessionVm: SessionViewModel,
     pickerVm: CategoriaPickerViewModel,
     config: AcademiaConfig,
+    /** Si no es null, solo estas categorías (coach en nube). */
+    categoriasPermitidasCoach: Set<String>? = null,
 ) {
     val nombreAcademia = config.nombreAcademia
     val categoriasUi by pickerVm.categoriasUi.collectAsState()
+    val categoriasMostrar = remember(categoriasUi, categoriasPermitidasCoach) {
+        if (categoriasPermitidasCoach == null) categoriasUi
+        else categoriasUi.filter { it.nombre in categoriasPermitidasCoach }
+    }
+    val ocultarTodasLasCategorias =
+        categoriasPermitidasCoach != null && categoriasPermitidasCoach.isNotEmpty()
+    val puedeEditarCategoriasUi = config.puedeEditarCategoriasEnSelector()
     val ctx = LocalContext.current
     var dialogoNueva by remember { mutableStateOf(false) }
     var textoNueva by remember { mutableStateOf("") }
@@ -108,8 +118,10 @@ fun CategoriaSelectionScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { dialogoNueva = true }) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_category))
+            if (puedeEditarCategoriasUi) {
+                FloatingActionButton(onClick = { dialogoNueva = true }) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_category))
+                }
             }
         },
     ) { padding ->
@@ -145,36 +157,53 @@ fun CategoriaSelectionScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
                 )
+                if (ocultarTodasLasCategorias) {
+                    Text(
+                        stringResource(R.string.pick_category_coach_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+                if (categoriasPermitidasCoach != null && categoriasMostrar.isEmpty()) {
+                    Text(
+                        stringResource(R.string.pick_category_coach_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { sessionVm.confirmarSeleccion(null) },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            ),
-                        ) {
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        stringResource(R.string.category_all),
-                                        style = MaterialTheme.typography.titleMedium,
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        stringResource(R.string.category_all_hint),
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                },
-                            )
+                    if (!ocultarTodasLasCategorias) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { sessionVm.confirmarSeleccion(null) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                ),
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(
+                                            stringResource(R.string.category_all),
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            stringResource(R.string.category_all_hint),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
-                    items(categoriasUi, key = { it.nombre }) { cat ->
+                    items(categoriasMostrar, key = { it.nombre }) { cat ->
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier
@@ -215,27 +244,29 @@ fun CategoriaSelectionScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                                IconButton(
-                                    onClick = {
-                                        portadaPickNombre = cat.nombre
-                                        pickPortada.launch("image/*")
-                                    },
-                                ) {
-                                    Icon(
-                                        Icons.Default.Image,
-                                        contentDescription = stringResource(R.string.category_pick_cover_cd),
-                                    )
-                                }
-                                if (cat.portadaRutaAbsoluta != null ||
-                                    !cat.portadaUrlSupabase.isNullOrBlank()
-                                ) {
+                                if (puedeEditarCategoriasUi) {
                                     IconButton(
-                                        onClick = { pickerVm.quitarPortadaCategoria(cat.nombre) },
+                                        onClick = {
+                                            portadaPickNombre = cat.nombre
+                                            pickPortada.launch("image/*")
+                                        },
                                     ) {
                                         Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = stringResource(R.string.category_clear_cover_cd),
+                                            Icons.Default.Image,
+                                            contentDescription = stringResource(R.string.category_pick_cover_cd),
                                         )
+                                    }
+                                    if (cat.portadaRutaAbsoluta != null ||
+                                        !cat.portadaUrlSupabase.isNullOrBlank()
+                                    ) {
+                                        IconButton(
+                                            onClick = { pickerVm.quitarPortadaCategoria(cat.nombre) },
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = stringResource(R.string.category_clear_cover_cd),
+                                            )
+                                        }
                                     }
                                 }
                             }

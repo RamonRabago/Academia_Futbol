@@ -36,6 +36,13 @@ data class AcademiaConfig(
      * (dueño de `academias.user_id` o miembro con rol owner/admin). Sin nube o valor true = sin restricción local.
      */
     val academiaGestionNubePermitida: Boolean = true,
+    /**
+     * Rol del usuario en `academia_miembros` (minúsculas) o `owner` si es dueño de `academias.user_id`.
+     * Null si no hay sesión nube o aún no sincronizado.
+     */
+    val cloudMembresiaRol: String? = null,
+    /** JSON `["Cat A","Cat B"]` — categorías asignadas al miembro coach en Supabase. */
+    val cloudCoachCategoriasJson: String? = null,
 ) {
     companion object {
         val DEFAULT = AcademiaConfig(
@@ -55,6 +62,8 @@ data class AcademiaConfig(
             temaColorPrimarioHex = null,
             temaColorSecundarioHex = null,
             academiaGestionNubePermitida = true,
+            cloudMembresiaRol = null,
+            cloudCoachCategoriasJson = null,
         )
     }
 }

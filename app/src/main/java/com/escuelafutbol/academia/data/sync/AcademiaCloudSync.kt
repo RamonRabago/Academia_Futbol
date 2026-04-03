@@ -11,6 +11,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaCodigoClubPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
+import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaLinkRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaNombrePatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
@@ -37,6 +38,9 @@ import io.github.jan.supabase.postgrest.postgrest
 import java.io.File
 import java.util.Locale
 import kotlin.random.Random
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +54,14 @@ class AcademiaCloudSync(
     private val client: SupabaseClient,
     private val db: AcademiaDatabase,
 ) {
+
+    private val jsonCoachCategorias = Json { ignoreUnknownKeys = true }
+    private val coachCatNamesSerializer = ListSerializer(String.serializer())
+
+    private data class MembresiaCloudLocal(
+        val rol: String?,
+        val coachCategoriasJson: String?,
+    )
 
     suspend fun syncAll(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
@@ -96,6 +108,8 @@ class AcademiaCloudSync(
                     remoteAcademiaId = null,
                     codigoClubRemoto = null,
                     academiaGestionNubePermitida = true,
+                    cloudMembresiaRol = null,
+                    cloudCoachCategoriasJson = null,
                 ),
             )
             cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
@@ -217,6 +231,42 @@ class AcademiaCloudSync(
     }
 
     /** Dueño de la fila `academias` o miembro activo con rol owner/admin (PostgREST). */
+    private suspend fun resolveMembresiaCloud(uid: String, row: AcademiaRow): MembresiaCloudLocal {
+        if (row.userId == uid) {
+            return MembresiaCloudLocal(rol = "owner", coachCategoriasJson = null)
+        }
+        val member = client.from("academia_miembros").select {
+            filter {
+                eq("academia_id", row.id)
+                eq("user_id", uid)
+                eq("activo", true)
+            }
+        }.decodeList<AcademiaMiembroRow>().firstOrNull()
+            ?: return MembresiaCloudLocal(rol = null, coachCategoriasJson = null)
+        val r = member.rol.trim().lowercase(Locale.ROOT)
+        val coachJson = if (r == "coach") {
+            val links = client.from("academia_miembro_categorias").select {
+                filter { eq("miembro_id", member.id) }
+            }.decodeList<AcademiaMiembroCategoriaLinkRow>()
+            val ids = links.map { it.categoriaId }.distinct()
+            val nombres = mutableListOf<String>()
+            for (cid in ids) {
+                runCatching {
+                    client.from("categorias").select {
+                        filter {
+                            eq("id", cid)
+                            eq("academia_id", row.id)
+                        }
+                    }.decodeSingle<CategoriaRow>()
+                }.getOrNull()?.nombre?.let { nombres.add(it) }
+            }
+            jsonCoachCategorias.encodeToString(coachCatNamesSerializer, nombres.sorted())
+        } else {
+            null
+        }
+        return MembresiaCloudLocal(rol = r, coachCategoriasJson = coachJson)
+    }
+
     private suspend fun computeAcademiaGestionNubePermitida(uid: String, row: AcademiaRow): Boolean {
         if (row.userId == uid) return true
         val members = client.from("academia_miembros").select {
@@ -255,6 +305,7 @@ class AcademiaCloudSync(
         val uid = client.auth.currentUserOrNull()?.id?.toString()
         val puedeGestionar = uid?.let { computeAcademiaGestionNubePermitida(it, row) }
             ?: cfg.academiaGestionNubePermitida
+        val memb = uid?.let { resolveMembresiaCloud(it, row) }
         dao.upsert(
             cfg.copy(
                 remoteAcademiaId = row.id,
@@ -272,6 +323,8 @@ class AcademiaCloudSync(
                     ?: cfg.temaColorSecundarioHex,
                 codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
+                cloudMembresiaRol = memb?.rol ?: cfg.cloudMembresiaRol,
+                cloudCoachCategoriasJson = if (memb != null) memb.coachCategoriasJson else cfg.cloudCoachCategoriasJson,
             ),
         )
     }
@@ -683,6 +736,7 @@ class AcademiaCloudSync(
         val uid = client.auth.currentUserOrNull()?.id?.toString()
         val puedeGestionar = uid?.let { computeAcademiaGestionNubePermitida(it, row) }
             ?: cfg.academiaGestionNubePermitida
+        val memb = uid?.let { resolveMembresiaCloud(it, row) }
         dao.upsert(
             cfg.copy(
                 nombreAcademia = row.nombre.ifBlank { cfg.nombreAcademia },
@@ -694,6 +748,8 @@ class AcademiaCloudSync(
                     ?: cfg.temaColorSecundarioHex,
                 codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
+                cloudMembresiaRol = memb?.rol ?: cfg.cloudMembresiaRol,
+                cloudCoachCategoriasJson = if (memb != null) memb.coachCategoriasJson else cfg.cloudCoachCategoriasJson,
             ),
         )
     }

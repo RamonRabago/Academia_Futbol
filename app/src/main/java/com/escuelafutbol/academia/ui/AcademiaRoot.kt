@@ -92,6 +92,8 @@ import com.escuelafutbol.academia.ui.auth.SetNewPasswordScreen
 import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
 import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
+import java.util.Locale
 import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -195,16 +197,26 @@ private fun AcademiaRootAuthenticatedContent(
         AcademiaViewModelFactory(application, app.database, sessionVm)
     }
 
+    LaunchedEffect(
+        config.remoteAcademiaId,
+        config.cloudMembresiaRol,
+        config.cloudCoachCategoriasJson,
+    ) {
+        sessionVm.actualizarRestriccionOperacionCoach(config.cloudCoachCategoriasPermitidasOperacion())
+    }
+
     AcademiaFutbolTheme(
         colorPrimarioHex = config.temaColorPrimarioHex,
         colorSecundarioHex = config.temaColorSecundarioHex,
     ) {
         if (!enPrincipal) {
             val pickerVm: CategoriaPickerViewModel = viewModel(factory = factory)
+            val categoriasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
             CategoriaSelectionScreen(
                 sessionVm = sessionVm,
                 pickerVm = pickerVm,
                 config = config,
+                categoriasPermitidasCoach = categoriasCoach,
             )
         } else {
             AcademiaMainScaffold(
@@ -243,11 +255,20 @@ private fun AcademiaMainScaffold(
     val rolDispositivo = remember(config.rolDispositivo) {
         RolDispositivo.fromStored(config.rolDispositivo)
     }
-    val tabsVisibles = remember(rolDispositivo) {
+    val tabsVisibles = remember(rolDispositivo, config.cloudMembresiaRol, config.remoteAcademiaId) {
+        val cloudRol = config.cloudMembresiaRol?.lowercase(Locale.ROOT)
         Tab.entries.filter { tab ->
-            when (tab) {
-                Tab.Padres -> rolDispositivo.puedeVerPestañaPadres()
-                else -> true
+            when {
+                config.remoteAcademiaId != null && cloudRol == "parent" ->
+                    when (tab) {
+                        Tab.Inicio, Tab.Padres, Tab.Academia -> true
+                        else -> false
+                    }
+                else ->
+                    when (tab) {
+                        Tab.Padres -> rolDispositivo.puedeVerPestañaPadres()
+                        else -> true
+                    }
             }
         }
     }

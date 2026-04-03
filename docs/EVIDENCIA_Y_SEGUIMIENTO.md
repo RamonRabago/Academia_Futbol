@@ -144,6 +144,7 @@ escuela_futbol_api/
 
 | Fecha | Cambio |
 |-------|--------|
+| 2026-03-31 | **Fase 3 (parcial, app):** Room v21 `cloudMembresiaRol`, `cloudCoachCategoriasJson`; `AcademiaCloudSync.resolveMembresiaCloud`; `SessionViewModel.categoriasPermitidasOperacion`; `jugadoresActivosFlow` + `observeByCategorias` en jugadores/asistencia/stats; pestañas reducidas para membresía `parent`; selector de categoría restringido para coach. Requiere filas en `academia_miembro_categorias` para asignar categorías al entrenador. |
 | 2026-04-02 | **Fase 2 (app + SQL):** binding post-login (`AcademiaBindingViewModel`, pantallas en `ui/auth`), `AcademiaCloudSync.resolveAcademiaBinding` / `joinAcademiaByCode` / `createOwnedAcademia`, Room v18 `codigoClubRemoto`, sección código en `AcademiaScreen`, RPC `20260403150000_join_academia_rpc.sql`. Ejecutar el SQL en Supabase tras Fase 1. |
 | 2026-04-02 | **Fase 1 (SQL en repo):** `supabase/migrations/20260402140000_academia_miembros_rls.sql` — miembros, categorías por coach, padres↔jugador, `codigo_club`, funciones y RLS híbrido. **Aplicar manualmente en Supabase** antes de depender de cuentas staff/padre. |
 | 2026-04-02 | **Git:** repositorio inicializado en la raíz (`git init`), `.gitignore` ampliado (`.kotlin/`, keystores, `google-services.json`), primer commit `08bcaca` — *Commit inicial: app Academia Fútbol, docs y migraciones Supabase*. `local.properties` y `.gradle/` excluidos. **Remoto GitHub:** `origin` → `https://github.com/RamonRabago/Academia_Futbol.git`, rama `master` publicada con `push -u`. |

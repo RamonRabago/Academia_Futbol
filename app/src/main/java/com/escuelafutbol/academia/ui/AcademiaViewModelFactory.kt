@@ -56,11 +56,26 @@ class AcademiaViewModelFactory(
             ?: throw IllegalStateException("Se requiere SessionViewModel para ${modelClass.name}")
         return when {
             modelClass.isAssignableFrom(PlayersViewModel::class.java) ->
-                PlayersViewModel(application, database.jugadorDao(), s.filtroCategoria) as T
+                PlayersViewModel(
+                    application,
+                    database.jugadorDao(),
+                    s.filtroCategoria,
+                    s.categoriasPermitidasOperacion,
+                ) as T
             modelClass.isAssignableFrom(AttendanceViewModel::class.java) ->
-                AttendanceViewModel(database.jugadorDao(), database.asistenciaDao(), s.filtroCategoria) as T
+                AttendanceViewModel(
+                    database.jugadorDao(),
+                    database.asistenciaDao(),
+                    s.filtroCategoria,
+                    s.categoriasPermitidasOperacion,
+                ) as T
             modelClass.isAssignableFrom(StatsViewModel::class.java) ->
-                StatsViewModel(database.jugadorDao(), database.asistenciaDao(), s.filtroCategoria) as T
+                StatsViewModel(
+                    database.jugadorDao(),
+                    database.asistenciaDao(),
+                    s.filtroCategoria,
+                    s.categoriasPermitidasOperacion,
+                ) as T
             modelClass.isAssignableFrom(ParentsViewModel::class.java) ->
                 ParentsViewModel() as T
             else -> throw IllegalArgumentException("ViewModel desconocido: ${modelClass.name}")

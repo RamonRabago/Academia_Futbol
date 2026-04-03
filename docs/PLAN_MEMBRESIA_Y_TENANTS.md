@@ -154,7 +154,7 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 ## Fase 3 — Permisos en app (coordinar con servidor)
 
-**Estado (repo, 2026-03):** **en curso (parcial).** Hecho: restricción de la pestaña **Academia** a **owner/admin** (o dueño de `academias.user_id`) vía `academiaGestionNubePermitida` + Room v20; staff local con **categorías asignadas** (`staff_categorias`, `equipo_staff_categorias`, sync push/pull, formulario en `AcademiaScreen`). Pendiente respecto al plan original: **mapear rol de membresía** a todas las pestañas; **filtrar jugadores/asistencia/estadísticas** en la app según categorías del `coach` miembro; **UI de invitar/revocar** miembros en Supabase (no solo código club).
+**Estado (repo, 2026-03):** **en curso (parcial).** Hecho: restricción **Academia** a owner/admin (`academiaGestionNubePermitida`, Room v20); staff↔categorías (`staff_categorias` / `equipo_staff_categorias`); **Room v21** `cloudMembresiaRol` + `cloudCoachCategoriasJson` rellenados en merge/pull desde `academia_miembros` y `academia_miembro_categorias`; **coach** filtra jugadores/asistencia/estadísticas por categorías asignadas; **parent** en nube solo ve pestañas Inicio, Padres y Academia; selector de categoría adaptado al coach (sin «todas», sin alta categoría ni portadas si no admin). Pendiente: **invitar/revocar miembros** en app; mapeo explícito **coordinator** vs **admin** en UI si hace falta; comprobar límites en **Inicio** (atajos a rutas ocultas).
 
 **Entregables:**
 
