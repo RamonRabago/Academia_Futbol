@@ -217,11 +217,18 @@ private fun AcademiaRootAuthenticatedContent(
     val context = LocalContext.current
     val app = context.applicationContext as AcademiaApplication
     val application = context.applicationContext as Application
+    val scopedFactory = remember(application, authUserIdKey) {
+        AcademiaViewModelFactory(
+            application,
+            app.database,
+            sessionAuthUserId = authUserIdKey,
+        )
+    }
     val sessionVm: SessionViewModel = viewModel(
         key = authUserIdKey.ifEmpty { "session" },
-        factory = factory,
+        factory = scopedFactory,
     )
-    val configVm: AcademiaConfigViewModel = viewModel(factory = factory)
+    val configVm: AcademiaConfigViewModel = viewModel(factory = scopedFactory)
     val config by configVm.config.collectAsState()
     val enPrincipal by sessionVm.enMenuPrincipal.collectAsState()
     val filtroCategoria by sessionVm.filtroCategoria.collectAsState()
@@ -255,7 +262,7 @@ private fun AcademiaRootAuthenticatedContent(
             sessionVm = sessionVm,
             config = config,
             context = context,
-            factory = factory,
+            factory = scopedFactory,
             childFactory = childFactory,
             filtroCategoria = filtroCategoria,
             authVm = authVm,

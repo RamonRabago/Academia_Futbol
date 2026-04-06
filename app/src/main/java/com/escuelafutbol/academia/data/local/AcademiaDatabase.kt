@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
+import com.escuelafutbol.academia.data.local.dao.SessionCategoriaRecienteDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.dao.StaffCategoriaDao
 import com.escuelafutbol.academia.data.local.dao.StaffDao
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import com.escuelafutbol.academia.data.local.entity.SessionCategoriaReciente
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.entity.Jugador
@@ -27,10 +29,11 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         Asistencia::class,
         Categoria::class,
         AcademiaConfig::class,
+        SessionCategoriaReciente::class,
         Staff::class,
         StaffCategoria::class,
     ],
-    version = 22,
+    version = 25,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -38,6 +41,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
     abstract fun asistenciaDao(): AsistenciaDao
     abstract fun categoriaDao(): CategoriaDao
     abstract fun academiaConfigDao(): AcademiaConfigDao
+    abstract fun sessionCategoriaRecienteDao(): SessionCategoriaRecienteDao
     abstract fun staffDao(): StaffDao
 
     abstract fun staffCategoriaDao(): StaffCategoriaDao
@@ -273,6 +277,35 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_22_23 =
+            object : Migration(22, 23) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `session_categoria_reciente` (
+                          `userId` TEXT NOT NULL,
+                          `categoriaNombre` TEXT,
+                          PRIMARY KEY(`userId`)
+                        )
+                        """.trimIndent().replace("\n", " "),
+                    )
+                }
+            }
+
+        private val MIGRATION_23_24 =
+            object : Migration(23, 24) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE jugadores ADD COLUMN altaPorUserId TEXT")
+                }
+            }
+
+        private val MIGRATION_24_25 =
+            object : Migration(24, 25) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE jugadores ADD COLUMN altaPorNombre TEXT")
+                }
+            }
+
         private val MIGRATION_19_20 =
             object : Migration(19, 20) {
                 override fun migrate(db: SupportSQLiteDatabase) {
@@ -333,6 +366,9 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_19_20,
                     MIGRATION_20_21,
                     MIGRATION_21_22,
+                    MIGRATION_22_23,
+                    MIGRATION_23_24,
+                    MIGRATION_24_25,
                 )
                 .build()
     }

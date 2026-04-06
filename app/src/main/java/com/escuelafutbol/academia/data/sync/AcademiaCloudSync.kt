@@ -11,6 +11,8 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaLinkRow
+import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroListRow
+import com.escuelafutbol.academia.data.remote.dto.AcademiaPadresAlumnoInsert
 import com.escuelafutbol.academia.data.remote.dto.CoachCategoryNombreRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaNombrePatch
@@ -532,11 +534,80 @@ class AcademiaCloudSync(
 
     private suspend fun pushJugadores(academiaId: String) {
         val dao = db.jugadorDao()
-        for (j in dao.getJugadoresSinRemoto()) {
+        val pendientes = dao.getJugadoresSinRemoto()
+        if (pendientes.isEmpty()) return
+        val padresPorEmail = padresMiembrosEmailNormalizado(academiaId)
+        for (j in pendientes) {
             val row = client.from("jugadores").insert(j.toCloudInsert(academiaId)) {
                 select()
             }.decodeSingle<JugadorRow>()
             dao.update(j.copy(remoteId = row.id))
+            intentarAutoVinculoPadrePorEmailTutor(
+                academiaId = academiaId,
+                jugadorRemoteId = row.id,
+                emailTutor = j.emailTutor,
+                padresPorEmail = padresPorEmail,
+            )
+        }
+        // Jugadores ya subidos antes (p. ej. primer alumno) sin fila en academia_padres_alumnos: reintenta si el correo tutor coincide.
+        if (padresPorEmail.isNotEmpty()) {
+            for (j in dao.getAll()) {
+                if (!j.activo || j.remoteId.isNullOrBlank()) continue
+                val tutor = j.emailTutor?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() }
+                    ?: continue
+                if (tutor !in padresPorEmail) continue
+                intentarAutoVinculoPadrePorEmailTutor(
+                    academiaId = academiaId,
+                    jugadorRemoteId = j.remoteId!!,
+                    emailTutor = j.emailTutor,
+                    padresPorEmail = padresPorEmail,
+                )
+            }
+        }
+    }
+
+    /**
+     * Miembros activos con rol `parent` y correo conocido (RPC gestión).
+     * Clave = email en minúsculas; valor = user_id (puede haber varios user_id con el mismo email teórico; se enlazan todos).
+     */
+    private suspend fun padresMiembrosEmailNormalizado(academiaId: String): Map<String, List<String>> {
+        val params = buildJsonObject { put("p_academia_id", academiaId) }
+        val rows = runCatching {
+            client.postgrest.rpc("list_academia_miembros_for_manage", params)
+                .decodeList<AcademiaMiembroListRow>()
+        }.getOrNull().orEmpty()
+        val out = mutableMapOf<String, MutableList<String>>()
+        for (m in rows) {
+            if (!m.activo || !m.rol.equals("parent", ignoreCase = true)) continue
+            val mail = m.memberEmail?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() }
+                ?: continue
+            out.getOrPut(mail) { mutableListOf() }.add(m.userId)
+        }
+        return out
+    }
+
+    /**
+     * Tras insertar el jugador en la nube: si el correo del tutor coincide con el de un miembro `parent`,
+     * crea fila en [academia_padres_alumnos] (mismo criterio que el vínculo manual en gestión de miembros).
+     */
+    private suspend fun intentarAutoVinculoPadrePorEmailTutor(
+        academiaId: String,
+        jugadorRemoteId: String,
+        emailTutor: String?,
+        padresPorEmail: Map<String, List<String>>,
+    ) {
+        val tutor = emailTutor?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return
+        val userIds = padresPorEmail[tutor] ?: return
+        for (parentUserId in userIds) {
+            runCatching {
+                client.from("academia_padres_alumnos").insert(
+                    AcademiaPadresAlumnoInsert(
+                        academiaId = academiaId,
+                        parentUserId = parentUserId,
+                        jugadorId = jugadorRemoteId,
+                    ),
+                )
+            }
         }
     }
 

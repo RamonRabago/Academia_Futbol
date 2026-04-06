@@ -21,13 +21,18 @@ class AcademiaViewModelFactory(
     private val application: Application,
     private val database: AcademiaDatabase,
     private val session: SessionViewModel? = null,
+    /**
+     * UUID del usuario autenticado (Supabase Auth). Si no es vacío, [SessionViewModel] persiste la categoría
+     * elegida en Room por usuario.
+     */
+    private val sessionAuthUserId: String = "",
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         when {
             modelClass.isAssignableFrom(SessionViewModel::class.java) ->
-                return SessionViewModel() as T
+                return SessionViewModel(database, sessionAuthUserId) as T
             modelClass.isAssignableFrom(AuthViewModel::class.java) -> {
                 val app = application as AcademiaApplication
                 return AuthViewModel(application, app.supabaseClient) as T
@@ -62,6 +67,7 @@ class AcademiaViewModelFactory(
                 PlayersViewModel(
                     application,
                     database.jugadorDao(),
+                    database.academiaConfigDao(),
                     s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
                 ) as T

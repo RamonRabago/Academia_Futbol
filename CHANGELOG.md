@@ -6,7 +6,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Auditoría de alta de jugador:** columnas **`alta_por_user_id`** y **`alta_por_nombre`** en Supabase (`jugadores`); en Room **`altaPorUserId`** (v24) y **`altaPorNombre`** (v25). Al guardar, se persisten el UUID de Auth y la **etiqueta visible** (metadata o correo) vía `etiquetaVisibleDesdeAuthMetadata`. La ficha muestra **«Alta por: [nombre]»**. SQL `20260422130000_jugador_alta_por_user.sql` y `20260423120000_jugador_alta_por_nombre.sql`.
+- **RPC `alta_por_user_labels_for_academia`** + **UPDATE** de backfill en `20260424103000_alta_por_nombre_backfill_and_rpc.sql`: rellena `alta_por_nombre` en filas antiguas desde `auth.users`; la app llama al RPC cuando hay jugadores con UUID de alta pero sin nombre en Room (`PlayersViewModel.etiquetasAltaPorUid`, `AcademiaMiembrosRepository.etiquetasAltaPorUsuario`, DTO `AltaPorUserLabelRow`).
+
+- **Recordar categoría de trabajo:** tabla Room **`session_categoria_reciente`** (v23) guarda la última categoría del selector por **`userId`** de Auth; **`SessionViewModel`** restaura al entrar y persiste en **`confirmarSeleccion`**; al restringir coach, ajusta el nombre al conjunto permitido y actualiza disco. Se borra la fila del usuario en **`signOut`** (`AuthViewModel`).
+
 - **Identidad de sesión en la app:** `AuthViewModel.cuentaEtiquetaVisible()`; tercera línea en la barra superior (`AcademiaRoot`) con nombre o correo; saludo «Hola, …» en `InicioScreen` (`home_welcome_user`, `session_bar_account_label`).
+
+- **Pestaña Academia → Tu cuenta:** bloque con **nombre** y **correo** leídos de la sesión (`editableProfileSnapshot`); strings `auth_account_label_*`, `auth_account_no_profile_data`.
+
+- **`academia_padres_alumnos` al guardar jugadores:** la tabla no se rellenaba sola al dar de alta un alumno (solo existía el vínculo manual en «Hijos vinculados»). Tras subir jugadores a la nube, **`AcademiaCloudSync`** intenta **auto-vínculo** cuando el **correo del tutor** del jugador coincide (sin distinguir mayúsculas) con el **correo de un miembro activo con rol `parent`** (`list_academia_miembros_for_manage`). Al insertar cualquier jugador nuevo también se reintenta para alumnos ya remotos con el mismo criterio. Texto de ayuda actualizado en `members_parent_links_hint`.
 
 - **Fase 4 MVP (padres con cuenta):** `PadresAlumnosRepository` + DTOs `AcademiaPadresAlumnoRow`/`Insert`; diálogo **Hijos vinculados** en miembros con rol `parent` (alta/baja de vínculos); `ParentsViewModel` con base de datos y `ParentsScreen` según `esPadreMembresiaNube()` (hijos + asistencia reciente vs borrador para staff); `AcademiaRoot` pasa `config` a Padres.
 - **SQL** `20260418120000_parent_read_asistencias_historial.sql`: políticas `asistencias_parent_select` y `historial_parent_select` para tutores.
@@ -39,6 +48,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Foto en tarjeta de jugador:** tocar la **miniatura** abre un visor a pantalla completa (fondo oscuro, nombre, imagen a `Fit`, cerrar con botón, toque fuera o atrás); el resto de la fila sigue expandiendo/contrayendo detalles (`JugadorFotoAmpliadaDialog`, strings `player_photo_tap_to_expand`, `player_photo_viewer_close`).
+
+- **Lista de jugadores (`PlayersScreen`):** filas **compactas** (foto 40dp, nombre, categoría, fecha de alta y mensualidad resumida); al **tocar la fila** se **expande** con animación el bloque de detalles (CURP, documentos, contacto, notas, acciones). Solo **un jugador expandido** a la vez; chevron animado y tono de tarjeta algo más alto al expandir. Strings de accesibilidad `player_card_*`.
+
 - **Inicio — Punto 2:** atajos con lista única `ACCESOS_RAPIDOS_INICIO` (mismo orden de rutas que pestañas operativas); texto *Accesos rápidos* y tarjetas solo si hay al menos una ruta visible (`rutaPrincipalVisible` vía `accesoRapidoVisible`).
 
 - **`computeAcademiaGestionNubePermitida`** (`AcademiaCloudSync`): rol de membresía **`coordinator`** cuenta como gestión de academia en nube (coherente con RLS y opción A).
@@ -52,6 +65,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Enlace roto a academia**: al limpiar `remoteAcademiaId` se restablece `academiaGestionNubePermitida = true`.
 
 ### Corregido
+
+- **Snackbar «No se pudo actualizar los datos en la nube» en exceso:** el sync al **reanudar** la actividad podía ejecutarse cuando **`currentUserOrNull()`** aún era null o fallaba por red; ahora se **omite** el sync sin usuario y los fallos genéricos **no** muestran snackbar en el sync automático (siguen los avisos de onboarding / elegir academia). `CloudSyncViewModel.runAutoSyncLocked(mostrarErrorGenericoSiFalla)`.
 
 - **Alta de jugador + documento CURP (o acta):** los `ActivityResult` de **CURP y acta** se registran siempre en **`PlayersScreen`** (no dentro del formulario condicional); copia vía `copiarUriAdjuntoAJugador` + `lifecycleScope`. **`BackHandler`** del alta vive en la pantalla y se **desactiva** mientras hay selector/cámara/recorte/permiso (`awaitingExternalActivityResult`) para que el “atrás” al cerrar el gestor no cierre el registro. El formulario sigue siendo capa en `Box` sobre el `Scaffold`. **Visibilidad del alta y rutas de adjuntos** viven en **`PlayersViewModel`** (`StateFlow`) para que no se pierdan al recrear la actividad al volver del selector; la pantalla usa `abrirAltaJugador` / `cerrarAltaJugador` / `aplicarRuta*Copiada` y `guardarJugador` cierra el alta al terminar.
 

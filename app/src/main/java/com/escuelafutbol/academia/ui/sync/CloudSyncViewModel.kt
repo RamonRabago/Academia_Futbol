@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,20 +41,31 @@ class CloudSyncViewModel(
     fun scheduleInitialDelayedSync() {
         viewModelScope.launch {
             delay(INITIAL_DELAY_MS)
-            runAutoSyncLocked()
+            runAutoSyncLocked(mostrarErrorGenericoSiFalla = false)
         }
     }
 
     fun onLifecycleResume() {
         viewModelScope.launch {
-            runAutoSyncLocked()
+            runAutoSyncLocked(mostrarErrorGenericoSiFalla = false)
         }
     }
 
-    private suspend fun runAutoSyncLocked() {
+    /**
+     * @param mostrarErrorGenericoSiFalla Si es false (sync al abrir / al reanudar), no se muestra el snackbar
+     * genérico ante timeouts o fallos puntuales: evita spam cuando la sesión aún no está lista o la red va justa.
+     * Siguen mostrándose los avisos que requieren acción (onboarding / elegir academia).
+     */
+    private suspend fun runAutoSyncLocked(mostrarErrorGenericoSiFalla: Boolean) {
         syncMutex.withLock {
             val app = application as AcademiaApplication
             val client = app.supabaseClient ?: return@withLock
+
+            // Tras bloquear pantalla o volver de otra actividad, `currentUserOrNull()` puede ser null un instante:
+            // syncAll() fallaría con "No hay sesión..." y disparaba el snackbar genérico en bucle.
+            if (client.auth.currentUserOrNull()?.id == null) {
+                return@withLock
+            }
 
             val now = SystemClock.elapsedRealtime()
             if (lastSyncEndedElapsedMs != 0L && now - lastSyncEndedElapsedMs < MIN_INTERVAL_MS) {
@@ -74,9 +86,11 @@ class CloudSyncViewModel(
                         )
                     null -> { }
                     else ->
-                        _userVisibleSyncIssues.tryEmit(
-                            application.getString(R.string.sync_error_generic),
-                        )
+                        if (mostrarErrorGenericoSiFalla) {
+                            _userVisibleSyncIssues.tryEmit(
+                                application.getString(R.string.sync_error_generic),
+                            )
+                        }
                 }
             } finally {
                 lastSyncEndedElapsedMs = SystemClock.elapsedRealtime()

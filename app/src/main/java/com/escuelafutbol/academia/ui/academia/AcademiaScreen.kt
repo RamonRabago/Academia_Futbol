@@ -114,6 +114,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
+import io.github.jan.supabase.auth.status.SessionStatus
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
@@ -161,6 +162,8 @@ fun AcademiaScreen(
     val miembrosVm: AcademiaMiembrosViewModel = viewModel(factory = viewModelFactory)
     val authVm: AuthViewModel = viewModel(factory = viewModelFactory)
     val authBusy by authVm.busy.collectAsState()
+    val authSession by authVm.sessionStatus.collectAsState()
+    val cuentaPerfil = remember(authSession, authBusy) { authVm.editableProfileSnapshot() }
     var pantallaMiembros by remember { mutableStateOf(false) }
     var dialogoPerfil by remember { mutableStateOf(false) }
     var perfilNombre by remember { mutableStateOf("") }
@@ -819,6 +822,44 @@ fun AcademiaScreen(
                         stringResource(R.string.auth_account_section),
                         style = MaterialTheme.typography.titleSmall,
                     )
+                    if (authSession is SessionStatus.Authenticated && cuentaPerfil != null) {
+                        val nombreCompleto =
+                            "${cuentaPerfil.nombre} ${cuentaPerfil.apellido}".trim()
+                        if (nombreCompleto.isNotBlank()) {
+                            Text(
+                                stringResource(R.string.auth_account_label_name),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
+                            Text(
+                                nombreCompleto,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        if (!cuentaPerfil.email.isNullOrBlank()) {
+                            Text(
+                                stringResource(R.string.auth_account_label_email),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
+                            Text(
+                                cuentaPerfil.email.trim(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        if (nombreCompleto.isBlank() && cuentaPerfil.email.isNullOrBlank()) {
+                            Text(
+                                stringResource(R.string.auth_account_no_profile_data),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                    }
                     Text(
                         stringResource(R.string.auth_account_hint),
                         style = MaterialTheme.typography.bodySmall,

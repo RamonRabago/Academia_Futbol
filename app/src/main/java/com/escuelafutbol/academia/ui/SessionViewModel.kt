@@ -1,11 +1,23 @@
 package com.escuelafutbol.academia.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.data.local.AcademiaDatabase
+import com.escuelafutbol.academia.data.local.entity.SessionCategoriaReciente
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class SessionViewModel : ViewModel() {
+class SessionViewModel(
+    private val database: AcademiaDatabase,
+    /** UUID de `auth.users` del usuario en sesión; vacío = no persistir. */
+    private val authUserId: String,
+) : ViewModel() {
+
+    private val prefsDao get() = database.sessionCategoriaRecienteDao()
 
     private val _filtroCategoria = MutableStateFlow<String?>(null)
     val filtroCategoria: StateFlow<String?> = _filtroCategoria.asStateFlow()
@@ -25,9 +37,16 @@ class SessionViewModel : ViewModel() {
     val esperandoMembresiaNubeParaSelector: StateFlow<Boolean> =
         _esperandoMembresiaNubeParaSelector.asStateFlow()
 
-    fun actualizarRestriccionOperacionCoach(permitidas: Set<String>?, esperandoMembresiaNube: Boolean) {
-        _esperandoMembresiaNubeParaSelector.value = esperandoMembresiaNube
-        _categoriasPermitidasOperacion.value = permitidas
+    init {
+        if (authUserId.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val row = prefsDao.getForUser(authUserId)
+                val saved = row?.categoriaNombre?.trim()?.takeIf { it.isNotEmpty() }
+                withContext(Dispatchers.Main) {
+                    _filtroCategoria.value = saved
+                }
+            }
+        }
     }
 
     /** true = menú principal e Inicio visibles al abrir la app; categoría por defecto “todas”. */
@@ -46,9 +65,18 @@ class SessionViewModel : ViewModel() {
         _impideVolverASeleccionCategoria.value = impide
     }
 
+    private fun persistirCategoria(nombre: String?) {
+        if (authUserId.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsDao.upsert(SessionCategoriaReciente(userId = authUserId, categoriaNombre = nombre))
+        }
+    }
+
     fun confirmarSeleccion(categoria: String?) {
-        _filtroCategoria.value = categoria?.trim()?.takeIf { it.isNotEmpty() }
+        val v = categoria?.trim()?.takeIf { it.isNotEmpty() }
+        _filtroCategoria.value = v
         _enMenuPrincipal.value = true
+        persistirCategoria(v)
     }
 
     fun volverASeleccionCategoria() {
@@ -59,5 +87,29 @@ class SessionViewModel : ViewModel() {
     /** Cierra el selector de categoría y vuelve al menú sin cambiar la categoría activa (atrás del sistema / pestañas). */
     fun cerrarSelectorCategoria() {
         _enMenuPrincipal.value = true
+    }
+
+    fun actualizarRestriccionOperacionCoach(permitidas: Set<String>?, esperandoMembresiaNube: Boolean) {
+        _esperandoMembresiaNubeParaSelector.value = esperandoMembresiaNube
+        _categoriasPermitidasOperacion.value = permitidas
+        val permitidasNorm = permitidas
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.toSet()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return
+        val cur = _filtroCategoria.value?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val exact = permitidasNorm.firstOrNull { it.equals(cur, ignoreCase = true) }
+        when {
+            exact == null -> {
+                val replacement = permitidasNorm.minWith(String.CASE_INSENSITIVE_ORDER)
+                _filtroCategoria.value = replacement
+                persistirCategoria(replacement)
+            }
+            exact != cur -> {
+                _filtroCategoria.value = exact
+                persistirCategoria(exact)
+            }
+        }
     }
 }

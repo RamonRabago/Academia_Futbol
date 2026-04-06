@@ -3,9 +3,15 @@ package com.escuelafutbol.academia.ui.players
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.AcademiaApplication
+import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Jugador
+import com.escuelafutbol.academia.data.remote.AcademiaMiembrosRepository
+import com.escuelafutbol.academia.ui.util.etiquetaVisibleDesdeAuthMetadata
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
+import io.github.jan.supabase.auth.auth
+import kotlinx.serialization.json.JsonObject
 import com.escuelafutbol.academia.util.anioDesdeMillisUtcDia
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -19,14 +25,23 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayersViewModel(
     application: Application,
     private val jugadorDao: JugadorDao,
+    private val academiaConfigDao: AcademiaConfigDao,
     private val filtroCategoria: StateFlow<String?>,
     categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : AndroidViewModel(application) {
+
+    private val jugadoresFlow = combine(filtroCategoria, categoriasPermitidasOperacion) { cat, permitidas ->
+        Pair(cat, permitidas)
+    }
+        .flatMapLatest { (cat, permitidas) ->
+            jugadoresActivosFlow(jugadorDao, cat, permitidas)
+        }
 
     /**
      * Estado del formulario de alta en el ViewModel (no en `rememberSaveable`) para que sobreviva
@@ -78,13 +93,39 @@ class PlayersViewModel(
         }
     }
 
-    val jugadores = combine(filtroCategoria, categoriasPermitidasOperacion) { cat, permitidas ->
-        Pair(cat, permitidas)
-    }
-        .flatMapLatest { (cat, permitidas) ->
-            jugadoresActivosFlow(jugadorDao, cat, permitidas)
-        }
+    val jugadores = jugadoresFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _etiquetasAltaPorUid = MutableStateFlow<Map<String, String>>(emptyMap())
+    val etiquetasAltaPorUid: StateFlow<Map<String, String>> = _etiquetasAltaPorUid.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            jugadoresFlow.collect { lista ->
+                refreshEtiquetasAltaDesdeNube(lista)
+            }
+        }
+    }
+
+    private suspend fun refreshEtiquetasAltaDesdeNube(lista: List<Jugador>) {
+        if (lista.none { j ->
+                !j.altaPorUserId.isNullOrBlank() && j.altaPorNombre.isNullOrBlank()
+            }
+        ) {
+            _etiquetasAltaPorUid.value = emptyMap()
+            return
+        }
+        val map = withContext(Dispatchers.IO) {
+            val app = getApplication<AcademiaApplication>()
+            val client = app.supabaseClient ?: return@withContext emptyMap()
+            val academiaId = academiaConfigDao.getActual()?.remoteAcademiaId
+                ?: return@withContext emptyMap()
+            runCatching {
+                AcademiaMiembrosRepository(client, app.database).etiquetasAltaPorUsuario(academiaId)
+            }.getOrNull().orEmpty()
+        }
+        _etiquetasAltaPorUid.value = map
+    }
 
     fun historialFlow(jugadorId: Long) = jugadorDao.observeHistorial(jugadorId)
 
@@ -106,6 +147,14 @@ class PlayersViewModel(
             val ahora = System.currentTimeMillis()
             val anio = fechaNacimientoMillis?.let { anioDesdeMillisUtcDia(it) }
             val cuota = if (becado) null else mensualidad
+            val user = getApplication<AcademiaApplication>().supabaseClient
+                ?.auth
+                ?.currentUserOrNull()
+            val altaPor = user?.id?.toString()?.takeIf { it.isNotBlank() }
+            val altaPorNombre = etiquetaVisibleDesdeAuthMetadata(
+                user?.userMetadata as? JsonObject,
+                user?.email,
+            )
             jugadorDao.insertJugadorConAlta(
                 Jugador(
                     nombre = nombre.trim(),
@@ -124,6 +173,8 @@ class PlayersViewModel(
                     fechaBajaMillis = null,
                     mensualidad = cuota,
                     becado = becado,
+                    altaPorUserId = altaPor,
+                    altaPorNombre = altaPorNombre,
                 ),
             )
             cerrarAltaJugador()

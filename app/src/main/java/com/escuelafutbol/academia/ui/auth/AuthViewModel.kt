@@ -209,6 +209,7 @@ class AuthViewModel(
     fun signOut() {
         val c = client ?: return
         viewModelScope.launch {
+            val uid = c.auth.currentUserOrNull()?.id?.toString()
             try {
                 c.auth.signOut()
             } catch (_: Throwable) {
@@ -216,6 +217,9 @@ class AuthViewModel(
             withContext(Dispatchers.IO) {
                 runCatching {
                     val app = getApplication<AcademiaApplication>()
+                    if (!uid.isNullOrBlank()) {
+                        app.database.sessionCategoriaRecienteDao().deleteForUser(uid)
+                    }
                     val dao = app.database.academiaConfigDao()
                     val cfg = dao.getActual() ?: return@runCatching
                     dao.upsert(

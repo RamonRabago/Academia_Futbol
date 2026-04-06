@@ -11,8 +11,16 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +37,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
@@ -48,6 +58,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -72,13 +83,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.yalantis.ucrop.UCrop
@@ -196,6 +216,7 @@ fun PlayersScreen(
 ) {
     val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo()
     val jugadores by viewModel.jugadores.collectAsState()
+    val etiquetasAltaPorUid by viewModel.etiquetasAltaPorUid.collectAsState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -206,12 +227,19 @@ fun PlayersScreen(
 
     var jugadorHistorial by remember { mutableStateOf<Jugador?>(null) }
     var jugadorBaja by remember { mutableStateOf<Jugador?>(null) }
+    var expandedJugadorId by remember { mutableStateOf<Long?>(null) }
+    var jugadorFotoAmpliada by remember { mutableStateOf<Jugador?>(null) }
 
     /** Evita que un "atrás" del sistema al cerrar el selector cierre el alta. */
     var awaitingExternalActivityResult by remember { mutableStateOf(false) }
 
     LaunchedEffect(mostrarAlta) {
         sessionVm.setImpideVolverASeleccionCategoria(mostrarAlta)
+    }
+
+    LaunchedEffect(jugadores) {
+        val id = expandedJugadorId ?: return@LaunchedEffect
+        if (jugadores.none { it.id == id }) expandedJugadorId = null
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -286,8 +314,8 @@ fun PlayersScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (!puedeVerMensualidad) {
                     item(key = "aviso_mensualidad") {
@@ -298,7 +326,13 @@ fun PlayersScreen(
                 items(jugadores, key = { it.id }) { j ->
                     JugadorCard(
                         jugador = j,
+                        expanded = expandedJugadorId == j.id,
+                        onExpandToggle = {
+                            expandedJugadorId = if (expandedJugadorId == j.id) null else j.id
+                        },
                         puedeVerMensualidad = puedeVerMensualidad,
+                        etiquetasAltaPorUid = etiquetasAltaPorUid,
+                        onAmpliarFoto = { jugadorFotoAmpliada = j },
                         onHistorial = { jugadorHistorial = j },
                         onDarBaja = { jugadorBaja = j },
                     )
@@ -361,6 +395,12 @@ fun PlayersScreen(
                         stringResource(R.string.player_joined_date, formatearFechaDiaLocal(j.fechaAltaMillis)),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    JugadorAltaPorTexto(
+                        j,
+                        MaterialTheme.typography.bodyMedium,
+                        Modifier.padding(bottom = 8.dp),
+                        etiquetasAltaPorUid = etiquetasAltaPorUid,
                     )
                     if (puedeVerMensualidad) {
                         when {
@@ -436,42 +476,170 @@ fun PlayersScreen(
             },
         )
     }
+
+    jugadorFotoAmpliada?.let { amp ->
+        val fotoModel = amp.coilFotoModel(context)
+        if (fotoModel != null) {
+            JugadorFotoAmpliadaDialog(
+                nombreJugador = amp.nombre,
+                model = fotoModel,
+                onDismiss = { jugadorFotoAmpliada = null },
+            )
+        } else {
+            LaunchedEffect(amp.id) { jugadorFotoAmpliada = null }
+        }
     }
+    }
+}
+
+@Composable
+private fun JugadorFotoAmpliadaDialog(
+    nombreJugador: String,
+    model: Any,
+    onDismiss: () -> Unit,
+) {
+    val maxH = LocalConfiguration.current.screenHeightDp.dp * 0.78f
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.88f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(0.92f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    nombreJugador,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White.copy(alpha = 0.95f),
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                val fotoInteraction = remember { MutableInteractionSource() }
+                AsyncImage(
+                    model = model,
+                    contentDescription = stringResource(R.string.player_photo_cd),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxH)
+                        .clip(MaterialTheme.shapes.large)
+                        .clickable(
+                            interactionSource = fotoInteraction,
+                            indication = null,
+                        ) { },
+                    contentScale = ContentScale.Fit,
+                )
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.padding(top = 16.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.player_photo_viewer_close),
+                        color = Color.White.copy(alpha = 0.9f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun JugadorAltaPorTexto(
+    jugador: Jugador,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    etiquetasAltaPorUid: Map<String, String> = emptyMap(),
+) {
+    val nombreAlta = jugador.altaPorNombre?.trim()?.takeIf { it.isNotEmpty() }
+    val uidKey = jugador.altaPorUserId?.lowercase()
+    val etiquetaNube = uidKey?.let { etiquetasAltaPorUid[it] }?.trim()?.takeIf { it.isNotEmpty() }
+    val linea = when {
+        nombreAlta != null ->
+            stringResource(R.string.player_registered_by_name, nombreAlta)
+        etiquetaNube != null ->
+            stringResource(R.string.player_registered_by_name, etiquetaNube)
+        jugador.altaPorUserId != null ->
+            stringResource(R.string.player_registered_by_unknown)
+        else -> null
+    } ?: return
+    Text(
+        linea,
+        style = style,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 @Composable
 private fun JugadorCard(
     jugador: Jugador,
+    expanded: Boolean,
+    onExpandToggle: () -> Unit,
     puedeVerMensualidad: Boolean,
+    etiquetasAltaPorUid: Map<String, String>,
+    onAmpliarFoto: () -> Unit,
     onHistorial: () -> Unit,
     onDarBaja: () -> Unit,
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(220),
+        label = "jugador_chevron",
+    )
+    val headerCd = stringResource(R.string.player_card_header_cd, jugador.nombre)
+    val stateDesc = stringResource(
+        if (expanded) R.string.player_card_state_expanded else R.string.player_card_state_collapsed,
+    )
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (expanded) 2.dp else 0.dp,
+            pressedElevation = 0.dp,
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (expanded) {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            },
+        ),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 val fotoModel = jugador.coilFotoModel(context)
+                val avatarSize = 40.dp
                 if (fotoModel != null) {
                     AsyncImage(
                         model = fotoModel,
-                        contentDescription = stringResource(R.string.player_photo_cd),
+                        contentDescription = stringResource(R.string.player_photo_tap_to_expand),
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape),
+                            .size(avatarSize)
+                            .clip(CircleShape)
+                            .clickable(onClick = onAmpliarFoto),
                         contentScale = ContentScale.Crop,
                     )
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(avatarSize)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center,
@@ -479,119 +647,234 @@ private fun JugadorCard(
                         Icon(
                             Icons.Default.Image,
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                Column(Modifier.weight(1f)) {
-                    Text(jugador.nombre, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        jugador.categoria,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        stringResource(R.string.player_joined_date, formatearFechaDiaLocal(jugador.fechaAltaMillis)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (puedeVerMensualidad) {
-                        when {
-                            jugador.becado -> Text(
-                                stringResource(R.string.player_scholarship),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                            )
-                            jugador.mensualidad != null && jugador.mensualidad > 0 -> Text(
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = headerCd
+                            stateDescription = stateDesc
+                        }
+                        .clickable(onClick = onExpandToggle),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            jugador.nombre,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            jugador.categoria,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (!expanded) {
+                            Text(
                                 stringResource(
-                                    R.string.player_monthly_fee,
-                                    formatImporte(jugador.mensualidad),
+                                    R.string.player_joined_date,
+                                    formatearFechaDiaLocal(jugador.fechaAltaMillis),
                                 ),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                            )
-                            else -> Text(
-                                stringResource(R.string.player_fee_undefined),
-                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
-                }
-            }
-            jugador.fechaNacimientoMillis?.let { ms ->
-                Text(
-                    stringResource(R.string.birth_date) + ": " + formatearFechaCalendarioUtc(ms),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            } ?: jugador.anioNacimiento?.let { anio ->
-                Text(
-                    stringResource(R.string.birth_year_only, anio),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            jugador.curp?.takeIf { it.isNotBlank() }?.let { c ->
-                Text(
-                    stringResource(R.string.player_curp) + ": $c",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            val curpDocLocal = jugador.curpDocumentoRutaAbsoluta?.let { File(it).exists() } == true
-            val curpDocUrl = jugador.curpDocumentoUrlSupabase?.takeIf { it.isNotBlank() }
-            if (curpDocLocal || curpDocUrl != null) {
-                Text(
-                    stringResource(R.string.player_curp_doc_attached),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                curpDocUrl?.let { url ->
-                    TextButton(
-                        onClick = { uriHandler.openUri(url) },
-                        modifier = Modifier.padding(top = 0.dp),
-                    ) {
-                        Text(stringResource(R.string.player_curp_doc_open))
+                    if (puedeVerMensualidad && !expanded) {
+                        Column(
+                            modifier = Modifier.widthIn(max = 88.dp),
+                            horizontalAlignment = Alignment.End,
+                        ) {
+                            when {
+                                jugador.becado -> Text(
+                                    stringResource(R.string.player_scholarship),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                jugador.mensualidad != null && jugador.mensualidad > 0 -> Text(
+                                    formatImporte(jugador.mensualidad),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                else -> Text(
+                                    stringResource(R.string.player_fee_undefined),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = stringResource(R.string.player_card_expand_icon_cd),
+                        modifier = Modifier
+                            .size(22.dp)
+                            .rotate(chevronRotation),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-            val actaLocal = jugador.actaNacimientoRutaAbsoluta?.let { File(it).exists() } == true
-            val actaUrl = jugador.actaNacimientoUrlSupabase?.takeIf { it.isNotBlank() }
-            if (actaLocal || actaUrl != null) {
-                Text(
-                    stringResource(R.string.player_birth_cert_attached),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                actaUrl?.let { url ->
-                    TextButton(
-                        onClick = { uriHandler.openUri(url) },
-                        modifier = Modifier.padding(top = 0.dp),
-                    ) {
-                        Text(stringResource(R.string.player_birth_cert_open))
-                    }
-                }
-            }
-            val contacto = listOfNotNull(jugador.telefonoTutor, jugador.emailTutor).joinToString(" · ")
-            if (contacto.isNotEmpty()) {
-                Text(contacto, style = MaterialTheme.typography.bodySmall)
-            }
-            jugador.notas?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(
+                    animationSpec = tween(240),
+                    expandFrom = Alignment.Top,
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = shrinkVertically(
+                    animationSpec = tween(200),
+                    shrinkTowards = Alignment.Top,
+                ) + fadeOut(animationSpec = tween(160)),
             ) {
-                TextButton(onClick = onHistorial, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.player_history))
-                }
-                TextButton(onClick = onDarBaja, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.player_discharge))
+                Column(Modifier.fillMaxWidth()) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                    )
+                    Column(
+                        Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            stringResource(
+                                R.string.player_joined_date,
+                                formatearFechaDiaLocal(jugador.fechaAltaMillis),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        JugadorAltaPorTexto(
+                            jugador,
+                            MaterialTheme.typography.bodySmall,
+                            Modifier.padding(top = 4.dp),
+                            etiquetasAltaPorUid = etiquetasAltaPorUid,
+                        )
+                        if (puedeVerMensualidad) {
+                            when {
+                                jugador.becado -> Text(
+                                    stringResource(R.string.player_scholarship),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.padding(top = 6.dp),
+                                )
+                                jugador.mensualidad != null && jugador.mensualidad > 0 -> Text(
+                                    stringResource(
+                                        R.string.player_monthly_fee,
+                                        formatImporte(jugador.mensualidad),
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.padding(top = 6.dp),
+                                )
+                                else -> Text(
+                                    stringResource(R.string.player_fee_undefined),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 6.dp),
+                                )
+                            }
+                        }
+                        jugador.fechaNacimientoMillis?.let { ms ->
+                            Text(
+                                stringResource(R.string.birth_date) + ": " + formatearFechaCalendarioUtc(ms),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        } ?: jugador.anioNacimiento?.let { anio ->
+                            Text(
+                                stringResource(R.string.birth_year_only, anio),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        jugador.curp?.takeIf { it.isNotBlank() }?.let { c ->
+                            Text(
+                                stringResource(R.string.player_curp) + ": $c",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        val curpDocLocal = jugador.curpDocumentoRutaAbsoluta?.let { File(it).exists() } == true
+                        val curpDocUrl = jugador.curpDocumentoUrlSupabase?.takeIf { it.isNotBlank() }
+                        if (curpDocLocal || curpDocUrl != null) {
+                            Text(
+                                stringResource(R.string.player_curp_doc_attached),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            curpDocUrl?.let { url ->
+                                TextButton(
+                                    onClick = { uriHandler.openUri(url) },
+                                    modifier = Modifier.padding(top = 0.dp),
+                                ) {
+                                    Text(stringResource(R.string.player_curp_doc_open))
+                                }
+                            }
+                        }
+                        val actaLocal = jugador.actaNacimientoRutaAbsoluta?.let { File(it).exists() } == true
+                        val actaUrl = jugador.actaNacimientoUrlSupabase?.takeIf { it.isNotBlank() }
+                        if (actaLocal || actaUrl != null) {
+                            Text(
+                                stringResource(R.string.player_birth_cert_attached),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            actaUrl?.let { url ->
+                                TextButton(
+                                    onClick = { uriHandler.openUri(url) },
+                                    modifier = Modifier.padding(top = 0.dp),
+                                ) {
+                                    Text(stringResource(R.string.player_birth_cert_open))
+                                }
+                            }
+                        }
+                        val contacto = listOfNotNull(jugador.telefonoTutor, jugador.emailTutor)
+                            .joinToString(" · ")
+                        if (contacto.isNotEmpty()) {
+                            Text(
+                                contacto,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        jugador.notas?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            TextButton(onClick = onHistorial, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.player_history))
+                            }
+                            TextButton(onClick = onDarBaja, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.player_discharge))
+                            }
+                        }
+                    }
                 }
             }
         }

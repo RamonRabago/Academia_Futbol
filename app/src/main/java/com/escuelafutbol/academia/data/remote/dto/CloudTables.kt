@@ -60,6 +60,13 @@ data class AcademiaMiembroRow(
     val activo: Boolean = true,
 )
 
+/** Respuesta de RPC `alta_por_user_labels_for_academia`. */
+@Serializable
+data class AltaPorUserLabelRow(
+    @SerialName("user_id") val userId: String,
+    @SerialName("display_label") val displayLabel: String,
+)
+
 /** Respuesta de RPC `list_academia_miembros_for_manage` (gestión de miembros con identidad legible). */
 @Serializable
 data class AcademiaMiembroListRow(
@@ -211,6 +218,10 @@ data class JugadorRow(
 
     val becado: Boolean = false,
 
+    @SerialName("alta_por_user_id") val altaPorUserId: String? = null,
+
+    @SerialName("alta_por_nombre") val altaPorNombre: String? = null,
+
 )
 
 
@@ -253,6 +264,10 @@ data class JugadorInsert(
 
     val becado: Boolean = false,
 
+    @SerialName("alta_por_user_id") val altaPorUserId: String? = null,
+
+    @SerialName("alta_por_nombre") val altaPorNombre: String? = null,
+
 )
 
 
@@ -292,6 +307,10 @@ fun Jugador.toCloudInsert(academiaId: String) = JugadorInsert(
     mensualidad = mensualidad,
 
     becado = becado,
+
+    altaPorUserId = altaPorUserId,
+
+    altaPorNombre = altaPorNombre,
 
 )
 
@@ -342,6 +361,10 @@ fun JugadorRow.toLocalMerged(existing: Jugador?) = Jugador(
     becado = becado,
 
     remoteId = id,
+
+    altaPorUserId = altaPorUserId?.takeIf { it.isNotBlank() } ?: existing?.altaPorUserId,
+
+    altaPorNombre = altaPorNombre?.takeIf { it.isNotBlank() } ?: existing?.altaPorNombre,
 
 )
 

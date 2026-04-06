@@ -39,4 +39,8 @@ data class Jugador(
     val becado: Boolean = false,
     /** UUID en Supabase tras sincronizar. */
     val remoteId: String? = null,
+    /** UUID del usuario Auth que dio de alta (local y nube); null en datos antiguos o sin sesión. */
+    val altaPorUserId: String? = null,
+    /** Nombre o correo visible de quien dio de alta (copiado al guardar desde metadata de sesión). */
+    val altaPorNombre: String? = null,
 )

@@ -132,6 +132,8 @@
     <string name="player_photo_section">Foto del jugador</string>
     <string name="player_photo_hint">Toca la imagen o elige una opción. En el recorte: arrastra las esquinas o los lados del marco para ajustar el área, mueve el recuadro tocando dentro, o pellizca para zoom. La vista circular ayuda a enmarcar la cara.</string>
     <string name="player_photo_cd">Foto del jugador</string>
+    <string name="player_photo_tap_to_expand">Toca para ver la foto en grande</string>
+    <string name="player_photo_viewer_close">Cerrar</string>
     <string name="player_photo_crop_title">Ajustar foto del jugador</string>
     <string name="player_curp">CURP</string>
     <string name="player_curp_hint">Puedes escribirla (18 caracteres) y/o adjuntar PDF o imagen.</string>
@@ -147,7 +149,13 @@
     <string name="player_birth_cert_attached">Acta adjunta</string>
     <string name="player_birth_cert_remove">Quitar acta</string>
     <string name="player_birth_cert_open">Ver acta en línea</string>
+    <string name="player_card_header_cd">Jugador %1$s. Toca para mostrar u ocultar detalles.</string>
+    <string name="player_card_state_expanded">Detalles visibles</string>
+    <string name="player_card_state_collapsed">Detalles ocultos</string>
+    <string name="player_card_expand_icon_cd">Expandir o contraer detalles</string>
     <string name="player_joined_date">Fecha de alta: %1$s</string>
+    <string name="player_registered_by_name">Alta por: %1$s</string>
+    <string name="player_registered_by_unknown">Alta por: usuario no identificado en el registro</string>
     <string name="player_history">Historial</string>
     <string name="player_discharge">Dar de baja</string>
     <string name="player_history_title">Historial — %1$s</string>
@@ -243,6 +251,9 @@
     <string name="auth_sign_out">Cerrar sesión</string>
     <string name="auth_account_section">Tu cuenta</string>
     <string name="auth_account_hint">Tu sesión está sincronizada de forma segura. Si cierras sesión, tendrás que volver a identificarte.</string>
+    <string name="auth_account_label_name">Nombre</string>
+    <string name="auth_account_label_email">Correo</string>
+    <string name="auth_account_no_profile_data">Completa tu nombre en «Editar perfil» o revisa que el correo de la cuenta sea el correcto.</string>
     <string name="auth_edit_profile">Editar perfil</string>
     <string name="auth_edit_profile_title">Tu perfil</string>
     <string name="auth_edit_profile_email_hint">Correo de la cuenta (no editable aquí)</string>
@@ -318,7 +329,7 @@
     <string name="pick_academy_subtitle">Toca la academia con la que quieres trabajar en este dispositivo. Puedes cambiar de sesión cerrando cuenta y volviendo a entrar si hace falta.</string>
     <string name="members_parent_links">Hijos vinculados</string>
     <string name="members_parent_links_title">Vínculo tutor ↔ alumno</string>
-    <string name="members_parent_links_hint">El staff crea el vínculo: el padre o tutor solo verá en la app a estos jugadores. Necesitas sincronizar jugadores en este dispositivo para elegir nombres.</string>
+    <string name="members_parent_links_hint">El staff crea el vínculo: el padre o tutor solo verá en la app a estos jugadores. Si el correo del tutor del jugador coincide con el de la cuenta del miembro «padre», la sincronización puede crear el vínculo automáticamente. También puedes enlazar aquí manualmente; necesitas jugadores ya sincronizados en este dispositivo para ver los nombres.</string>
     <string name="members_parent_links_empty">Aún no hay alumnos vinculados a esta cuenta.</string>
     <string name="members_parent_links_add">Añadir alumno</string>
     <string name="members_parent_links_no_players_local">No hay jugadores con ID de nube en este dispositivo. Sincroniza en Academia o usa un equipo donde ya estén cargados los alumnos.</string>

@@ -5,6 +5,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroActivoPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaLinkRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRolPatch
+import com.escuelafutbol.academia.data.remote.dto.AltaPorUserLabelRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroListRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaRow
@@ -21,6 +22,19 @@ class AcademiaMiembrosRepository(
     private val client: SupabaseClient,
     private val db: AcademiaDatabase,
 ) {
+
+    /**
+     * Etiquetas legibles (metadata Auth / correo) para cada [Jugador.altaPorUserId] usado en la academia.
+     * Útil cuando [Jugador.altaPorNombre] quedó vacío en datos antiguos.
+     */
+    suspend fun etiquetasAltaPorUsuario(academiaId: String): Map<String, String> = withContext(Dispatchers.IO) {
+        val params = buildJsonObject { put("p_academia_id", academiaId) }
+        runCatching {
+            client.postgrest.rpc("alta_por_user_labels_for_academia", params)
+                .decodeList<AltaPorUserLabelRow>()
+                .associate { row -> row.userId.lowercase() to row.displayLabel }
+        }.getOrElse { emptyMap() }
+    }
 
     suspend fun getAcademiaOwnerUserId(academiaId: String): String? = withContext(Dispatchers.IO) {
         runCatching {
