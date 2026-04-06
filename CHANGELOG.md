@@ -6,6 +6,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Identidad de sesión en la app:** `AuthViewModel.cuentaEtiquetaVisible()`; tercera línea en la barra superior (`AcademiaRoot`) con nombre o correo; saludo «Hola, …» en `InicioScreen` (`home_welcome_user`, `session_bar_account_label`).
+
 - **Fase 4 MVP (padres con cuenta):** `PadresAlumnosRepository` + DTOs `AcademiaPadresAlumnoRow`/`Insert`; diálogo **Hijos vinculados** en miembros con rol `parent` (alta/baja de vínculos); `ParentsViewModel` con base de datos y `ParentsScreen` según `esPadreMembresiaNube()` (hijos + asistencia reciente vs borrador para staff); `AcademiaRoot` pasa `config` a Padres.
 - **SQL** `20260418120000_parent_read_asistencias_historial.sql`: políticas `asistencias_parent_select` y `historial_parent_select` para tutores.
 - **`AcademiaConfig.esPadreMembresiaNube()`** en `AcademiaMembresiaUi.kt`.
@@ -50,6 +52,32 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Enlace roto a academia**: al limpiar `remoteAcademiaId` se restablece `academiaGestionNubePermitida = true`.
 
 ### Corregido
+
+- **Alta de jugador + documento CURP (o acta):** los `ActivityResult` de **CURP y acta** se registran siempre en **`PlayersScreen`** (no dentro del formulario condicional); copia vía `copiarUriAdjuntoAJugador` + `lifecycleScope`. **`BackHandler`** del alta vive en la pantalla y se **desactiva** mientras hay selector/cámara/recorte/permiso (`awaitingExternalActivityResult`) para que el “atrás” al cerrar el gestor no cierre el registro. El formulario sigue siendo capa en `Box` sobre el `Scaffold`. **Visibilidad del alta y rutas de adjuntos** viven en **`PlayersViewModel`** (`StateFlow`) para que no se pierdan al recrear la actividad al volver del selector; la pantalla usa `abrirAltaJugador` / `cerrarAltaJugador` / `aplicarRuta*Copiada` y `guardarJugador` cierra el alta al terminar.
+
+- **Alta de jugador y selector de categoría:** el overlay del registro queda **debajo** de la barra superior de `AcademiaMainScaffold`; al volver del gestor de archivos un **toque residual** podía pulsar **«Cambiar categoría»** y abrir el selector. Mientras el alta está abierta, **`SessionViewModel`** marca `impideVolverASeleccionCategoria` (desde `PlayersScreen`), se **deshabilita** ese botón y **`volverASeleccionCategoria()`** no hace nada si el bloqueo está activo.
+
+- **Pantalla de error «Request timeout» al reanudar la app:** `LaunchedEffect(authSession)` volvía a ejecutar `bindingVm.refresh()` en cada nueva emisión de sesión (mismo usuario), dejando el flujo en **Loading** y, si la red iba lenta, en **Error** con timeout de **10 s** en la petición a `academias`. Ahora el efecto depende solo del **id de usuario** autenticado; en `AcademiaApplication` el cliente Supabase usa **`requestTimeout` 45 s**.
+
+- **«Comprobando academia…» al volver del CURP / al desbloquear pantalla:** `refresh()` ponía siempre **Loading** y desmontaba el menú; además, un **`SessionStatus.Initializing`** breve hacía **return** antes del `LaunchedEffect` y al volver a **Authenticated** el efecto se **reiniciaba** y volvía a llamar a `refresh()`. **Cambios:** `AcademiaBindingViewModel.refresh(mostrarPantallaCarga)` — si ya estás en **Ready**, la comprobación va en **segundo plano** sin pantalla de carga ni error por timeout puntual; **Reintentar** usa `mostrarPantallaCarga = true`. En **`AcademiaRoot`**, sesión **«pegada»** (`ultimoUserIdAutenticado`) para no sustituir toda la UI por el spinner de Auth durante **Initializing**; **`AcademiaRootAuthenticatedContent`** recibe **`authUserIdKey`** para no perder el `SessionViewModel` en ese intervalo.
+
+- **Recorte de foto de jugador (uCrop):** el módulo **uCrop 2.2.8** pasa a ser **`:ucrop` local** (parche). Se quitó `setImageToWrapCropBounds()` al **soltar la rueda Escala** y al **ACTION_UP** del gesto en la imagen, que devolvían el zoom al mínimo (~240%) justo al soltar. Activado **recorte libre**, decode ampliado y multiplicador de zoom como antes; texto de ayuda actualizado.
+
+- **«Este dispositivo lo usa» (padre / profesor / …):** al reabrir la app, el sync volvía a dejar **Padre o tutor** porque `mergeAcademiaRowIntoLocal` copiaba `rol_dispositivo` desde Supabase (valor único por academia, casi siempre por defecto). Ahora se **conserva siempre el valor guardado en Room** en ese merge.
+
+- **Cambiar categoría:** el selector ya no sustituye todo el `Scaffold` principal; se muestra dentro de `AcademiaMainScaffold` con la **barra inferior** visible. **Atrás del sistema** cierra el selector y vuelve al menú **sin cambiar** la categoría (`SessionViewModel.cerrarSelectorCategoria`, `BackHandler` en `AcademiaRoot`). Al pulsar una pestaña con el selector abierto, primero se cierra el selector y luego se navega.
+
+- **Coach no ve categorías aunque gestión de miembros sí:** `resolveMembresiaCloud` prioriza `academia_miembros` antes del atajo `academias.user_id` (si la cuenta es dueña y además tiene fila `coach`, antes se trataba solo como dueño y se ignoraban `academia_miembro_categorias`). Nueva RPC Supabase **`list_my_coach_category_names`** (`20260421120000_list_my_coach_category_names.sql`) en **security definer** para devolver nombres sin depender solo de RLS en el cliente; la app intenta RPC y hace fallback a PostgREST. **Ejecutar el SQL en el proyecto Supabase.**
+
+- **Nombres de categorías asignadas al coach:** al resolver `academia_miembro_categorias` → nombres, si no hay fila con `id` + `academia_id`, se reintenta solo por `id` (`nombreCategoriaCloudParaCoach`) por si en `categorias` el `academia_id` no coincide con la academia enlazada.
+
+- **Parpadeo «todas las categorías» y luego «sin asignar» al cambiar de cuenta:** si el `remoteAcademiaId` seguía en caché, `resolveAcademiaBinding` devolvía OK **sin** volver a ejecutar `mergeAcademiaRowIntoLocal`, y el rol/categorías coach no llegaban a Room hasta el sync retardado. Ahora siempre se fusiona la fila de academia al validar acceso. El selector muestra carga mientras `membresiaNubeAunNoResuelta()` y `SessionViewModel` distingue «esperando membresía» de «sin restricción coach».
+
+- **Mismo móvil, admin y profesor (cuentas distintas):** `pullAcademiaConfig` / `mergeAcademiaRowIntoLocal` ya no reutilizan `cloudMembresiaRol` ni `cloudCoachCategoriasJson` del usuario anterior al resolver membresía; al **cerrar sesión** se borran esos campos en Room. `SessionViewModel` usa clave por **id de usuario** de Auth para no arrastrar restricción de categorías entre cuentas.
+
+- **Coach sin categorías visibles:** RLS `miembro_cat_select` permitía solo `academia_staff_data_access`; si el rol en BD no coincidía exactamente con el array SQL, el entrenador no leía `academia_miembro_categorias`. Migración `20260420100000_miembro_cat_select_coach_self.sql`: también se permite SELECT cuando el vínculo es del propio `user_id` activo; `academia_miembro_activo_rol` compara roles con `lower(trim(...))`. Tras aplicar el SQL en Supabase, sincronizar en el móvil del profesor.
+
+- **Compilación Compose:** `stringResource` no puede llamarse dentro de `Modifier.semantics { }`; etiqueta de sesión en barra resuelta fuera (`AcademiaRoot`). Saludo en inicio precalculado en el cuerpo de `InicioScreen`.
 
 - **`AcademiaMiembrosViewModel`:** `runCatching` sobre `setMiembroActivo` / `setMiembroRol` / `replaceMiembroCategorias` devolvía `Result<PostgrestResult>`; los callbacks esperaban `Result<Unit>` — el bloque ahora termina en `Unit` tras la llamada suspendida.
 - **Nombre que volvía a «Mi Academia»**: causado por pull que leía `academias.nombre` en Supabase sin haber subido antes el nombre editado localmente.

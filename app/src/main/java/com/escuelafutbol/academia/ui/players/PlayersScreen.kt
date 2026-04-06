@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -40,7 +41,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -62,13 +62,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,7 +79,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.yalantis.ucrop.UCrop
@@ -90,6 +89,7 @@ import com.escuelafutbol.academia.ui.util.formatearFechaCalendarioUtc
 import com.escuelafutbol.academia.ui.util.formatearFechaDiaLocal
 import com.escuelafutbol.academia.ui.util.formatearFechaHoraLocal
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.SessionViewModel
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
@@ -102,9 +102,14 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
 import java.util.UUID
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Lado máximo (px) al decodificar en uCrop; si es bajo, el zoom mínimo queda muy alto y no se puede alejar. */
+private const val UCROP_DECODE_MAX_SIDE_PX = 4096
 
 private fun formatImporte(valor: Double): String =
     NumberFormat.getCurrencyInstance(Locale.getDefault()).format(valor)
@@ -141,6 +146,25 @@ private fun extensionParaActa(context: Context, uri: Uri): String {
     }
 }
 
+private suspend fun copiarUriAdjuntoAJugador(
+    context: Context,
+    uri: Uri,
+    subcarpeta: String,
+): String? {
+    val ext = withContext(Dispatchers.IO) { extensionParaActa(context, uri) }
+    val dir = File(context.filesDir, subcarpeta).apply { mkdirs() }
+    val dest = File(dir, "${UUID.randomUUID()}.$ext")
+    val ok = withContext(Dispatchers.IO) {
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                dest.outputStream().use { out -> input.copyTo(out) }
+            }
+            dest.exists() && dest.length() > 0L
+        }.getOrDefault(false)
+    }
+    return dest.absolutePath.takeIf { ok }
+}
+
 @Composable
 private fun MensualidadVisibilidadAviso(config: AcademiaConfig) {
     val texto = when (RolDispositivo.fromStored(config.rolDispositivo)) {
@@ -166,17 +190,63 @@ private fun MensualidadVisibilidadAviso(config: AcademiaConfig) {
 @Composable
 fun PlayersScreen(
     viewModel: PlayersViewModel,
+    sessionVm: SessionViewModel,
     categoriaFiltro: String?,
     configAcademia: AcademiaConfig,
 ) {
     val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo()
     val jugadores by viewModel.jugadores.collectAsState()
-    var mostrarAlta by remember { mutableStateOf(false) }
-    var altaFormKey by remember { mutableStateOf(0) }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val mostrarAlta by viewModel.mostrarAltaJugador.collectAsState()
+    val altaFormSession by viewModel.altaFormSession.collectAsState()
+    val altaCurpDocPath by viewModel.altaCurpDocPath.collectAsState()
+    val altaActaPath by viewModel.altaActaPath.collectAsState()
+
     var jugadorHistorial by remember { mutableStateOf<Jugador?>(null) }
     var jugadorBaja by remember { mutableStateOf<Jugador?>(null) }
 
+    /** Evita que un "atrás" del sistema al cerrar el selector cierre el alta. */
+    var awaitingExternalActivityResult by remember { mutableStateOf(false) }
+
+    LaunchedEffect(mostrarAlta) {
+        sessionVm.setImpideVolverASeleccionCategoria(mostrarAlta)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            sessionVm.setImpideVolverASeleccionCategoria(false)
+        }
+    }
+
+    val pickCurpDocLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        awaitingExternalActivityResult = false
+        if (uri == null) return@rememberLauncherForActivityResult
+        lifecycleOwner.lifecycleScope.launch {
+            val path = copiarUriAdjuntoAJugador(context, uri, "jugador_curp_docs") ?: return@launch
+            viewModel.aplicarRutaCurpCopiada(path)
+        }
+    }
+
+    val pickActaLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        awaitingExternalActivityResult = false
+        if (uri == null) return@rememberLauncherForActivityResult
+        lifecycleOwner.lifecycleScope.launch {
+            val path = copiarUriAdjuntoAJugador(context, uri, "jugador_actas") ?: return@launch
+            viewModel.aplicarRutaActaCopiada(path)
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+    BackHandler(enabled = mostrarAlta && !awaitingExternalActivityResult) {
+        viewModel.cerrarAltaJugador()
+    }
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_players)) },
@@ -185,10 +255,7 @@ fun PlayersScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    altaFormKey++
-                    mostrarAlta = true
-                },
+                onClick = { viewModel.abrirAltaJugador() },
             ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
             }
@@ -241,11 +308,24 @@ fun PlayersScreen(
     }
 
     if (mostrarAlta) {
-        key(altaFormKey) {
+        key(altaFormSession) {
             JugadorFormDialog(
                 categoriaInicial = categoriaFiltro.orEmpty(),
                 puedeVerMensualidad = puedeVerMensualidad,
-                onDismiss = { mostrarAlta = false },
+                curpDocPath = altaCurpDocPath,
+                onCurpDocPathChange = { viewModel.setAltaCurpDocPath(it) },
+                actaPath = altaActaPath,
+                onActaPathChange = { viewModel.setAltaActaPath(it) },
+                onRequestPickCurpDocumento = {
+                    awaitingExternalActivityResult = true
+                    pickCurpDocLauncher.launch("*/*")
+                },
+                onRequestPickActa = {
+                    awaitingExternalActivityResult = true
+                    pickActaLauncher.launch("*/*")
+                },
+                setAwaitingExternalResult = { awaitingExternalActivityResult = it },
+                onDismiss = { viewModel.cerrarAltaJugador() },
                 onGuardar = { nombre, categoria, fechaNacMs, tel, email, notas, foto, curpVal, curpDocRuta, actaRuta, becadoVal, mensualidad ->
                     viewModel.guardarJugador(
                         nombre,
@@ -261,7 +341,6 @@ fun PlayersScreen(
                         becadoVal,
                         mensualidad,
                     )
-                    mostrarAlta = false
                 },
             )
         }
@@ -356,6 +435,7 @@ fun PlayersScreen(
                 }
             },
         )
+    }
     }
 }
 
@@ -523,6 +603,14 @@ private fun JugadorCard(
 private fun JugadorFormDialog(
     categoriaInicial: String,
     puedeVerMensualidad: Boolean,
+    curpDocPath: String?,
+    onCurpDocPathChange: (String?) -> Unit,
+    actaPath: String?,
+    onActaPathChange: (String?) -> Unit,
+    onRequestPickCurpDocumento: () -> Unit,
+    onRequestPickActa: () -> Unit,
+    /** Marcar true antes de abrir cámara/galería/recorte o permisos; false al volver (callback del launcher). */
+    setAwaitingExternalResult: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onGuardar: (
         nombre: String,
@@ -540,7 +628,6 @@ private fun JugadorFormDialog(
     ) -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var nombre by remember { mutableStateOf("") }
     var categoria by remember { mutableStateOf(categoriaInicial) }
     var fechaNacMs by remember { mutableStateOf<Long?>(null) }
@@ -565,8 +652,6 @@ private fun JugadorFormDialog(
     var fotoPath by remember { mutableStateOf<String?>(null) }
     var cameraFile by remember { mutableStateOf<File?>(null) }
     var curpTxt by remember { mutableStateOf("") }
-    var curpDocPath by remember { mutableStateOf<String?>(null) }
-    var actaPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(becado) {
         if (becado) mensualidadTxt = ""
@@ -583,6 +668,7 @@ private fun JugadorFormDialog(
     val cropLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        setAwaitingExternalResult(false)
         val cam = deleteAfterCrop
         deleteAfterCrop = null
         runCatching { cam?.takeIf { it.exists() }?.delete() }
@@ -609,6 +695,12 @@ private fun JugadorFormDialog(
         val opciones = UCrop.Options().apply {
             setCompressionFormat(Bitmap.CompressFormat.JPEG)
             setCompressionQuality(90)
+            // Por defecto uCrop limita el decode ~al tamaño de pantalla; fotos grandes quedan muy
+            // muestreadas y el zoom mínimo en % sube mucho (p. ej. 240%) sin poder alejar más.
+            setMaxBitmapSize(UCROP_DECODE_MAX_SIDE_PX)
+            setMaxScaleMultiplier(16f)
+            // Redimensionar y mover el recuadro (esquinas / bordes / arrastre central); alternativa a la rueda Escala.
+            setFreeStyleCropEnabled(true)
             setCircleDimmedLayer(true)
             setShowCropGrid(true)
             setShowCropFrame(true)
@@ -620,63 +712,18 @@ private fun JugadorFormDialog(
             .withOptions(opciones)
             .getIntent(context)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        setAwaitingExternalResult(true)
         cropLauncher.launch(intent)
     }
 
-    fun jugadorActaDest(ext: String): File {
-        val dir = File(context.filesDir, "jugador_actas").apply { mkdirs() }
-        return File(dir, "${UUID.randomUUID()}.$ext")
-    }
-
-    fun jugadorCurpDocDest(ext: String): File {
-        val dir = File(context.filesDir, "jugador_curp_docs").apply { mkdirs() }
-        return File(dir, "${UUID.randomUUID()}.$ext")
-    }
-
-    val pickCurpDoc = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch(Dispatchers.IO) {
-            val ext = extensionParaActa(context, uri)
-            val dest = jugadorCurpDocDest(ext)
-            runCatching {
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    dest.outputStream().use { out -> input.copyTo(out) }
-                }
-            }
-            withContext(Dispatchers.Main) {
-                if (dest.exists() && dest.length() > 0) {
-                    curpDocPath?.let { runCatching { File(it).delete() } }
-                    curpDocPath = dest.absolutePath
-                }
-            }
-        }
-    }
-
-    val pickActa = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch(Dispatchers.IO) {
-            val ext = extensionParaActa(context, uri)
-            val dest = jugadorActaDest(ext)
-            runCatching {
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    dest.outputStream().use { out -> input.copyTo(out) }
-                }
-            }
-            withContext(Dispatchers.Main) {
-                if (dest.exists() && dest.length() > 0) {
-                    actaPath?.let { runCatching { File(it).delete() } }
-                    actaPath = dest.absolutePath
-                }
-            }
-        }
-    }
-
     val pickGallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        setAwaitingExternalResult(false)
         if (uri == null) return@rememberLauncherForActivityResult
         iniciarRecorteFoto(uri, null)
     }
 
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        setAwaitingExternalResult(false)
         val f = cameraFile
         if (f == null) return@rememberLauncherForActivityResult
         if (!success || !f.exists()) {
@@ -700,12 +747,14 @@ private fun JugadorFormDialog(
             "${context.packageName}.fileprovider",
             f,
         )
+        setAwaitingExternalResult(true)
         takePicture.launch(uri)
     }
 
     val requestCameraPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        setAwaitingExternalResult(false)
         if (granted) launchCameraCapture()
     }
 
@@ -713,7 +762,10 @@ private fun JugadorFormDialog(
         when {
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
                 PackageManager.PERMISSION_GRANTED -> launchCameraCapture()
-            else -> requestCameraPermission.launch(Manifest.permission.CAMERA)
+            else -> {
+                setAwaitingExternalResult(true)
+                requestCameraPermission.launch(Manifest.permission.CAMERA)
+            }
         }
     }
 
@@ -721,9 +773,11 @@ private fun JugadorFormDialog(
     val scrollMaxHeight = configuration.screenHeightDp.dp * 0.55f
     val formScroll = rememberScrollState()
 
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)),
+        contentAlignment = Alignment.Center,
     ) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
@@ -775,7 +829,10 @@ private fun JugadorFormDialog(
                                     modifier = Modifier
                                         .size(56.dp)
                                         .clip(CircleShape)
-                                        .clickable { pickGallery.launch("image/*") },
+                                        .clickable {
+                                            setAwaitingExternalResult(true)
+                                            pickGallery.launch("image/*")
+                                        },
                                 ) {
                                     if (path != null && File(path).exists()) {
                                         AsyncImage(
@@ -813,7 +870,10 @@ private fun JugadorFormDialog(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         OutlinedButton(
-                                            onClick = { pickGallery.launch("image/*") },
+                                            onClick = {
+                                                setAwaitingExternalResult(true)
+                                                pickGallery.launch("image/*")
+                                            },
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .defaultMinSize(minHeight = 44.dp),
@@ -945,7 +1005,7 @@ private fun JugadorFormDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             OutlinedButton(
-                                onClick = { pickCurpDoc.launch("*/*") },
+                                onClick = { onRequestPickCurpDocumento() },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Row(
@@ -972,7 +1032,7 @@ private fun JugadorFormDialog(
                                     TextButton(
                                         onClick = {
                                             runCatching { f.delete() }
-                                            curpDocPath = null
+                                            onCurpDocPathChange(null)
                                         },
                                         modifier = Modifier.align(Alignment.End),
                                     ) {
@@ -1002,7 +1062,7 @@ private fun JugadorFormDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             OutlinedButton(
-                                onClick = { pickActa.launch("*/*") },
+                                onClick = { onRequestPickActa() },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Row(
@@ -1029,7 +1089,7 @@ private fun JugadorFormDialog(
                                     TextButton(
                                         onClick = {
                                             runCatching { f.delete() }
-                                            actaPath = null
+                                            onActaPathChange(null)
                                         },
                                         modifier = Modifier.align(Alignment.End),
                                     ) {

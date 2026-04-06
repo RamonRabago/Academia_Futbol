@@ -1,6 +1,7 @@
 package com.escuelafutbol.academia.ui
 
 import android.app.Application
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,8 +41,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +52,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -93,6 +99,7 @@ import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
 import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
+import com.escuelafutbol.academia.data.local.model.membresiaNubeAunNoResuelta
 import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
 import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
@@ -121,6 +128,18 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
     val authVm: AuthViewModel = viewModel(factory = factory)
     val authSession by authVm.sessionStatus.collectAsState()
 
+    /** Evita desmontar el flujo de academia/binding cuando Auth pasa brevemente a [SessionStatus.Initializing]. */
+    var ultimoUserIdAutenticado by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(authSession) {
+        when (val s = authSession) {
+            is SessionStatus.Authenticated ->
+                ultimoUserIdAutenticado = s.session.user?.id?.toString()
+            is SessionStatus.NotAuthenticated ->
+                ultimoUserIdAutenticado = null
+            else -> Unit
+        }
+    }
+
     if (app.supabaseClient == null) {
         AcademiaFutbolTheme {
             SupabaseConfigRequiredScreen()
@@ -128,8 +147,21 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
         return
     }
 
-    when (authSession) {
-        SessionStatus.Initializing -> {
+    when {
+        authSession is SessionStatus.Authenticated &&
+            isPasswordRecoverySession((authSession as SessionStatus.Authenticated).session) -> {
+            AcademiaFutbolTheme {
+                SetNewPasswordScreen(authVm)
+            }
+            return
+        }
+        authSession is SessionStatus.NotAuthenticated -> {
+            AcademiaFutbolTheme {
+                LoginScreen(authVm)
+            }
+            return
+        }
+        authSession is SessionStatus.Initializing && ultimoUserIdAutenticado == null -> {
             AcademiaFutbolTheme {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -140,27 +172,18 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
             }
             return
         }
-        is SessionStatus.Authenticated -> {
-            val signedIn = authSession as SessionStatus.Authenticated
-            if (isPasswordRecoverySession(signedIn.session)) {
-                AcademiaFutbolTheme {
-                    SetNewPasswordScreen(authVm)
-                }
-                return
-            }
-        }
-        else -> {
-            AcademiaFutbolTheme {
-                LoginScreen(authVm)
-            }
-            return
-        }
     }
 
     val bindingVm: AcademiaBindingViewModel = viewModel(factory = factory)
     val bindingState by bindingVm.uiState.collectAsState()
-    LaunchedEffect(authSession) {
-        if (authSession is SessionStatus.Authenticated) {
+    // Solo al cambiar de usuario. Con sesión «pegada» durante Initializing la clave no se vacía.
+    val bindingRefreshKey = when (val s = authSession) {
+        is SessionStatus.Authenticated ->
+            s.session.user?.id?.toString().orEmpty().ifEmpty { ultimoUserIdAutenticado.orEmpty() }
+        else -> ultimoUserIdAutenticado.orEmpty()
+    }
+    LaunchedEffect(bindingRefreshKey) {
+        if (bindingRefreshKey.isNotEmpty()) {
             bindingVm.refresh()
         }
     }
@@ -169,12 +192,16 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
         when (val bs = bindingState) {
             AcademiaBindingUiState.Loading -> AcademiaBindingLoadingScreen()
             is AcademiaBindingUiState.Error -> AcademiaBindingErrorScreen(bs.message) {
-                bindingVm.refresh()
+                bindingVm.refresh(mostrarPantallaCarga = true)
             }
             AcademiaBindingUiState.NeedsOnboarding -> AcademiaOnboardingScreen(bindingVm)
             is AcademiaBindingUiState.PickAcademy -> AcademiaPickAcademyScreen(bindingVm, bs.options)
             AcademiaBindingUiState.Ready -> {
-                AcademiaRootAuthenticatedContent(factory = factory, authVm = authVm)
+                AcademiaRootAuthenticatedContent(
+                    factory = factory,
+                    authVm = authVm,
+                    authUserIdKey = bindingRefreshKey,
+                )
             }
         }
     }
@@ -184,11 +211,16 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
 private fun AcademiaRootAuthenticatedContent(
     factory: ViewModelProvider.Factory,
     authVm: AuthViewModel,
+    /** Mismo criterio que [bindingRefreshKey]: estable aunque Auth esté en [SessionStatus.Initializing]. */
+    authUserIdKey: String,
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as AcademiaApplication
     val application = context.applicationContext as Application
-    val sessionVm: SessionViewModel = viewModel(factory = factory)
+    val sessionVm: SessionViewModel = viewModel(
+        key = authUserIdKey.ifEmpty { "session" },
+        factory = factory,
+    )
     val configVm: AcademiaConfigViewModel = viewModel(factory = factory)
     val config by configVm.config.collectAsState()
     val enPrincipal by sessionVm.enMenuPrincipal.collectAsState()
@@ -202,33 +234,33 @@ private fun AcademiaRootAuthenticatedContent(
         config.cloudMembresiaRol,
         config.cloudCoachCategoriasJson,
     ) {
-        sessionVm.actualizarRestriccionOperacionCoach(config.cloudCoachCategoriasPermitidasOperacion())
+        if (config.membresiaNubeAunNoResuelta()) {
+            sessionVm.actualizarRestriccionOperacionCoach(
+                permitidas = null,
+                esperandoMembresiaNube = true,
+            )
+        } else {
+            sessionVm.actualizarRestriccionOperacionCoach(
+                permitidas = config.cloudCoachCategoriasPermitidasOperacion(),
+                esperandoMembresiaNube = false,
+            )
+        }
     }
 
     AcademiaFutbolTheme(
         colorPrimarioHex = config.temaColorPrimarioHex,
         colorSecundarioHex = config.temaColorSecundarioHex,
     ) {
-        if (!enPrincipal) {
-            val pickerVm: CategoriaPickerViewModel = viewModel(factory = factory)
-            val categoriasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
-            CategoriaSelectionScreen(
-                sessionVm = sessionVm,
-                pickerVm = pickerVm,
-                config = config,
-                categoriasPermitidasCoach = categoriasCoach,
-            )
-        } else {
-            AcademiaMainScaffold(
-                sessionVm = sessionVm,
-                config = config,
-                context = context,
-                factory = factory,
-                childFactory = childFactory,
-                filtroCategoria = filtroCategoria,
-                authVm = authVm,
-            )
-        }
+        AcademiaMainScaffold(
+            sessionVm = sessionVm,
+            config = config,
+            context = context,
+            factory = factory,
+            childFactory = childFactory,
+            filtroCategoria = filtroCategoria,
+            authVm = authVm,
+            mostrandoSelectorCategoria = !enPrincipal,
+        )
     }
 }
 
@@ -241,16 +273,25 @@ private fun AcademiaMainScaffold(
     childFactory: ViewModelProvider.Factory,
     filtroCategoria: String?,
     authVm: AuthViewModel,
+    mostrandoSelectorCategoria: Boolean,
 ) {
     val navController = rememberNavController()
+
+    BackHandler(enabled = mostrandoSelectorCategoria) {
+        sessionVm.cerrarSelectorCategoria()
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val impideCambiarCategoria by sessionVm.impideVolverASeleccionCategoria.collectAsState()
 
     val etiquetaCategoria = if (filtroCategoria == null) {
         stringResource(R.string.category_all)
     } else {
         filtroCategoria!!
     }
+
+    val etiquetaCuentaSesion = authVm.cuentaEtiquetaVisible()
+    val sessionBarAccountLabel = stringResource(R.string.session_bar_account_label)
 
     val rolDispositivo = remember(config.rolDispositivo) {
         RolDispositivo.fromStored(config.rolDispositivo)
@@ -289,64 +330,86 @@ private fun AcademiaMainScaffold(
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            Surface(
-                tonalElevation = 1.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+            if (!mostrandoSelectorCategoria) {
+                Surface(
+                    tonalElevation = 1.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        val logoModel = config.coilLogoModel(context)
-                        if (logoModel != null) {
-                            AsyncImage(
-                                model = logoModel,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .padding(end = 8.dp)
-                                    .size(40.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop,
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            val logoModel = config.coilLogoModel(context)
+                            if (logoModel != null) {
+                                AsyncImage(
+                                    model = logoModel,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .padding(end = 8.dp)
+                                        .size(40.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(
+                                    config.nombreAcademia,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    stringResource(R.string.working_in, etiquetaCategoria),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (!etiquetaCuentaSesion.isNullOrBlank()) {
+                                    Text(
+                                        etiquetaCuentaSesion,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.semantics {
+                                            contentDescription =
+                                                "$sessionBarAccountLabel: $etiquetaCuentaSesion"
+                                        },
+                                    )
+                                }
+                            }
                         }
-                        Column {
+                        OutlinedButton(
+                            onClick = { sessionVm.volverASeleccionCategoria() },
+                            enabled = !impideCambiarCategoria,
+                            modifier = Modifier.padding(start = 4.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        ) {
                             Text(
-                                config.nombreAcademia,
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                stringResource(R.string.working_in, etiquetaCategoria),
+                                stringResource(R.string.change_category),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
-                    }
-                    OutlinedButton(
-                        onClick = { sessionVm.volverASeleccionCategoria() },
-                        modifier = Modifier.padding(start = 4.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                        ),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary,
-                        ),
-                    ) {
-                        Text(
-                            stringResource(R.string.change_category),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium,
-                        )
                     }
                 }
             }
@@ -358,6 +421,9 @@ private fun AcademiaMainScaffold(
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
+                            if (mostrandoSelectorCategoria) {
+                                sessionVm.cerrarSelectorCategoria()
+                            }
                             navController.navigate(tab.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
@@ -383,6 +449,19 @@ private fun AcademiaMainScaffold(
             }
         },
     ) { innerPadding ->
+        if (mostrandoSelectorCategoria) {
+            val pickerVm: CategoriaPickerViewModel = viewModel(factory = factory)
+            val categoriasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
+            val esperandoMembresia by sessionVm.esperandoMembresiaNubeParaSelector.collectAsState()
+            CategoriaSelectionScreen(
+                sessionVm = sessionVm,
+                pickerVm = pickerVm,
+                config = config,
+                categoriasPermitidasCoach = categoriasCoach,
+                esperandoMembresiaNube = esperandoMembresia,
+                modifier = Modifier.padding(innerPadding),
+            )
+        } else {
         NavHost(
             navController = navController,
             startDestination = Tab.Inicio.route,
@@ -407,6 +486,7 @@ private fun AcademiaMainScaffold(
                     accesoRapidoVisible = { route ->
                         rutaPrincipalVisible(route, config, rolDispositivo)
                     },
+                    sesionEtiqueta = etiquetaCuentaSesion,
                     onNavigate = { route ->
                         navController.navigate(route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -422,6 +502,7 @@ private fun AcademiaMainScaffold(
                 val cfg by cfgVm.config.collectAsState()
                 PlayersScreen(
                     viewModel = vm,
+                    sessionVm = sessionVm,
                     categoriaFiltro = filtroCategoria,
                     configAcademia = cfg,
                 )
@@ -448,6 +529,7 @@ private fun AcademiaMainScaffold(
                     onSignOut = { authVm.signOut() },
                 )
             }
+        }
         }
     }
 }

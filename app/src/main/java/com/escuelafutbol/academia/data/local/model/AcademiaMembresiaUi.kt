@@ -13,6 +13,13 @@ private val stringListSer = ListSerializer(String.serializer())
  * permitidas para operación (jugadores, asistencia, stats). `null` = sin restricción por coach.
  * Conjunto vacío = coach sin categorías asignadas en `academia_miembro_categorias`.
  */
+/**
+ * Academia enlazada en nube pero aún no tenemos rol de membresía en Room (p. ej. tras cambiar de cuenta).
+ * Hasta que no se resuelva, el selector de categorías no debe mostrar «todas» como si fuera dueño/admin.
+ */
+fun AcademiaConfig.membresiaNubeAunNoResuelta(): Boolean =
+    remoteAcademiaId != null && cloudMembresiaRol == null
+
 /** Membresía en nube con rol padre/tutor (rutas y sync restringidos). */
 fun AcademiaConfig.esPadreMembresiaNube(): Boolean =
     remoteAcademiaId != null &&

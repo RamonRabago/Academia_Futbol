@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +26,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -67,6 +69,9 @@ fun CategoriaSelectionScreen(
     config: AcademiaConfig,
     /** Si no es null, solo estas categorías (coach en nube). */
     categoriasPermitidasCoach: Set<String>? = null,
+    /** Mientras la membresía en nube no está en Room (p. ej. tras cambiar de cuenta). */
+    esperandoMembresiaNube: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val nombreAcademia = config.nombreAcademia
     val categoriasUi by pickerVm.categoriasUi.collectAsState()
@@ -103,6 +108,7 @@ fun CategoriaSelectionScreen(
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -158,6 +164,23 @@ fun CategoriaSelectionScreen(
                     .fillMaxSize()
                     .padding(horizontal = 24.dp),
             ) {
+                if (esperandoMembresiaNube) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            stringResource(R.string.pick_category_membership_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
                 Text(
                     stringResource(R.string.pick_category_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -295,6 +318,7 @@ fun CategoriaSelectionScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }

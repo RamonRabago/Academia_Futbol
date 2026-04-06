@@ -77,6 +77,10 @@ data class AcademiaMiembroCategoriaLinkRow(
     @SerialName("categoria_id") val categoriaId: String,
 )
 
+/** Fila devuelta por RPC `list_my_coach_category_names`. */
+@Serializable
+data class CoachCategoryNombreRow(val nombre: String)
+
 @Serializable
 data class AcademiaMiembroCategoriaInsert(
     @SerialName("miembro_id") val miembroId: String,

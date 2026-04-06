@@ -28,7 +28,13 @@ class AcademiaBindingViewModel(
     private val _uiState = MutableStateFlow<AcademiaBindingUiState>(AcademiaBindingUiState.Loading)
     val uiState: StateFlow<AcademiaBindingUiState> = _uiState.asStateFlow()
 
-    fun refresh() {
+    /**
+     * @param mostrarPantallaCarga Si es `true`, fuerza «Comprobando academia…» (p. ej. Reintentar).
+     * Si es `false` y el estado ya es [AcademiaBindingUiState.Ready], la comprobación corre en segundo plano
+     * sin pasar a [Loading]: evita desmontar Jugadores/alta al volver del selector de archivos o al
+     * desbloquear pantalla cuando [LaunchedEffect] se reinicia tras un `SessionStatus` intermedio.
+     */
+    fun refresh(mostrarPantallaCarga: Boolean = false) {
         val app = getApplication<AcademiaApplication>()
         val client = app.supabaseClient ?: run {
             _uiState.value = AcademiaBindingUiState.Error("Supabase no configurado.")
@@ -39,7 +45,11 @@ class AcademiaBindingViewModel(
             return
         }
         viewModelScope.launch {
-            _uiState.value = AcademiaBindingUiState.Loading
+            val soloSegundoPlano =
+                !mostrarPantallaCarga && _uiState.value is AcademiaBindingUiState.Ready
+            if (!soloSegundoPlano) {
+                _uiState.value = AcademiaBindingUiState.Loading
+            }
             runCatching {
                 AcademiaCloudSync(client, app.database).resolveAcademiaBinding(uid)
             }.fold(
@@ -56,6 +66,9 @@ class AcademiaBindingViewModel(
                     }
                 },
                 onFailure = { e ->
+                    if (soloSegundoPlano) {
+                        return@launch
+                    }
                     _uiState.value = AcademiaBindingUiState.Error(
                         e.message ?: "No se pudo comprobar la academia.",
                     )

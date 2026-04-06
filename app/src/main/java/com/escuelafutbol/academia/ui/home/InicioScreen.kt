@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -56,9 +57,14 @@ fun InicioScreen(
     categoriaEtiqueta: String,
     /** Si devuelve false, no se muestra la tarjeta de acceso rápido a esa ruta (p. ej. padre en nube). */
     accesoRapidoVisible: (route: String) -> Boolean = { true },
+    /** Nombre o correo de la cuenta (Supabase); null si no hay dato. */
+    sesionEtiqueta: String? = null,
     onNavigate: (route: String) -> Unit,
 ) {
     val context = LocalContext.current
+    val textoBienvenidaSesion =
+        if (sesionEtiqueta.isNullOrBlank()) null
+        else stringResource(R.string.home_welcome_user, sesionEtiqueta)
     val atajosVisibles = ACCESOS_RAPIDOS_INICIO.filter { accesoRapidoVisible(it.route) }
     val coverH = 152.dp
     val avatarSize = 96.dp
@@ -143,6 +149,19 @@ fun InicioScreen(
                     .padding(horizontal = 20.dp),
                 textAlign = TextAlign.Center,
             )
+            if (textoBienvenidaSesion != null) {
+                Text(
+                    textoBienvenidaSesion,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 6.dp),
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

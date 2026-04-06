@@ -7,6 +7,7 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
+import kotlin.time.Duration.Companion.seconds
 
 class AcademiaApplication : Application() {
 
@@ -22,6 +23,8 @@ class AcademiaApplication : Application() {
                 supabaseUrl = url,
                 supabaseKey = key,
             ) {
+                // Red móvil / transición desde selector de archivos: 10s por defecto suele ser justo.
+                requestTimeout = 45.seconds
                 install(Auth) {
                     host = "auth"
                     scheme = "academiafutbol"

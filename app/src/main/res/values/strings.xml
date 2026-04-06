@@ -56,6 +56,7 @@
     <string name="pick_category_coach_hint">Tu cuenta solo puede trabajar en las categorías que te asignó el club.</string>
     <string name="pick_category_coach_assigned_list">Categorías que te asignó el club: %1$s</string>
     <string name="pick_category_coach_empty">No tienes categorías asignadas. Pide al administrador del club que te asigne las categorías en las que trabajarás.</string>
+    <string name="pick_category_membership_loading">Obteniendo tu rol en el club desde la nube…</string>
     <string name="category_row_work_hint">Toca el texto para entrar con esta categoría.</string>
     <string name="category_pick_cover_cd">Elegir portada de la categoría</string>
     <string name="category_clear_cover_cd">Quitar portada de la categoría</string>
@@ -68,6 +69,8 @@
     <string name="tab_home">Inicio</string>
     <string name="tab_academy">Academia</string>
     <string name="home_quick_actions_hint">Accesos rápidos</string>
+    <string name="home_welcome_user">Hola, %1$s</string>
+    <string name="session_bar_account_label">Sesión</string>
     <string name="academy_cover">Foto de portada (equipo o instalaciones)</string>
     <string name="academy_logo_profile">Logo circular (perfil)</string>
     <string name="academy_pick_cover">Elegir foto de portada</string>
@@ -127,7 +130,7 @@
     <string name="staff_remove_photo">Quitar foto</string>
     <string name="staff_photo_cd">Foto de la persona</string>
     <string name="player_photo_section">Foto del jugador</string>
-    <string name="player_photo_hint">Toca la imagen o elige una opción. Después podrás recortar en cuadrado (1:1) y centrar la cara; la vista circular ayuda a enmarcar.</string>
+    <string name="player_photo_hint">Toca la imagen o elige una opción. En el recorte: arrastra las esquinas o los lados del marco para ajustar el área, mueve el recuadro tocando dentro, o pellizca para zoom. La vista circular ayuda a enmarcar la cara.</string>
     <string name="player_photo_cd">Foto del jugador</string>
     <string name="player_photo_crop_title">Ajustar foto del jugador</string>
     <string name="player_curp">CURP</string>

@@ -3,6 +3,7 @@ package com.escuelafutbol.academia.ui.auth
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.R
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -17,8 +18,10 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -156,6 +159,20 @@ class AuthViewModel(
         return AuthProfileSnapshot("", "", user.email)
     }
 
+    /**
+     * Etiqueta para la UI (barra superior, inicio): nombre y apellidos de metadata si existen;
+     * si no, el correo de la sesión.
+     */
+    fun cuentaEtiquetaVisible(): String? {
+        val s = editableProfileSnapshot() ?: return null
+        val name = "${s.nombre} ${s.apellido}".trim()
+        when {
+            name.isNotBlank() -> return name
+            !s.email.isNullOrBlank() -> return s.email.trim()
+            else -> return null
+        }
+    }
+
     fun updateProfile(nombre: String, apellido: String, onDone: (Result<Unit>) -> Unit) {
         val c = client ?: run {
             onDone(Result.failure(IllegalStateException()))
@@ -195,6 +212,20 @@ class AuthViewModel(
             try {
                 c.auth.signOut()
             } catch (_: Throwable) {
+            }
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val app = getApplication<AcademiaApplication>()
+                    val dao = app.database.academiaConfigDao()
+                    val cfg = dao.getActual() ?: return@runCatching
+                    dao.upsert(
+                        cfg.copy(
+                            cloudMembresiaRol = null,
+                            cloudCoachCategoriasJson = null,
+                            academiaGestionNubePermitida = true,
+                        ),
+                    )
+                }
             }
         }
     }

@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "AcademiaFutbol"
 include(":app")
+include(":ucrop")

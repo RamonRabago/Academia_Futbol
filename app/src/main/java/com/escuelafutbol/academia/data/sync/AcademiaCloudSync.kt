@@ -11,6 +11,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaLinkRow
+import com.escuelafutbol.academia.data.remote.dto.CoachCategoryNombreRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaNombrePatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
@@ -110,6 +111,13 @@ class AcademiaCloudSync(
         val cached = cfg.remoteAcademiaId
         if (cached != null) {
             if (userCanAccessAcademia(uid, cached)) {
+                // Misma academia en caché pero otro usuario (p. ej. cerrar sesión admin → profesor):
+                // hay que volver a fusionar fila academias + membresía; si no, cloudMembresiaRol queda null hasta sync tardío.
+                val row = client.from("academias").select {
+                    filter { eq("id", cached) }
+                }.decodeSingle<AcademiaRow>()
+                val latestCfg = dao.getActual() ?: cfg
+                mergeAcademiaRowIntoLocal(dao, latestCfg, row)
                 return AcademiaBindingResult.Ok(cached)
             }
             dao.upsert(
@@ -238,11 +246,56 @@ class AcademiaCloudSync(
             codes
         }
 
-    /** Dueño de la fila `academias` o miembro activo (PostgREST); `computeAcademiaGestionNubePermitida` usa owner/admin/coordinator. */
-    private suspend fun resolveMembresiaCloud(uid: String, row: AcademiaRow): MembresiaCloudLocal {
-        if (row.userId == uid) {
-            return MembresiaCloudLocal(rol = "owner", coachCategoriasJson = null)
+    /**
+     * Nombre de categoría para armar `cloudCoachCategoriasJson`.
+     * Primero exige coincidencia con [academiaId]; si no hay fila (datos viejos / academia_id mal copiado),
+     * reintenta solo por `id` por si RLS aún devuelve la fila.
+     */
+    private suspend fun nombreCategoriaCloudParaCoach(categoriaId: String, academiaId: String): String? {
+        val nombreExacto = runCatching {
+            client.from("categorias").select {
+                filter {
+                    eq("id", categoriaId)
+                    eq("academia_id", academiaId)
+                }
+            }.decodeSingle<CategoriaRow>()
+        }.getOrNull()?.nombre?.trim()?.takeIf { it.isNotEmpty() }
+        if (nombreExacto != null) return nombreExacto
+        return runCatching {
+            client.from("categorias").select {
+                filter { eq("id", categoriaId) }
+            }.decodeList<CategoriaRow>().firstOrNull()
+        }.getOrNull()?.nombre?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * Nombres de categorías del coach: primero RPC `list_my_coach_category_names` (definer, ignora fallos de RLS del cliente);
+     * si vacío o error, lectura directa por tablas (compatibilidad si la RPC no está desplegada).
+     */
+    private suspend fun coachCategoryNombresParaMiembro(academiaId: String, miembroId: String): List<String> {
+        val desdeRpc = runCatching {
+            val params = buildJsonObject { put("p_academia_id", academiaId) }
+            client.postgrest.rpc("list_my_coach_category_names", params)
+                .decodeList<CoachCategoryNombreRow>()
+                .mapNotNull { it.nombre.trim().takeIf { n -> n.isNotEmpty() } }
+        }.getOrNull().orEmpty()
+        if (desdeRpc.isNotEmpty()) {
+            return desdeRpc.distinct().sorted()
         }
+        val links = runCatching {
+            client.from("academia_miembro_categorias").select {
+                filter { eq("miembro_id", miembroId) }
+            }.decodeList<AcademiaMiembroCategoriaLinkRow>()
+        }.getOrElse { emptyList() }
+        val ids = links.map { it.categoriaId.trim() }.filter { it.isNotEmpty() }.distinct()
+        return ids.mapNotNull { cid -> nombreCategoriaCloudParaCoach(cid, academiaId) }.distinct().sorted()
+    }
+
+    /**
+     * Prioridad: fila en `academia_miembros` (coach, coordinator, etc.). El atajo «dueño de academias.user_id»
+     * solo aplica si no hay membresía; si el dueño también tuviera fila coach, antes se ignoraba y no veía asignaciones.
+     */
+    private suspend fun resolveMembresiaCloud(uid: String, row: AcademiaRow): MembresiaCloudLocal {
         val member = client.from("academia_miembros").select {
             filter {
                 eq("academia_id", row.id)
@@ -250,29 +303,22 @@ class AcademiaCloudSync(
                 eq("activo", true)
             }
         }.decodeList<AcademiaMiembroRow>().firstOrNull()
-            ?: return MembresiaCloudLocal(rol = null, coachCategoriasJson = null)
-        val r = member.rol.trim().lowercase(Locale.ROOT)
-        val coachJson = if (r == "coach") {
-            val links = client.from("academia_miembro_categorias").select {
-                filter { eq("miembro_id", member.id) }
-            }.decodeList<AcademiaMiembroCategoriaLinkRow>()
-            val ids = links.map { it.categoriaId }.distinct()
-            val nombres = mutableListOf<String>()
-            for (cid in ids) {
-                runCatching {
-                    client.from("categorias").select {
-                        filter {
-                            eq("id", cid)
-                            eq("academia_id", row.id)
-                        }
-                    }.decodeSingle<CategoriaRow>()
-                }.getOrNull()?.nombre?.trim()?.takeIf { it.isNotEmpty() }?.let { nombres.add(it) }
+
+        if (member != null) {
+            val r = member.rol.trim().lowercase(Locale.ROOT)
+            val coachJson = if (r == "coach") {
+                val nombres = coachCategoryNombresParaMiembro(row.id, member.id)
+                jsonCoachCategorias.encodeToString(coachCatNamesSerializer, nombres)
+            } else {
+                null
             }
-            jsonCoachCategorias.encodeToString(coachCatNamesSerializer, nombres.sorted())
-        } else {
-            null
+            return MembresiaCloudLocal(rol = r, coachCategoriasJson = coachJson)
         }
-        return MembresiaCloudLocal(rol = r, coachCategoriasJson = coachJson)
+
+        if (row.userId == uid) {
+            return MembresiaCloudLocal(rol = "owner", coachCategoriasJson = null)
+        }
+        return MembresiaCloudLocal(rol = null, coachCategoriasJson = null)
     }
 
     private suspend fun computeAcademiaGestionNubePermitida(uid: String, row: AcademiaRow): Boolean {
@@ -314,6 +360,7 @@ class AcademiaCloudSync(
         val puedeGestionar = uid?.let { computeAcademiaGestionNubePermitida(it, row) }
             ?: cfg.academiaGestionNubePermitida
         val memb = uid?.let { resolveMembresiaCloud(it, row) }
+        val (cloudRol, cloudCats) = cloudMembresiaFieldsForPull(uid, memb, cfg)
         dao.upsert(
             cfg.copy(
                 remoteAcademiaId = row.id,
@@ -323,7 +370,9 @@ class AcademiaCloudSync(
                 mensualidadVisibleProfesor = row.mensualidadVisibleProfesor,
                 mensualidadVisibleCoordinador = row.mensualidadVisibleCoordinador,
                 mensualidadVisibleDueno = row.mensualidadVisibleDueno,
-                rolDispositivo = row.rolDispositivo.ifBlank { cfg.rolDispositivo },
+                // Preferencia por dispositivo (Room); no pisar con `academias.rol_dispositivo` al hacer pull/merge
+                // (en nube es un solo valor por academia y suele quedar en PADRE_TUTOR).
+                rolDispositivo = cfg.rolDispositivo,
                 pinStaffHash = row.pinStaffHash ?: cfg.pinStaffHash,
                 temaColorPrimarioHex = row.colorPrimarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorPrimarioHex,
@@ -337,10 +386,26 @@ class AcademiaCloudSync(
                 codigoInviteParentRemoto = row.codigoInviteParent?.takeIf { it.isNotBlank() }
                     ?: cfg.codigoInviteParentRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
-                cloudMembresiaRol = memb?.rol ?: cfg.cloudMembresiaRol,
-                cloudCoachCategoriasJson = if (memb != null) memb.coachCategoriasJson else cfg.cloudCoachCategoriasJson,
+                cloudMembresiaRol = cloudRol,
+                cloudCoachCategoriasJson = cloudCats,
             ),
         )
+    }
+
+    /**
+     * Con sesión conocida, siempre tomar rol/categorías coach del usuario actual ([memb]);
+     * no reutilizar [cfg] del usuario anterior (mismo dispositivo, otra cuenta).
+     */
+    private fun cloudMembresiaFieldsForPull(
+        uid: String?,
+        memb: MembresiaCloudLocal?,
+        cfg: AcademiaConfig,
+    ): Pair<String?, String?> {
+        if (uid == null) {
+            return cfg.cloudMembresiaRol to cfg.cloudCoachCategoriasJson
+        }
+        val m = memb ?: return null to null
+        return m.rol to m.coachCategoriasJson
     }
 
     private suspend fun ensureAcademiaIdForSync(uid: String): String {
@@ -764,6 +829,7 @@ class AcademiaCloudSync(
         val puedeGestionar = uid?.let { computeAcademiaGestionNubePermitida(it, row) }
             ?: cfg.academiaGestionNubePermitida
         val memb = uid?.let { resolveMembresiaCloud(it, row) }
+        val (cloudRol, cloudCats) = cloudMembresiaFieldsForPull(uid, memb, cfg)
         dao.upsert(
             cfg.copy(
                 nombreAcademia = row.nombre.ifBlank { cfg.nombreAcademia },
@@ -781,8 +847,8 @@ class AcademiaCloudSync(
                 codigoInviteParentRemoto = row.codigoInviteParent?.takeIf { it.isNotBlank() }
                     ?: cfg.codigoInviteParentRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
-                cloudMembresiaRol = memb?.rol ?: cfg.cloudMembresiaRol,
-                cloudCoachCategoriasJson = if (memb != null) memb.coachCategoriasJson else cfg.cloudCoachCategoriasJson,
+                cloudMembresiaRol = cloudRol,
+                cloudCoachCategoriasJson = cloudCats,
             ),
         )
     }

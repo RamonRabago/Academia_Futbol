@@ -99,7 +99,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.github.yalantis:uCrop:2.2.8")
+    implementation(project(":ucrop"))
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
