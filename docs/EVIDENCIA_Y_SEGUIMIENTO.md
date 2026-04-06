@@ -1,7 +1,7 @@
 # Academia Fútbol — Evidencia y seguimiento técnico
 
 Documento vivo para auditoría y trazabilidad de decisiones e implementación.  
-**Actualizado:** 2 de abril de 2026.
+**Actualizado:** 31 de marzo de 2026.
 
 ---
 
@@ -66,6 +66,9 @@ Documento vivo para auditoría y trazabilidad de decisiones e implementación.
 | Script inicial tablas + Storage + RLS (dueño = `academias.user_id`) | `supabase/migrations/20260331120000_academia_cloud.sql` |
 | Fase 1 membresías + RLS híbrido (dueño **o** miembro activo) | `supabase/migrations/20260402140000_academia_miembros_rls.sql` |
 | Fase 2 RPC unión por código | `supabase/migrations/20260403150000_join_academia_rpc.sql` (`join_academia_by_code`) |
+| Coordinador puede gestionar miembros (RLS) | `supabase/migrations/20260416130000_coordinator_manage_members.sql` — amplía `academia_can_manage_members` con rol `coordinator` |
+| Coordinator puede actualizar fila `academias` (nombre, código, tema, medios) | `supabase/migrations/20260417100000_academias_update_coordinator.sql` — política `academias_update` incluye `coordinator` junto a `owner`/`admin` |
+| Padre lee asistencias e historial de hijos vinculados | `supabase/migrations/20260418120000_parent_read_asistencias_historial.sql` — políticas `SELECT` en `asistencias` y `jugador_historial` |
 
 **Tablas (schema `public`):**
 
@@ -75,7 +78,7 @@ Documento vivo para auditoría y trazabilidad de decisiones e implementación.
 - `academia_padres_alumnos` — vínculo tutor en Auth ↔ `jugador_id` (RLS de lectura para padres).
 - `categorias`, `jugadores`, `jugador_historial`, `asistencias`, `equipo_staff` — como antes, ligadas a `academias`.
 
-**Seguridad (RLS):** acceso a datos operativos si el usuario es **dueño** de la academia o **miembro activo** con rol staff (`owner`, `admin`, `coordinator`, `coach`). Padres: `SELECT` en `jugadores` solo con fila en `academia_padres_alumnos`. Funciones helper `academia_is_owner`, `academia_staff_data_access`, etc. (ver migración Fase 1).
+**Seguridad (RLS):** acceso a datos operativos si el usuario es **dueño** de la academia o **miembro activo** con rol staff (`owner`, `admin`, `coordinator`, `coach`). Padres: `SELECT` en `jugadores` solo con fila en `academia_padres_alumnos`. Funciones helper `academia_is_owner`, `academia_staff_data_access`, etc. (ver migración Fase 1). La función **`academia_can_manage_members`** (políticas sobre `academia_miembros` / altas de miembros) incluye **`coordinator`** tras ejecutar `20260416130000_coordinator_manage_members.sql`. La política **`academias_update`** incluye **`coordinator`** tras `20260417100000_academias_update_coordinator.sql` (antes solo dueño de fila o miembro `owner`/`admin`).
 
 **Ejecución:** Supabase → **SQL Editor** — ejecutar migraciones **en orden** por nombre/fecha; la Fase 1 sustituye políticas `*_by_academia` / `academias_own` definidas en el script inicial.
 
@@ -127,14 +130,18 @@ escuela_futbol_api/
 │   ├── data/local/               # Room: entidades, DAOs, AcademiaDatabase
 │   ├── data/remote/dto/          # DTOs Supabase
 │   ├── data/sync/                # AcademiaCloudSync, AcademiaStorageUpload
-│   └── ui/                       # Compose, Auth, AcademiaRoot, etc.
+│   └── ui/                       # Compose, Auth, AcademiaRoot; util `InviteClubIntentHelper` (invitación MVP)
 ├── supabase/migrations/
 │   ├── 20260331120000_academia_cloud.sql
 │   ├── 20260402140000_academia_miembros_rls.sql
-│   └── 20260403150000_join_academia_rpc.sql
+│   ├── 20260403150000_join_academia_rpc.sql
+│   ├── 20260416130000_coordinator_manage_members.sql
+│   ├── 20260417100000_academias_update_coordinator.sql
+│   └── 20260418120000_parent_read_asistencias_historial.sql
 └── docs/
     ├── EVIDENCIA_Y_SEGUIMIENTO.md        # este archivo
-    ├── PLAN_MEMBRESIA_Y_TENANTS.md       # plan por fases + anexos A/B
+    ├── PLAN_MEMBRESIA_Y_TENANTS.md       # plan por fases + anexos A/B (Fases 2–3 MVP cerradas en doc)
+    ├── CHECKLIST_CIERRE_FASE_2_3.md      # pruebas manuales post Fase 2/3 MVP
     └── FASE_0_DECISIONES_CERRADAS.md     # Fase 0 cerrada: roles, híbrido dueño+miembros, planes/límites
 ```
 
@@ -144,6 +151,10 @@ escuela_futbol_api/
 
 | Fecha | Cambio |
 |-------|--------|
+| 2026-03-31 | **Fase 4 MVP (padres con cuenta):** vínculos `academia_padres_alumnos` desde gestión de miembros; pantalla Padres dual (familia vs staff); sync sin push para membresía `parent`; RLS lectura padre en `asistencias`/`jugador_historial` (`20260418120000_…`). |
+| 2026-03-31 | **Cierre Fase 2 y 3 (MVP):** invitación asistida sin servidor (`InviteClubIntentHelper`), revocar miembro (DELETE `academia_miembros`), UX onboarding y selector de academia, checklist `docs/CHECKLIST_CIERRE_FASE_2_3.md`. |
+| 2026-03-31 | **Puntos 2 y 3 (Inicio + RLS coordinator):** atajos en `InicioScreen` solo si la ruta es visible (lista alineada con pestañas); SQL `20260417100000_academias_update_coordinator.sql` para `UPDATE` en `academias` con rol `coordinator`. |
+| 2026-03-31 | **Opción A — gestión de miembros (app + SQL):** UI en `AcademiaMiembrosAdminScreen` / `AcademiaMiembrosViewModel` / `AcademiaMiembrosRepository`; entrada desde `AcademiaScreen` (academia en nube + gestión permitida). PostgREST: listar/parchear `academia_miembros`, reemplazar filas en `academia_miembro_categorias` para coaches. Migración **`20260416130000_coordinator_manage_members.sql`**: `academia_can_manage_members` permite también **`coordinator`**. `rutaPrincipalVisible` unifica pestañas (`AcademiaRoot`) y accesos rápidos (`InicioScreen`). Sync: `coordinator` en `computeAcademiaGestionNubePermitida`. |
 | 2026-03-31 | **Fase 3 (parcial, app):** Room v21 `cloudMembresiaRol`, `cloudCoachCategoriasJson`; `AcademiaCloudSync.resolveMembresiaCloud`; `SessionViewModel.categoriasPermitidasOperacion`; `jugadoresActivosFlow` + `observeByCategorias` en jugadores/asistencia/stats; pestañas reducidas para membresía `parent`; selector de categoría restringido para coach. Requiere filas en `academia_miembro_categorias` para asignar categorías al entrenador. |
 | 2026-04-02 | **Fase 2 (app + SQL):** binding post-login (`AcademiaBindingViewModel`, pantallas en `ui/auth`), `AcademiaCloudSync.resolveAcademiaBinding` / `joinAcademiaByCode` / `createOwnedAcademia`, Room v18 `codigoClubRemoto`, sección código en `AcademiaScreen`, RPC `20260403150000_join_academia_rpc.sql`. Ejecutar el SQL en Supabase tras Fase 1. |
 | 2026-04-02 | **Fase 1 (SQL en repo):** `supabase/migrations/20260402140000_academia_miembros_rls.sql` — miembros, categorías por coach, padres↔jugador, `codigo_club`, funciones y RLS híbrido. **Aplicar manualmente en Supabase** antes de depender de cuentas staff/padre. |
@@ -167,8 +178,9 @@ escuela_futbol_api/
 Tras cada entrega relevante:
 
 1. Añadir una fila en la **sección 7** con fecha y breve descripción.
-2. Si se crean tablas, endpoints o pantallas nuevas, actualizar **secciones 4–6** y el **mapa de archivos**.
-3. Si cambia el procedimiento de despliegue o credenciales, actualizar **sección 2**.
+2. Actualizar **`CHANGELOG.md`** en el mismo cambio (o inmediatamente después) si hay impacto visible, API, Room, sync o permisos — para mantener un registro único y revisable.
+3. Si se crean tablas, endpoints o pantallas nuevas, actualizar **secciones 4–6** y el **mapa de archivos**.
+4. Si cambia el procedimiento de despliegue o credenciales, actualizar **sección 2**.
 
 ---
 

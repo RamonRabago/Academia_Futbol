@@ -27,7 +27,7 @@ class SessionViewModel : ViewModel() {
     val enMenuPrincipal: StateFlow<Boolean> = _enMenuPrincipal.asStateFlow()
 
     fun confirmarSeleccion(categoria: String?) {
-        _filtroCategoria.value = categoria
+        _filtroCategoria.value = categoria?.trim()?.takeIf { it.isNotEmpty() }
         _enMenuPrincipal.value = true
     }
 

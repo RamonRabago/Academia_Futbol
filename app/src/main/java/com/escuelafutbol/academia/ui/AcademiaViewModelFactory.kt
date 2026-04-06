@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.ui.academia.AcademiaConfigViewModel
+import com.escuelafutbol.academia.ui.academia.AcademiaMiembrosViewModel
 import com.escuelafutbol.academia.ui.academia.StaffViewModel
 import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
 import com.escuelafutbol.academia.ui.auth.AcademiaBindingViewModel
@@ -51,6 +52,8 @@ class AcademiaViewModelFactory(
                     database.categoriaDao(),
                     database.academiaConfigDao(),
                 ) as T
+            modelClass.isAssignableFrom(AcademiaMiembrosViewModel::class.java) ->
+                return AcademiaMiembrosViewModel(application, database) as T
         }
         val s = session
             ?: throw IllegalStateException("Se requiere SessionViewModel para ${modelClass.name}")
@@ -77,7 +80,7 @@ class AcademiaViewModelFactory(
                     s.categoriasPermitidasOperacion,
                 ) as T
             modelClass.isAssignableFrom(ParentsViewModel::class.java) ->
-                ParentsViewModel() as T
+                ParentsViewModel(application, database) as T
             else -> throw IllegalArgumentException("ViewModel desconocido: ${modelClass.name}")
         }
     }

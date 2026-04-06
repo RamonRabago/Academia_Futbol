@@ -93,7 +93,7 @@ import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
 import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
-import java.util.Locale
+import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
 import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -256,21 +256,7 @@ private fun AcademiaMainScaffold(
         RolDispositivo.fromStored(config.rolDispositivo)
     }
     val tabsVisibles = remember(rolDispositivo, config.cloudMembresiaRol, config.remoteAcademiaId) {
-        val cloudRol = config.cloudMembresiaRol?.lowercase(Locale.ROOT)
-        Tab.entries.filter { tab ->
-            when {
-                config.remoteAcademiaId != null && cloudRol == "parent" ->
-                    when (tab) {
-                        Tab.Inicio, Tab.Padres, Tab.Academia -> true
-                        else -> false
-                    }
-                else ->
-                    when (tab) {
-                        Tab.Padres -> rolDispositivo.puedeVerPestañaPadres()
-                        else -> true
-                    }
-            }
-        }
+        Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config, rolDispositivo) }
     }
 
     val syncVm: CloudSyncViewModel = viewModel(factory = factory)
@@ -418,6 +404,9 @@ private fun AcademiaMainScaffold(
                     config = config,
                     categoriaPortada = categoriaInicio,
                     categoriaEtiqueta = etiquetaCategoria,
+                    accesoRapidoVisible = { route ->
+                        rutaPrincipalVisible(route, config, rolDispositivo)
+                    },
                     onNavigate = { route ->
                         navController.navigate(route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -447,7 +436,7 @@ private fun AcademiaMainScaffold(
             }
             composable(Tab.Padres.route) {
                 val vm: ParentsViewModel = viewModel(factory = childFactory)
-                ParentsScreen(vm)
+                ParentsScreen(viewModel = vm, config = config)
             }
             composable(Tab.Academia.route) {
                 val cfg: AcademiaConfigViewModel = viewModel(factory = factory)
@@ -455,6 +444,7 @@ private fun AcademiaMainScaffold(
                 AcademiaScreen(
                     configVm = cfg,
                     staffVm = stf,
+                    viewModelFactory = factory,
                     onSignOut = { authVm.signOut() },
                 )
             }

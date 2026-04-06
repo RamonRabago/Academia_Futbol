@@ -4,17 +4,23 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,19 +36,31 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -66,12 +84,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -81,15 +104,20 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
 import com.escuelafutbol.academia.data.local.entity.Staff
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.RolStaff
@@ -107,6 +135,7 @@ import kotlinx.coroutines.withContext
 fun AcademiaScreen(
     configVm: AcademiaConfigViewModel,
     staffVm: StaffViewModel,
+    viewModelFactory: ViewModelProvider.Factory,
     onSignOut: (() -> Unit)? = null,
 ) {
     val config by configVm.config.collectAsState()
@@ -129,6 +158,24 @@ fun AcademiaScreen(
     var staffEliminar by remember { mutableStateOf<Staff?>(null) }
     var modoDialogoPin by remember { mutableStateOf<ModoDialogoPin?>(null) }
     var pendienteTrasPin by remember { mutableStateOf<PendienteTrasPin?>(null) }
+    val miembrosVm: AcademiaMiembrosViewModel = viewModel(factory = viewModelFactory)
+    val authVm: AuthViewModel = viewModel(factory = viewModelFactory)
+    val authBusy by authVm.busy.collectAsState()
+    var pantallaMiembros by remember { mutableStateOf(false) }
+    var dialogoPerfil by remember { mutableStateOf(false) }
+    var perfilNombre by remember { mutableStateOf("") }
+    var perfilApellido by remember { mutableStateOf("") }
+    var perfilEmail by remember { mutableStateOf<String?>(null) }
+    val perfilGuardadoMsg = stringResource(R.string.auth_profile_saved)
+
+    LaunchedEffect(dialogoPerfil) {
+        if (dialogoPerfil) {
+            val s = authVm.editableProfileSnapshot()
+            perfilNombre = s?.nombre.orEmpty()
+            perfilApellido = s?.apellido.orEmpty()
+            perfilEmail = s?.email
+        }
+    }
 
     fun solicitarCambioRol(nuevo: RolDispositivo) {
         val actual = RolDispositivo.fromStored(config.rolDispositivo)
@@ -161,6 +208,7 @@ fun AcademiaScreen(
         if (uri != null) configVm.guardarPortada(uri)
     }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.tab_academy)) })
@@ -244,32 +292,28 @@ fun AcademiaScreen(
                     if (config.remoteAcademiaId != null) {
                         OutlinedCard(
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                containerColor = MaterialTheme.colorScheme.surface,
                             ),
                         ) {
                             Column(
-                                Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                Modifier.padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 Text(
                                     stringResource(R.string.academy_club_code_section),
-                                    style = MaterialTheme.typography.titleSmall,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
                                     stringResource(R.string.academy_club_code_hint),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Text(
-                                    config.codigoClubRemoto
-                                        ?: stringResource(R.string.academy_club_code_none),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Button(
+                                FilledTonalButton(
                                     onClick = {
-                                        configVm.regenerarCodigoClub { r ->
+                                        configVm.regenerarCodigosInvitacion { r ->
                                             r.onFailure { e ->
                                                 Toast.makeText(
                                                     context,
@@ -277,20 +321,60 @@ fun AcademiaScreen(
                                                     Toast.LENGTH_LONG,
                                                 ).show()
                                             }
-                                            r.onSuccess { code ->
+                                            r.onSuccess {
                                                 Toast.makeText(
                                                     context,
-                                                    code,
+                                                    R.string.academy_invite_codes_regenerated,
                                                     Toast.LENGTH_SHORT,
                                                 ).show()
                                             }
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
                                 ) {
+                                    Icon(
+                                        Icons.Filled.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(10.dp))
                                     Text(stringResource(R.string.academy_club_code_generate))
                                 }
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    InviteRoleCodeRow(
+                                        label = stringResource(R.string.academy_invite_role_coach),
+                                        code = config.codigoInviteCoachRemoto,
+                                        academyName = config.nombreAcademia,
+                                        target = InviteClubIntentHelper.InviteTarget.COACH,
+                                        leadingIcon = Icons.Filled.SportsSoccer,
+                                    )
+                                    InviteRoleCodeRow(
+                                        label = stringResource(R.string.academy_invite_role_coordinator),
+                                        code = config.codigoInviteCoordinatorRemoto,
+                                        academyName = config.nombreAcademia,
+                                        target = InviteClubIntentHelper.InviteTarget.COORDINATOR,
+                                        leadingIcon = Icons.Filled.ManageAccounts,
+                                    )
+                                    InviteRoleCodeRow(
+                                        label = stringResource(R.string.academy_invite_role_parent),
+                                        code = config.codigoInviteParentRemoto,
+                                        academyName = config.nombreAcademia,
+                                        target = InviteClubIntentHelper.InviteTarget.PARENT,
+                                        leadingIcon = Icons.Filled.FamilyRestroom,
+                                    )
+                                }
                             }
+                        }
+                    }
+                }
+                item {
+                    if (config.remoteAcademiaId != null) {
+                        OutlinedButton(
+                            onClick = { pantallaMiembros = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.members_manage_button))
                         }
                     }
                 }
@@ -742,15 +826,131 @@ fun AcademiaScreen(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     OutlinedButton(
-                        onClick = onSignOut,
+                        onClick = { dialogoPerfil = true },
+                        enabled = !authBusy,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 12.dp),
+                    ) {
+                        Text(stringResource(R.string.auth_edit_profile))
+                    }
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        enabled = !authBusy,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
                     ) {
                         Text(stringResource(R.string.auth_sign_out))
                     }
                 }
             }
+        }
+    }
+
+        val aid = config.remoteAcademiaId
+        if (pantallaMiembros && aid != null) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background,
+            ) {
+                AcademiaMiembrosAdminScreen(
+                    academiaId = aid,
+                    vm = miembrosVm,
+                    codigoInviteCoach = config.codigoInviteCoachRemoto,
+                    codigoInviteCoordinator = config.codigoInviteCoordinatorRemoto,
+                    codigoInviteParent = config.codigoInviteParentRemoto,
+                    nombreAcademia = config.nombreAcademia,
+                    onCerrar = { pantallaMiembros = false },
+                )
+            }
+        }
+        if (dialogoPerfil) {
+            AlertDialog(
+                onDismissRequest = { if (!authBusy) dialogoPerfil = false },
+                title = { Text(stringResource(R.string.auth_edit_profile_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (!perfilEmail.isNullOrBlank()) {
+                            Text(
+                                perfilEmail.orEmpty(),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.auth_edit_profile_email_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            value = perfilNombre,
+                            onValueChange = { perfilNombre = it },
+                            label = { Text(stringResource(R.string.auth_given_name)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Words,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = perfilApellido,
+                            onValueChange = { perfilApellido = it },
+                            label = { Text(stringResource(R.string.auth_family_name)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Words,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (authBusy) return@TextButton
+                            authVm.updateProfile(perfilNombre, perfilApellido) { r ->
+                                r.onSuccess {
+                                    dialogoPerfil = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(perfilGuardadoMsg)
+                                    }
+                                }
+                                r.onFailure { e ->
+                                    Toast.makeText(
+                                        context,
+                                        e.message ?: context.getString(R.string.auth_error_unexpected),
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                }
+                            }
+                        },
+                        enabled = perfilNombre.isNotBlank() && perfilApellido.isNotBlank(),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (authBusy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                            Text(stringResource(R.string.auth_profile_save))
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { dialogoPerfil = false },
+                        enabled = !authBusy,
+                    ) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
         }
     }
 
@@ -841,6 +1041,7 @@ fun AcademiaScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SeccionModoDispositivo(
     rolDispositivo: RolDispositivo,
@@ -848,86 +1049,142 @@ private fun SeccionModoDispositivo(
     solicitarCambioRol: (RolDispositivo) -> Unit,
     onAbrirCambiarPin: () -> Unit,
 ) {
+    var detallesExpandido by rememberSaveable { mutableStateOf(false) }
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
         Column(
             Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 stringResource(R.string.academy_device_role_title),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                stringResource(R.string.academy_device_role_hint),
+                stringResource(R.string.academy_device_hint_short),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                stringResource(R.string.academy_device_who_uses),
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Row(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
-                FilterChip(
-                    selected = rolDispositivo == RolDispositivo.PADRE_TUTOR,
-                    onClick = { solicitarCambioRol(RolDispositivo.PADRE_TUTOR) },
-                    label = { Text(stringResource(R.string.rol_padre_tutor)) },
-                )
-                FilterChip(
-                    selected = rolDispositivo == RolDispositivo.PROFESOR,
-                    onClick = { solicitarCambioRol(RolDispositivo.PROFESOR) },
-                    label = { Text(stringResource(R.string.rol_profesor)) },
-                )
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Text(
+                        stringResource(R.string.academy_device_who_uses),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        RolDispositivo.entries.forEach { rol ->
+                            val label = when (rol) {
+                                RolDispositivo.PADRE_TUTOR -> R.string.rol_padre_tutor
+                                RolDispositivo.PROFESOR -> R.string.rol_profesor
+                                RolDispositivo.COORDINADOR -> R.string.rol_coordinador
+                                RolDispositivo.DUENO_ACADEMIA -> R.string.rol_dueno_academia
+                            }
+                            FilterChip(
+                                selected = rolDispositivo == rol,
+                                onClick = { solicitarCambioRol(rol) },
+                                label = {
+                                    Text(
+                                        stringResource(label),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                            )
+                        }
+                    }
+                }
             }
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                FilterChip(
-                    selected = rolDispositivo == RolDispositivo.COORDINADOR,
-                    onClick = { solicitarCambioRol(RolDispositivo.COORDINADOR) },
-                    label = { Text(stringResource(R.string.rol_coordinador)) },
-                )
-                FilterChip(
-                    selected = rolDispositivo == RolDispositivo.DUENO_ACADEMIA,
-                    onClick = { solicitarCambioRol(RolDispositivo.DUENO_ACADEMIA) },
-                    label = { Text(stringResource(R.string.rol_dueno_academia)) },
-                )
-            }
-            Text(
-                stringResource(R.string.academy_device_pin_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                stringResource(R.string.academy_permissions_title),
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                stringResource(
-                    when (rolDispositivo) {
-                        RolDispositivo.PADRE_TUTOR -> R.string.academy_permissions_padre
-                        RolDispositivo.PROFESOR -> R.string.academy_permissions_profesor
-                        RolDispositivo.COORDINADOR -> R.string.academy_permissions_coordinador
-                        RolDispositivo.DUENO_ACADEMIA -> R.string.academy_permissions_dueno
-                    },
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (pinStaffConfigurado && rolDispositivo.esPersonalClub()) {
                 TextButton(
-                    onClick = onAbrirCambiarPin,
-                    modifier = Modifier.padding(top = 4.dp),
+                    onClick = { detallesExpandido = !detallesExpandido },
+                    modifier = Modifier.align(Alignment.Start),
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
                 ) {
-                    Text(stringResource(R.string.pin_change_action))
+                    Icon(
+                        if (detallesExpandido) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        stringResource(
+                            if (detallesExpandido) {
+                                R.string.academy_device_hide_details
+                            } else {
+                                R.string.academy_device_show_details
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                if (pinStaffConfigurado && rolDispositivo.esPersonalClub()) {
+                    TextButton(
+                        onClick = onAbrirCambiarPin,
+                        modifier = Modifier.align(Alignment.Start),
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.pin_change_action),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = detallesExpandido,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Text(
+                        stringResource(R.string.academy_device_role_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        stringResource(R.string.academy_device_pin_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        stringResource(R.string.academy_permissions_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        stringResource(
+                            when (rolDispositivo) {
+                                RolDispositivo.PADRE_TUTOR -> R.string.academy_permissions_padre
+                                RolDispositivo.PROFESOR -> R.string.academy_permissions_profesor
+                                RolDispositivo.COORDINADOR -> R.string.academy_permissions_coordinador
+                                RolDispositivo.DUENO_ACADEMIA -> R.string.academy_permissions_dueno
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -1418,6 +1675,146 @@ private fun StaffFormDialog(
                         Text(stringResource(R.string.save))
                     }
                 }
+            }
+        }
+    }
+}
+
+private val InviteRoleButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+
+@Composable
+private fun InviteRoleCodeRow(
+    label: String,
+    code: String?,
+    academyName: String,
+    target: InviteClubIntentHelper.InviteTarget,
+    leadingIcon: ImageVector,
+) {
+    val context = LocalContext.current
+    val c = code?.trim().orEmpty()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            leadingIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            if (c.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    Text(
+                        text = c,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.8.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            InviteClubIntentHelper.shareInviteTextForTarget(
+                                context,
+                                academyName,
+                                c,
+                                target,
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = InviteRoleButtonPadding,
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Share,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.academy_club_code_share),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { InviteClubIntentHelper.copyCode(context, c) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = InviteRoleButtonPadding,
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.ContentCopy,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.academy_club_code_copy),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                OutlinedButton(
+                    onClick = {
+                        InviteClubIntentHelper.openEmailDraftForTarget(
+                            context,
+                            academyName,
+                            c,
+                            target,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = InviteRoleButtonPadding,
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.Email,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.academy_club_email_invite))
+                }
+            } else {
+                Text(
+                    stringResource(R.string.academy_invite_code_missing),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

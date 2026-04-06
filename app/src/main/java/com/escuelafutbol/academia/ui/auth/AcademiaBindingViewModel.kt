@@ -84,12 +84,13 @@ class AcademiaBindingViewModel(
         }
     }
 
-    fun joinByCode(code: String, rol: String, onDone: (Result<Unit>) -> Unit) {
+    fun joinByInviteCode(code: String, onDone: (Result<Unit>) -> Unit) {
         val app = getApplication<AcademiaApplication>()
         val client = app.supabaseClient ?: return
+        val codeNorm = code.trim().uppercase()
         viewModelScope.launch {
             _uiState.value = AcademiaBindingUiState.Loading
-            val result = AcademiaCloudSync(client, app.database).joinAcademiaByCode(code, rol)
+            val result = AcademiaCloudSync(client, app.database).joinAcademiaByInviteCode(codeNorm)
             result.fold(
                 onSuccess = {
                     _uiState.value = AcademiaBindingUiState.Ready
@@ -98,11 +99,9 @@ class AcademiaBindingViewModel(
                 onFailure = { e ->
                     val msg = when {
                         e.message?.contains("code_not_found", ignoreCase = true) == true ->
-                            "Código no encontrado. Revisa e intenta de nuevo."
+                            "Código no encontrado. Pide al club el código correcto para tu caso (entrenador, coordinador o familia)."
                         e.message?.contains("invalid_code", ignoreCase = true) == true ->
                             "Código demasiado corto."
-                        e.message?.contains("invalid_role", ignoreCase = true) == true ->
-                            "Rol no válido."
                         else -> e.message ?: "No se pudo unir a la academia."
                     }
                     _uiState.value = AcademiaBindingUiState.NeedsOnboarding

@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
+import com.escuelafutbol.academia.data.remote.dto.RegenerateInviteCodesResult
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
@@ -89,8 +90,8 @@ class AcademiaConfigViewModel(
         }
     }
 
-    /** Genera o renueva `codigo_club` en Supabase (dueño/admin vía RLS). */
-    fun regenerarCodigoClub(onResult: (Result<String>) -> Unit = {}) {
+    /** Genera o renueva los tres códigos de invitación (entrenador, coordinador, padre) en Supabase. */
+    fun regenerarCodigosInvitacion(onResult: (Result<RegenerateInviteCodesResult>) -> Unit = {}) {
         viewModelScope.launch {
             if (!puedeMutarConfigAcademiaAdmin()) {
                 onResult(Result.failure(Exception("Sin permiso para administrar la academia.")))
@@ -105,7 +106,7 @@ class AcademiaConfigViewModel(
                 onResult(Result.failure(Exception("Sincroniza primero con la nube.")))
                 return@launch
             }
-            onResult(AcademiaCloudSync(client, database).regenerateClubCode(aid))
+            onResult(AcademiaCloudSync(client, database).regenerateAcademiaInviteCodes(aid))
         }
     }
 

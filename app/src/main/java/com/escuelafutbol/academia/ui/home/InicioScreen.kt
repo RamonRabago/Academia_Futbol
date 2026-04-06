@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
@@ -53,9 +54,12 @@ fun InicioScreen(
     /** Si hay filtro de categoría y tiene portada propia, se muestra primero; si no, la portada de la academia. */
     categoriaPortada: Categoria? = null,
     categoriaEtiqueta: String,
+    /** Si devuelve false, no se muestra la tarjeta de acceso rápido a esa ruta (p. ej. padre en nube). */
+    accesoRapidoVisible: (route: String) -> Boolean = { true },
     onNavigate: (route: String) -> Unit,
 ) {
     val context = LocalContext.current
+    val atajosVisibles = ACCESOS_RAPIDOS_INICIO.filter { accesoRapidoVisible(it.route) }
     val coverH = 152.dp
     val avatarSize = 96.dp
     val overlap = 48.dp
@@ -160,52 +164,53 @@ fun InicioScreen(
                     )
                 }
             }
-            Text(
-                stringResource(R.string.home_quick_actions_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
-            )
         }
-        item {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                AccesoRapidoCard(
-                    titulo = stringResource(R.string.tab_players),
-                    icono = Icons.Default.Group,
-                    onClick = { onNavigate("jugadores") },
+        if (atajosVisibles.isNotEmpty()) {
+            item {
+                Text(
+                    stringResource(R.string.home_quick_actions_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
                 )
-                AccesoRapidoCard(
-                    titulo = stringResource(R.string.tab_attendance),
-                    icono = Icons.Default.TaskAlt,
-                    onClick = { onNavigate("asistencia") },
-                )
-                AccesoRapidoCard(
-                    titulo = stringResource(R.string.tab_stats),
-                    icono = Icons.Default.Assessment,
-                    onClick = { onNavigate("estadisticas") },
-                )
-                AccesoRapidoCard(
-                    titulo = stringResource(R.string.tab_parents),
-                    icono = Icons.Default.MailOutline,
-                    onClick = { onNavigate("padres") },
-                )
-                AccesoRapidoCard(
-                    titulo = stringResource(R.string.tab_academy),
-                    icono = Icons.Default.Settings,
-                    onClick = { onNavigate("academia") },
-                )
+            }
+            item {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    for (def in atajosVisibles) {
+                        AccesoRapidoCard(
+                            titulo = stringResource(def.titleRes),
+                            icono = def.icon,
+                            onClick = { onNavigate(def.route) },
+                        )
+                    }
+                }
             }
         }
     }
 }
 
+/** Misma lista de rutas que las pestañas operativas (excluye `inicio`). Orden fijo = coherente con barra. */
+private data class AccesoRapidoDef(
+    val route: String,
+    val titleRes: Int,
+    val icon: ImageVector,
+)
+
+private val ACCESOS_RAPIDOS_INICIO = listOf(
+    AccesoRapidoDef("jugadores", R.string.tab_players, Icons.Default.Group),
+    AccesoRapidoDef("asistencia", R.string.tab_attendance, Icons.Default.TaskAlt),
+    AccesoRapidoDef("estadisticas", R.string.tab_stats, Icons.Default.Assessment),
+    AccesoRapidoDef("padres", R.string.tab_parents, Icons.Default.MailOutline),
+    AccesoRapidoDef("academia", R.string.tab_academy, Icons.Default.Settings),
+)
+
 @Composable
 private fun AccesoRapidoCard(
     titulo: String,
-    icono: androidx.compose.ui.graphics.vector.ImageVector,
+    icono: ImageVector,
     onClick: () -> Unit,
 ) {
     Card(

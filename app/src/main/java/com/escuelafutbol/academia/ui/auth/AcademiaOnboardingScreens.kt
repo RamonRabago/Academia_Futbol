@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -76,7 +74,6 @@ fun AcademiaOnboardingScreen(
 ) {
     val context = LocalContext.current
     var code by remember { mutableStateOf("") }
-    var rol by remember { mutableStateOf("coach") }
     var creating by remember { mutableStateOf(false) }
 
     Column(
@@ -92,6 +89,16 @@ fun AcademiaOnboardingScreen(
         Text(
             stringResource(R.string.onboarding_academia_subtitle),
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.onboarding_join_steps_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            stringResource(R.string.onboarding_join_steps_body),
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
@@ -111,7 +118,7 @@ fun AcademiaOnboardingScreen(
             Text(stringResource(R.string.onboarding_create_academy))
         }
         Text(
-            "— ${stringResource(R.string.onboarding_join_button)} —",
+            stringResource(R.string.onboarding_join_divider),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -122,35 +129,15 @@ fun AcademiaOnboardingScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(stringResource(R.string.onboarding_join_as), style = MaterialTheme.typography.labelMedium)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip(
-                selected = rol == "coach",
-                onClick = { rol = "coach" },
-                label = { Text(stringResource(R.string.onboarding_role_coach)) },
-            )
-            FilterChip(
-                selected = rol == "coordinator",
-                onClick = { rol = "coordinator" },
-                label = { Text(stringResource(R.string.onboarding_role_coordinator)) },
-            )
-            FilterChip(
-                selected = rol == "parent",
-                onClick = { rol = "parent" },
-                label = { Text(stringResource(R.string.onboarding_role_parent)) },
-            )
-        }
         Button(
             onClick = {
-                viewModel.joinByCode(code, rol) { result ->
+                viewModel.joinByInviteCode(code) { result ->
                     result.onFailure { e ->
                         Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
                     }
                 }
             },
-            enabled = code.trim().length >= 4,
+            enabled = code.trim().uppercase().length >= 4,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.onboarding_join_button))
@@ -172,6 +159,12 @@ fun AcademiaPickAcademyScreen(
         Text(
             stringResource(R.string.pick_academy_title),
             style = MaterialTheme.typography.headlineSmall,
+        )
+        Text(
+            stringResource(R.string.pick_academy_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
         )
         Spacer(Modifier.height(16.dp))
         LazyColumn(

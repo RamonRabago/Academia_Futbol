@@ -2,14 +2,13 @@
 
 **Objetivo de producto:** una sola app en la tienda; cada club (tenant) tiene su espacio aislado; el dueño/admin invita o da de alta a entrenadores y (opcional) padres; los entrenadores solo ven lo que corresponde a sus categorías asignadas.
 
-**Evidencia del estado actual (abril 2026):**
+**Evidencia del estado actual (abril 2026):** tras Fases 1–3 MVP, la tabla siguiente es histórica-resumen; el detalle vivo está en §Fase 1–3 y `EVIDENCIA_Y_SEGUIMIENTO.md` §4.
 
 | Qué existe hoy | Dónde comprobarlo |
 |----------------|------------------|
-| Una fila `academias` por `user_id` (dueño); RLS: solo `auth.uid() = academias.user_id` | `supabase/migrations/20260331120000_academia_cloud.sql` |
-| Sync crea o recupera academia del usuario logueado | `app/.../data/sync/AcademiaCloudSync.kt` → `ensureAcademiaId` |
-| Roles **en dispositivo** (padre vs staff) y permisos de mensualidad | `RolDispositivo.kt`, `AcademiaScreen`, `AcademiaRoot` |
-| **No** hay tabla de miembros, invitaciones ni asignación usuario↔categoría en servidor | — |
+| Tenant `academias` + miembros `academia_miembros`, coach↔categoría, padres↔jugador | `supabase/migrations/20260402140000_academia_miembros_rls.sql` (+ migraciones coordinator / `academias` update) |
+| Sync, binding, código club, gestión miembros, permisos por rol | `AcademiaCloudSync.kt`, `AcademiaBindingViewModel`, `AcademiaMiembros*`, `rutaPrincipalVisible` |
+| Roles en dispositivo + membresía en nube | `RolDispositivo.kt`, Room `cloudMembresiaRol`, `AcademiaRoot` |
 
 **Principio rector:** el “dueño” de la academia en negocio puede seguir siendo quien paga, pero en **datos** la academia debe identificarse por `academia_id` estable; **otros usuarios** deben enlazarse vía **membresía** (y RLS debe permitir lectura/escritura según rol), no creando otra fila `academias` al registrarse.
 
@@ -142,9 +141,9 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 ## Fase 2 — App: flujo “unirse a una academia”
 
-**Estado (repo):** implementado — `AcademiaBindingViewModel` + pantallas `AcademiaOnboardingScreens.kt`; `AcademiaRoot` muestra onboarding / selector / app principal; `AcademiaCloudSync.resolveAcademiaBinding`, `joinAcademiaByCode` (RPC `join_academia_by_code`), `createOwnedAcademia`, `bindAcademiaIdAndPullConfig`; sync usa `ensureAcademiaIdForSync` (falla con mensajes `NEEDS_*` si falta enlace); dueño genera código en Academia (`regenerarCodigoClub`). **Invitación por email:** pendiente (Fase 0). **SQL:** `supabase/migrations/20260403150000_join_academia_rpc.sql`.
+**Estado (repo):** **CERRADA (MVP).** Implementado: `AcademiaBindingViewModel` + `AcademiaOnboardingScreens.kt` (pasos «¿Cómo me uno?», divisor localizado, código normalizado al unir); `AcademiaRoot` onboarding / selector / app; `joinAcademiaByCode` (RPC `join_academia_by_code`), `createOwnedAcademia`, `bindAcademiaIdAndPullConfig`; `regenerarCodigoClub`; pantalla elegir academia con subtítulo. **Invitación:** MVP sin servidor — `InviteClubIntentHelper` (compartir texto, copiar código, `mailto` con cuerpo) en Academia y en gestión de miembros. **No incluido:** invitación automática con API Admin de Supabase (requiere backend/Edge). **SQL:** `20260403150000_join_academia_rpc.sql`.
 
-**Entregables originales:** cubiertos salvo invitación por correo.
+**Entregables originales:** cubiertos en MVP; invitación «desde servidor» queda fuera hasta Fase 5 / producto enterprise si aplica.
 
 **Criterio de cierre:** probar en dispositivo con Supabase actualizado (Fase 1 + RPC): staff nuevo con código; dueño crea academia; usuario con varias membresías elige una.
 
@@ -154,26 +153,27 @@ Combina 1–2 para no complicar demasiado al inicio:
 
 ## Fase 3 — Permisos en app (coordinar con servidor)
 
-**Estado (repo, 2026-03):** **en curso (parcial).** Hecho: restricción **Academia** a owner/admin (`academiaGestionNubePermitida`, Room v20); staff↔categorías (`staff_categorias` / `equipo_staff_categorias`); **Room v21** `cloudMembresiaRol` + `cloudCoachCategoriasJson` rellenados en merge/pull desde `academia_miembros` y `academia_miembro_categorias`; **coach** filtra jugadores/asistencia/estadísticas por categorías asignadas; **parent** en nube solo ve pestañas Inicio, Padres y Academia; selector de categoría adaptado al coach (sin «todas», sin alta categoría ni portadas si no admin). Pendiente: **invitar/revocar miembros** en app; mapeo explícito **coordinator** vs **admin** en UI si hace falta; comprobar límites en **Inicio** (atajos a rutas ocultas).
+**Estado (repo):** **CERRADA (MVP).** Incluye: `academiaGestionNubePermitida` con **coordinator**; Room v21 membresía + categorías coach; filtrado coach; padre con `rutaPrincipalVisible` en pestañas e Inicio; selector de categoría; gestión miembros (activo, rol, categorías); **revocar** = `DELETE` en `academia_miembros` (RLS `academia_can_manage_members`); **invitar** = compartir/copiar/correo (misma línea que Fase 2 MVP). SQL: `20260416130000_coordinator_manage_members.sql`, `20260417100000_academias_update_coordinator.sql`. Checklist: `docs/CHECKLIST_CIERRE_FASE_2_3.md`.
 
 **Entregables:**
 
-- Mapear rol de membresía → qué pestañas y acciones se muestran (además de `RolDispositivo` local si aplica).
-- Filtrar listas por categorías asignadas para rol `coach` (jugadores, asistencia, estadísticas, etc.).
-- Dueño/admin: UI para invitar, revocar, asignar categorías a entrenadores.
+- Mapear rol de membresía → pestañas y atajos. *(Hecho MVP: `rutaPrincipalVisible` + Inicio alineado.)*
+- Filtrar listas por categorías para `coach`. *(Hecho.)*
+- Dueño/admin/coordinator: miembros + invitación asistida + revocar. *(Hecho MVP.)*
 
 **Criterio de cierre:** entrenador con 2 categorías asignadas no ve jugadores de otras; dueño ve todo.
 
-**Evidencia:** checklist de pantallas en anexo o §7; `CHANGELOG.md` (cambios recientes de permisos y nombre/sync).
+**Evidencia:** `EVIDENCIA_Y_SEGUIMIENTO.md` §7; `CHANGELOG.md`; migración coordinador en §4 evidencia.
 
 ---
 
 ## Fase 4 — Padres (según Fase 0)
 
-- Si **con cuenta:** membresía rol `parent` + RLS restrictivo (solo hijos vinculados: requiere modelo `tutor_user_id` o tabla `padre_hijo` / match por email verificado — definir).
-- Si **sin cuenta:** enlaces firmados o tokens de solo lectura (otro diseño de seguridad).
+**Estado (repo):** **MVP implementado (con cuenta).** Tabla existente `academia_padres_alumnos` (`academia_id`, `parent_user_id`, `jugador_id`). **Staff** (RLS `academia_staff_data_access`) inserta/elimina vínculos desde **Gestionar miembros** → «Hijos vinculados» en cuentas con rol `parent`. **Padre** lee solo jugadores vinculados (`jugadores_parent_select`) y, tras migración `20260418120000_parent_read_asistencias_historial.sql`, **asistencias** e **historial** de esos alumnos en solo lectura. **Sync:** si `cloudMembresiaRol == parent`, la app **no hace push** de datos operativos; hace pull y **poda** jugadores locales que RLS ya no devuelve (evita datos viejos si el dispositivo fue staff antes). **UI Padres:** familias ven «Mis hijos» + asistencia reciente; el staff sigue viendo el borrador para comunicados (copy/paste).
 
-**Criterio de cierre:** alineado con la opción elegida en Fase 0.
+- **Sin cuenta** (tokens / enlaces firmados): fuera de este MVP (Fase 0 lo dejó para fase posterior).
+
+**Criterio de cierre (MVP):** padre con cuenta + vínculo ve solo a sus hijos tras sync; staff puede crear/quitar vínculos; SQL de lectura padre en asistencias/historial aplicado en Supabase.
 
 ---
 
@@ -209,9 +209,10 @@ flowchart LR
 
 ## Cómo usar este plan como evidencia
 
-1. Al cerrar cada fase: actualizar `docs/EVIDENCIA_Y_SEGUIMIENTO.md` sección **7** (tabla changelog).
-2. Adjuntar en §4 de evidencia las nuevas tablas y políticas cuando existan migraciones.
-3. Mantener este archivo como **índice del plan**; los detalles de API pueden vivir en comentarios de migración o en un anexo `docs/ANEXO_ROLES.md` si crece mucho.
+1. Al cerrar cada fase: actualizar `docs/EVIDENCIA_Y_SEGUIMIENTO.md` sección **7** (tabla changelog); para Fase 2/3 MVP ver `docs/CHECKLIST_CIERRE_FASE_2_3.md`.
+2. Actualizar **`CHANGELOG.md`** en la misma entrega si hay cambio visible, SQL, sync o permisos.
+3. Adjuntar en §4 de evidencia las nuevas tablas y políticas cuando existan migraciones.
+4. Mantener este archivo como **índice del plan**; los detalles de API pueden vivir en comentarios de migración o en un anexo `docs/ANEXO_ROLES.md` si crece mucho.
 
 **Creado / alineado con conversación multi-tenant:** 2026-04-02.  
-**Actualizado:** 2026-04-02 — Anexos A y B; **Fase 0 cerrada** documentada en `docs/FASE_0_DECISIONES_CERRADAS.md`. **2026-03-31** — §Fase 3: estado *parcial* en repo (permisos Academia + staff/categorías; pendiente filtrado global coach y gestión de miembros).
+**Actualizado:** 2026-04-02 — Anexos A y B; **Fase 0 cerrada** documentada en `docs/FASE_0_DECISIONES_CERRADAS.md`. **2026-03-31** — **Fase 4 (MVP padres con cuenta):** `PadresAlumnosRepository`, vínculos en `AcademiaMiembrosAdminScreen`, `ParentsScreen`/`ParentsViewModel` por rol, sync solo pull para padre + poda jugadores, SQL `20260418120000_parent_read_asistencias_historial.sql`. **Fases 2 y 3 cerradas (MVP):** invitación asistida (`InviteClubIntentHelper`), revocar miembro, onboarding/pick academy UX, `CHECKLIST_CIERRE_FASE_2_3.md`. SQL coordinator en miembros y `academias` UPDATE. Siguiente foco plan: Fase 4 padres, Fase 5 operación/límites.

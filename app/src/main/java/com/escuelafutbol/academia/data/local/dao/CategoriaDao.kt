@@ -17,10 +17,10 @@ interface CategoriaDao {
     @Query("SELECT * FROM categorias ORDER BY nombre ASC")
     fun observeAllOrdered(): Flow<List<Categoria>>
 
-    @Query("SELECT * FROM categorias WHERE nombre = :nombre LIMIT 1")
+    @Query("SELECT * FROM categorias WHERE trim(nombre) = trim(:nombre) LIMIT 1")
     fun observeByNombre(nombre: String): Flow<Categoria?>
 
-    @Query("SELECT * FROM categorias WHERE nombre = :nombre LIMIT 1")
+    @Query("SELECT * FROM categorias WHERE trim(nombre) = trim(:nombre) LIMIT 1")
     suspend fun getByNombre(nombre: String): Categoria?
 
     @Query("SELECT * FROM categorias")

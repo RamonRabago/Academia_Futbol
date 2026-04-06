@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.ui.SessionViewModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
@@ -70,8 +71,19 @@ fun CategoriaSelectionScreen(
     val nombreAcademia = config.nombreAcademia
     val categoriasUi by pickerVm.categoriasUi.collectAsState()
     val categoriasMostrar = remember(categoriasUi, categoriasPermitidasCoach) {
-        if (categoriasPermitidasCoach == null) categoriasUi
-        else categoriasUi.filter { it.nombre in categoriasPermitidasCoach }
+        if (categoriasPermitidasCoach == null) {
+            categoriasUi
+        } else {
+            val permitidas = categoriasPermitidasCoach
+            val coincidentes = categoriasUi.filter { cat ->
+                permitidas.contains(cat.nombre.trim())
+            }
+            val yaCubiertos = coincidentes.map { it.nombre.trim() }.toSet()
+            val sinteticas = permitidas
+                .filter { p -> p !in yaCubiertos }
+                .map { Categoria(nombre = it) }
+            (coincidentes + sinteticas).sortedBy { it.nombre }
+        }
     }
     val ocultarTodasLasCategorias =
         categoriasPermitidasCoach != null && categoriasPermitidasCoach.isNotEmpty()
@@ -157,6 +169,17 @@ fun CategoriaSelectionScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
                 )
+                if (categoriasPermitidasCoach != null && categoriasPermitidasCoach.isNotEmpty()) {
+                    Text(
+                        stringResource(
+                            R.string.pick_category_coach_assigned_list,
+                            categoriasPermitidasCoach.sorted().joinToString(", "),
+                        ),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
                 if (ocultarTodasLasCategorias) {
                     Text(
                         stringResource(R.string.pick_category_coach_hint),

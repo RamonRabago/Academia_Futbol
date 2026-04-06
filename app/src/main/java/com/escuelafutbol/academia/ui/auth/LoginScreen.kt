@@ -41,6 +41,8 @@ fun LoginScreen(viewModel: AuthViewModel) {
     val err by viewModel.errorMessage.collectAsState()
     val info by viewModel.infoMessage.collectAsState()
 
+    var nombre by rememberSaveable { mutableStateOf("") }
+    var apellido by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var modoRegistro by rememberSaveable { mutableStateOf(false) }
@@ -117,9 +119,22 @@ fun LoginScreen(viewModel: AuthViewModel) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Spacer(Modifier.height(40.dp))
+        Text(
+            stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            stringResource(R.string.app_brand_tagline),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(36.dp))
         Text(
             stringResource(
                 if (modoRegistro) R.string.auth_register_title else R.string.auth_login_title,
@@ -129,12 +144,37 @@ fun LoginScreen(viewModel: AuthViewModel) {
         Spacer(Modifier.height(8.dp))
         Text(
             stringResource(
-                if (modoRegistro) R.string.auth_register_subtitle else R.string.auth_login_subtitle,
+                if (modoRegistro) {
+                    R.string.auth_register_subtitle
+                } else {
+                    R.string.auth_login_subtitle
+                },
+                stringResource(R.string.app_name),
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
+        if (modoRegistro) {
+            OutlinedTextField(
+                value = nombre,
+                onValueChange = { nombre = it },
+                label = { Text(stringResource(R.string.auth_given_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = apellido,
+                onValueChange = { apellido = it },
+                label = { Text(stringResource(R.string.auth_family_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -177,12 +217,13 @@ fun LoginScreen(viewModel: AuthViewModel) {
                 viewModel.clearError()
                 viewModel.clearInfo()
                 if (modoRegistro) {
-                    viewModel.signUp(email, password)
+                    viewModel.signUp(email, password, nombre, apellido)
                 } else {
                     viewModel.signIn(email, password)
                 }
             },
-            enabled = !busy && email.isNotBlank() && password.isNotBlank(),
+            enabled = !busy && email.isNotBlank() && password.isNotBlank() &&
+                (!modoRegistro || (nombre.isNotBlank() && apellido.isNotBlank())),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
@@ -224,6 +265,10 @@ fun LoginScreen(viewModel: AuthViewModel) {
                 viewModel.clearError()
                 viewModel.clearInfo()
                 modoRegistro = !modoRegistro
+                if (!modoRegistro) {
+                    nombre = ""
+                    apellido = ""
+                }
             },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),

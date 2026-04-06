@@ -19,6 +19,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
+
+/** Valores de nombre/apellido y correo le?dos de la sesi?n para el formulario de perfil. */
+data class AuthProfileSnapshot(
+    val nombre: String,
+    val apellido: String,
+    val email: String?,
+)
 
 class AuthViewModel(
     application: Application,
@@ -80,8 +92,16 @@ class AuthViewModel(
         }
     }
 
-    fun signUp(email: String, password: String) {
+    fun signUp(email: String, password: String, nombre: String, apellido: String) {
         val c = client ?: return
+        val app = getApplication<Application>()
+        val nombreNorm = nombre.trim().replace(Regex("\\s+"), " ")
+        val apellidoNorm = apellido.trim().replace(Regex("\\s+"), " ")
+        if (nombreNorm.isBlank() || apellidoNorm.isBlank()) {
+            _errorMessage.value = app.getString(R.string.auth_error_names_required)
+            return
+        }
+        val fullName = "$nombreNorm $apellidoNorm"
         viewModelScope.launch {
             _busy.value = true
             _errorMessage.value = null
@@ -90,22 +110,79 @@ class AuthViewModel(
                 val user = c.auth.signUpWith(Email) {
                     this.email = email.trim()
                     this.password = password
+                    data = buildJsonObject {
+                        put("given_name", nombreNorm)
+                        put("family_name", apellidoNorm)
+                        put("full_name", fullName)
+                        put("name", fullName)
+                    }
                 }
                 when {
                     user != null && user.identities?.isEmpty() == true ->
-                        _errorMessage.value = getApplication<Application>().getString(
+                        _errorMessage.value = app.getString(
                             R.string.auth_error_email_in_use_signup,
                         )
                     user != null ->
-                        _infoMessage.value = getApplication<Application>().getString(
+                        _infoMessage.value = app.getString(
                             R.string.auth_signup_email_sent,
                         )
                     else -> {
-                        // p. ej. confirmación automática: la sesión se importa sola; no mostramos el aviso de correo
+                        // p. ej. confirmaci?n autom?tica: la sesi?n se importa sola; no mostramos el aviso de correo
                     }
                 }
             } catch (e: Throwable) {
                 _errorMessage.value = mapAuthFailure(e)
+            } finally {
+                _busy.value = false
+            }
+        }
+    }
+
+    /** Lee nombre y apellido desde metadata (`given_name`/`family_name` o `full_name`/`name`). */
+    fun editableProfileSnapshot(): AuthProfileSnapshot? {
+        val c = client ?: return null
+        val user = c.auth.currentUserOrNull() ?: return null
+        val meta = user.userMetadata
+        val given = metaString(meta, "given_name")
+        val family = metaString(meta, "family_name")
+        if (!given.isNullOrBlank() && !family.isNullOrBlank()) {
+            return AuthProfileSnapshot(given.trim(), family.trim(), user.email)
+        }
+        val full = metaString(meta, "full_name") ?: metaString(meta, "name")
+        if (!full.isNullOrBlank()) {
+            val (n, a) = splitNombreApellidoDesdeCompleto(full)
+            return AuthProfileSnapshot(n, a, user.email)
+        }
+        return AuthProfileSnapshot("", "", user.email)
+    }
+
+    fun updateProfile(nombre: String, apellido: String, onDone: (Result<Unit>) -> Unit) {
+        val c = client ?: run {
+            onDone(Result.failure(IllegalStateException()))
+            return
+        }
+        val app = getApplication<Application>()
+        val nombreNorm = nombre.trim().replace(Regex("\\s+"), " ")
+        val apellidoNorm = apellido.trim().replace(Regex("\\s+"), " ")
+        if (nombreNorm.isBlank() || apellidoNorm.isBlank()) {
+            onDone(Result.failure(IllegalArgumentException(app.getString(R.string.auth_error_names_required))))
+            return
+        }
+        val fullName = "$nombreNorm $apellidoNorm"
+        viewModelScope.launch {
+            _busy.value = true
+            try {
+                c.auth.updateUser(updateCurrentUser = true) {
+                    data {
+                        put("given_name", nombreNorm)
+                        put("family_name", apellidoNorm)
+                        put("full_name", fullName)
+                        put("name", fullName)
+                    }
+                }
+                onDone(Result.success(Unit))
+            } catch (e: Throwable) {
+                onDone(Result.failure(Exception(mapAuthFailure(e), e)))
             } finally {
                 _busy.value = false
             }
@@ -120,6 +197,20 @@ class AuthViewModel(
             } catch (_: Throwable) {
             }
         }
+    }
+
+    private fun metaString(meta: JsonObject?, key: String): String? {
+        val el = meta?.get(key) ?: return null
+        return (el as? JsonPrimitive)?.contentOrNull
+    }
+
+    /** Primera palabra = nombre, el resto = apellidos (cuentas antiguas sin metadata separada). */
+    private fun splitNombreApellidoDesdeCompleto(full: String): Pair<String, String> {
+        val t = full.trim().replace(Regex("\\s+"), " ")
+        if (t.isEmpty()) return "" to ""
+        val i = t.indexOf(' ')
+        if (i < 0) return t to ""
+        return t.substring(0, i).trim() to t.substring(i + 1).trim()
     }
 
     /** Solicita correo con enlace; el redirect usa el deep link configurado en [AcademiaApplication] (p. ej. academiafutbol://auth). */
@@ -140,7 +231,7 @@ class AuthViewModel(
         }
     }
 
-    /** Tras abrir el enlace del correo y tener sesión de recuperación. */
+    /** Tras abrir el enlace del correo y tener sesi?n de recuperaci?n. */
     fun completePasswordRecovery(newPassword: String, confirmPassword: String) {
         val c = client ?: return
         val app = getApplication<Application>()
@@ -172,7 +263,7 @@ class AuthViewModel(
         when (e) {
             is AuthWeakPasswordException -> {
                 val base = app.getString(R.string.auth_error_weak_password)
-                val reasons = e.reasons.joinToString("\n") { "• $it" }
+                val reasons = e.reasons.joinToString("\n") { "��� $it" }
                 return if (reasons.isNotBlank()) "$base\n$reasons" else base
             }
             is AuthRestException ->

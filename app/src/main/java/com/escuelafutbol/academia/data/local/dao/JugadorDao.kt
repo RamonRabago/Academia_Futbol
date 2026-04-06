@@ -22,17 +22,17 @@ interface JugadorDao {
     fun observeCategorias(): Flow<List<String>>
 
     @Query(
-        "SELECT * FROM jugadores WHERE activo = 1 AND categoria = :categoria ORDER BY nombre ASC",
+        "SELECT * FROM jugadores WHERE activo = 1 AND trim(categoria) = trim(:categoria) ORDER BY nombre ASC",
     )
     fun observeByCategoria(categoria: String): Flow<List<Jugador>>
 
     @Query(
-        "SELECT * FROM jugadores WHERE activo = 1 AND categoria IN (:nombres) ORDER BY categoria, nombre ASC",
+        "SELECT * FROM jugadores WHERE activo = 1 AND trim(categoria) IN (:nombres) ORDER BY categoria, nombre ASC",
     )
     fun observeByCategorias(nombres: List<String>): Flow<List<Jugador>>
 
     @Query(
-        "SELECT * FROM jugadores WHERE activo = 1 AND categoria = :categoria ORDER BY nombre ASC",
+        "SELECT * FROM jugadores WHERE activo = 1 AND trim(categoria) = trim(:categoria) ORDER BY nombre ASC",
     )
     suspend fun getByCategoria(categoria: String): List<Jugador>
 

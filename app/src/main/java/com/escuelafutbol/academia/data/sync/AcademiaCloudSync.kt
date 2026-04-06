@@ -7,7 +7,6 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
-import com.escuelafutbol.academia.data.remote.dto.AcademiaCodigoClubPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
@@ -16,6 +15,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaNombrePatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaRow
+import com.escuelafutbol.academia.data.remote.dto.RegenerateInviteCodesResult
 import com.escuelafutbol.academia.data.remote.dto.AsistenciaRow
 import com.escuelafutbol.academia.data.remote.dto.CategoriaInsert
 import com.escuelafutbol.academia.data.remote.dto.CategoriaPortadaUrlPatch
@@ -37,7 +37,6 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import java.io.File
 import java.util.Locale
-import kotlin.random.Random
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -68,20 +67,30 @@ class AcademiaCloudSync(
             val uid = client.auth.currentUserOrNull()?.id?.toString()
                 ?: error("No hay sesión. Inicia sesión antes de sincronizar.")
             val academiaId = ensureAcademiaIdForSync(uid)
-            pushAcademiaNombre(academiaId)
-            pushAcademiaThemeColors(academiaId)
-            pushAcademiaMedia(uid, academiaId)
-            pushCategorias(academiaId)
-            pushCategoriaPortadas(uid, academiaId)
-            pushJugadores(academiaId)
-            pushJugadorFotosLocales(uid, academiaId)
-            pushHistorial(academiaId)
-            pushAsistencias(academiaId)
-            pushStaff(academiaId)
-            pushStaffFotosLocales(uid, academiaId)
-            pushStaffCategorias(academiaId)
+            val cfgPre = db.academiaConfigDao().getActual() ?: AcademiaConfig.DEFAULT
+            val esPadreNube = cfgPre.remoteAcademiaId != null &&
+                cfgPre.cloudMembresiaRol?.equals("parent", ignoreCase = true) == true
+
+            if (!esPadreNube) {
+                pushAcademiaNombre(academiaId)
+                pushAcademiaThemeColors(academiaId)
+                pushAcademiaMedia(uid, academiaId)
+                pushCategorias(academiaId)
+                pushCategoriaPortadas(uid, academiaId)
+                pushJugadores(academiaId)
+                pushJugadorFotosLocales(uid, academiaId)
+                pushHistorial(academiaId)
+                pushAsistencias(academiaId)
+                pushStaff(academiaId)
+                pushStaffFotosLocales(uid, academiaId)
+                pushStaffCategorias(academiaId)
+            }
+
             pullCategorias(academiaId)
-            pullJugadores(academiaId)
+            val jugadoresPulledIds = pullJugadores(academiaId)
+            if (esPadreNube) {
+                pruneJugadoresNoAutorizadosParaPadre(jugadoresPulledIds)
+            }
             val jugadorMap = buildJugadorRemoteMap()
             pullHistorial(academiaId, jugadorMap)
             pullAsistencias(academiaId, jugadorMap)
@@ -107,6 +116,9 @@ class AcademiaCloudSync(
                 cfg.copy(
                     remoteAcademiaId = null,
                     codigoClubRemoto = null,
+                    codigoInviteCoachRemoto = null,
+                    codigoInviteCoordinatorRemoto = null,
+                    codigoInviteParentRemoto = null,
                     academiaGestionNubePermitida = true,
                     cloudMembresiaRol = null,
                     cloudCoachCategoriasJson = null,
@@ -187,13 +199,12 @@ class AcademiaCloudSync(
         row.id
     }
 
-    suspend fun joinAcademiaByCode(code: String, rolMembresia: String): Result<String> = runCatching {
-        val normalizedRol = rolMembresia.trim().lowercase()
+    /** Une por código de invitación; el rol lo fija el servidor según el código (entrenador / coordinador / padre). */
+    suspend fun joinAcademiaByInviteCode(code: String): Result<String> = runCatching {
         val params = buildJsonObject {
             put("p_codigo", code.trim().uppercase())
-            put("p_rol", normalizedRol)
         }
-        val result = client.postgrest.rpc("join_academia_by_code", params)
+        val result = client.postgrest.rpc("join_academia_by_invite_code", params)
         val aid = result.decodeAs<String>()
         bindAcademiaIdAndPullConfig(aid)
         aid
@@ -208,29 +219,26 @@ class AcademiaCloudSync(
         mergeAcademiaRowIntoLocal(dao, cfg, row)
     }
 
-    suspend fun regenerateClubCode(academiaId: String): Result<String> = runCatching {
-        val charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-        repeat(15) {
-            val code = buildString(6) {
-                repeat(6) {
-                    append(charset[Random.nextInt(charset.length)])
-                }
-            }
-            runCatching {
-                client.from("academias").update(AcademiaCodigoClubPatch(code)) {
-                    filter { eq("id", academiaId) }
-                }
-            }.onSuccess {
-                val dao = db.academiaConfigDao()
-                val cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
-                dao.upsert(cfg.copy(codigoClubRemoto = code))
-                return@runCatching code
-            }
+    /** Genera tres códigos (entrenador, coordinador, padre) vía RPC y actualiza Room. */
+    suspend fun regenerateAcademiaInviteCodes(academiaId: String): Result<RegenerateInviteCodesResult> =
+        runCatching {
+            val params = buildJsonObject { put("p_academia_id", academiaId) }
+            val result = client.postgrest.rpc("regenerate_academia_invite_codes", params)
+            val codes = result.decodeAs<RegenerateInviteCodesResult>()
+            val dao = db.academiaConfigDao()
+            val cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
+            dao.upsert(
+                cfg.copy(
+                    codigoInviteCoachRemoto = codes.coach,
+                    codigoInviteCoordinatorRemoto = codes.coordinator,
+                    codigoInviteParentRemoto = codes.parent,
+                    codigoClubRemoto = null,
+                ),
+            )
+            codes
         }
-        error("no_unique_club_code")
-    }
 
-    /** Dueño de la fila `academias` o miembro activo con rol owner/admin (PostgREST). */
+    /** Dueño de la fila `academias` o miembro activo (PostgREST); `computeAcademiaGestionNubePermitida` usa owner/admin/coordinator. */
     private suspend fun resolveMembresiaCloud(uid: String, row: AcademiaRow): MembresiaCloudLocal {
         if (row.userId == uid) {
             return MembresiaCloudLocal(rol = "owner", coachCategoriasJson = null)
@@ -258,7 +266,7 @@ class AcademiaCloudSync(
                             eq("academia_id", row.id)
                         }
                     }.decodeSingle<CategoriaRow>()
-                }.getOrNull()?.nombre?.let { nombres.add(it) }
+                }.getOrNull()?.nombre?.trim()?.takeIf { it.isNotEmpty() }?.let { nombres.add(it) }
             }
             jsonCoachCategorias.encodeToString(coachCatNamesSerializer, nombres.sorted())
         } else {
@@ -277,7 +285,7 @@ class AcademiaCloudSync(
             }
         }.decodeList<AcademiaMiembroRow>()
         val r = members.firstOrNull()?.rol?.trim()?.lowercase(Locale.ROOT) ?: return false
-        return r == "owner" || r == "admin"
+        return r == "owner" || r == "admin" || r == "coordinator"
     }
 
     private suspend fun userCanAccessAcademia(uid: String, academiaId: String): Boolean {
@@ -322,6 +330,12 @@ class AcademiaCloudSync(
                 temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorSecundarioHex,
                 codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
+                codigoInviteCoachRemoto = row.codigoInviteCoach?.takeIf { it.isNotBlank() }
+                    ?: cfg.codigoInviteCoachRemoto,
+                codigoInviteCoordinatorRemoto = row.codigoInviteCoordinator?.takeIf { it.isNotBlank() }
+                    ?: cfg.codigoInviteCoordinatorRemoto,
+                codigoInviteParentRemoto = row.codigoInviteParent?.takeIf { it.isNotBlank() }
+                    ?: cfg.codigoInviteParentRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
                 cloudMembresiaRol = memb?.rol ?: cfg.cloudMembresiaRol,
                 cloudCoachCategoriasJson = if (memb != null) memb.coachCategoriasJson else cfg.cloudCoachCategoriasJson,
@@ -569,7 +583,9 @@ class AcademiaCloudSync(
             filter { eq("academia_id", academiaId) }
         }.decodeList<CategoriaRow>()
         for (row in rows) {
-            val local = dao.getByNombre(row.nombre)
+            val nombre = row.nombre.trim()
+            if (nombre.isEmpty()) continue
+            val local = dao.getByNombre(nombre)
             val url = row.portadaUrl?.takeIf { it.isNotBlank() }
             if (local != null) {
                 dao.update(
@@ -581,7 +597,7 @@ class AcademiaCloudSync(
             } else {
                 dao.insert(
                     Categoria(
-                        nombre = row.nombre,
+                        nombre = nombre,
                         remoteId = row.id,
                         portadaUrlSupabase = url,
                     ),
@@ -590,7 +606,8 @@ class AcademiaCloudSync(
         }
     }
 
-    private suspend fun pullJugadores(academiaId: String) {
+    /** Devuelve los `remoteId` devueltos por PostgREST (RLS: padre solo ve hijos vinculados). */
+    private suspend fun pullJugadores(academiaId: String): Set<String> {
         val dao = db.jugadorDao()
         val rows = client.from("jugadores").select {
             filter { eq("academia_id", academiaId) }
@@ -603,6 +620,16 @@ class AcademiaCloudSync(
                 val nuevo = row.toLocalMerged(null)
                 dao.insert(nuevo.copy(id = 0))
             }
+        }
+        return rows.map { it.id }.toSet()
+    }
+
+    /** Evita que en dispositivos de padre queden jugadores de un rol staff previo en el mismo SQLite. */
+    private suspend fun pruneJugadoresNoAutorizadosParaPadre(allowedRemoteIds: Set<String>) {
+        val dao = db.jugadorDao()
+        for (j in dao.getAllIncludingInactive()) {
+            val rid = j.remoteId ?: continue
+            if (rid !in allowedRemoteIds) dao.delete(j)
         }
     }
 
@@ -747,6 +774,12 @@ class AcademiaCloudSync(
                 temaColorSecundarioHex = row.colorSecundarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorSecundarioHex,
                 codigoClubRemoto = row.codigoClub?.takeIf { it.isNotBlank() } ?: cfg.codigoClubRemoto,
+                codigoInviteCoachRemoto = row.codigoInviteCoach?.takeIf { it.isNotBlank() }
+                    ?: cfg.codigoInviteCoachRemoto,
+                codigoInviteCoordinatorRemoto = row.codigoInviteCoordinator?.takeIf { it.isNotBlank() }
+                    ?: cfg.codigoInviteCoordinatorRemoto,
+                codigoInviteParentRemoto = row.codigoInviteParent?.takeIf { it.isNotBlank() }
+                    ?: cfg.codigoInviteParentRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
                 cloudMembresiaRol = memb?.rol ?: cfg.cloudMembresiaRol,
                 cloudCoachCategoriasJson = if (memb != null) memb.coachCategoriasJson else cfg.cloudCoachCategoriasJson,

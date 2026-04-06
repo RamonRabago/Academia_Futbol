@@ -43,6 +43,12 @@ data class AcademiaRow(
 
     @SerialName("codigo_club") val codigoClub: String? = null,
 
+    @SerialName("codigo_invite_coach") val codigoInviteCoach: String? = null,
+
+    @SerialName("codigo_invite_coordinator") val codigoInviteCoordinator: String? = null,
+
+    @SerialName("codigo_invite_parent") val codigoInviteParent: String? = null,
+
 )
 
 @Serializable
@@ -54,9 +60,48 @@ data class AcademiaMiembroRow(
     val activo: Boolean = true,
 )
 
+/** Respuesta de RPC `list_academia_miembros_for_manage` (gestión de miembros con identidad legible). */
+@Serializable
+data class AcademiaMiembroListRow(
+    val id: String,
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("user_id") val userId: String,
+    val rol: String,
+    val activo: Boolean = true,
+    @SerialName("display_label") val displayLabel: String? = null,
+    @SerialName("member_email") val memberEmail: String? = null,
+)
+
 @Serializable
 data class AcademiaMiembroCategoriaLinkRow(
     @SerialName("categoria_id") val categoriaId: String,
+)
+
+@Serializable
+data class AcademiaMiembroCategoriaInsert(
+    @SerialName("miembro_id") val miembroId: String,
+    @SerialName("categoria_id") val categoriaId: String,
+)
+
+@Serializable
+data class AcademiaMiembroActivoPatch(val activo: Boolean)
+
+@Serializable
+data class AcademiaMiembroRolPatch(val rol: String)
+
+@Serializable
+data class AcademiaPadresAlumnoRow(
+    val id: String,
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("parent_user_id") val parentUserId: String,
+    @SerialName("jugador_id") val jugadorId: String,
+)
+
+@Serializable
+data class AcademiaPadresAlumnoInsert(
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("parent_user_id") val parentUserId: String,
+    @SerialName("jugador_id") val jugadorId: String,
 )
 
 @Serializable
@@ -254,7 +299,7 @@ fun JugadorRow.toLocalMerged(existing: Jugador?) = Jugador(
 
     nombre = nombre,
 
-    categoria = categoria,
+    categoria = categoria.trim(),
 
     fechaNacimientoMillis = fechaNacimientoMs ?: existing?.fechaNacimientoMillis,
 
@@ -510,5 +555,13 @@ data class AcademiaColoresPatch(
 @Serializable
 data class AcademiaCodigoClubPatch(
     @SerialName("codigo_club") val codigoClub: String,
+)
+
+/** Respuesta JSON de RPC `regenerate_academia_invite_codes`. */
+@Serializable
+data class RegenerateInviteCodesResult(
+    val coach: String,
+    val coordinator: String,
+    val parent: String,
 )
 

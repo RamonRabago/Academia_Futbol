@@ -12,17 +12,23 @@ fun jugadoresActivosFlow(
     jugadorDao: JugadorDao,
     filtroCategoria: String?,
     categoriasPermitidasOperacion: Set<String>?,
-): Flow<List<Jugador>> =
-    when {
-        categoriasPermitidasOperacion == null ->
-            if (filtroCategoria == null) {
+): Flow<List<Jugador>> {
+    val filtroNorm = filtroCategoria?.trim()?.takeIf { it.isNotEmpty() }
+    val permitidasNorm = categoriasPermitidasOperacion
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?.toSet()
+    return when {
+        permitidasNorm == null ->
+            if (filtroNorm == null) {
                 jugadorDao.observeAll()
             } else {
-                jugadorDao.observeByCategoria(filtroCategoria)
+                jugadorDao.observeByCategoria(filtroNorm)
             }
-        categoriasPermitidasOperacion.isEmpty() -> flowOf(emptyList())
-        filtroCategoria == null ->
-            jugadorDao.observeByCategorias(categoriasPermitidasOperacion.toList())
-        filtroCategoria !in categoriasPermitidasOperacion -> flowOf(emptyList())
-        else -> jugadorDao.observeByCategoria(filtroCategoria)
+        permitidasNorm.isEmpty() -> flowOf(emptyList())
+        filtroNorm == null ->
+            jugadorDao.observeByCategorias(permitidasNorm.toList())
+        filtroNorm !in permitidasNorm -> flowOf(emptyList())
+        else -> jugadorDao.observeByCategoria(filtroNorm)
     }
+}
