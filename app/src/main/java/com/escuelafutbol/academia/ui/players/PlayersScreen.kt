@@ -20,7 +20,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -97,13 +96,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.yalantis.ucrop.UCrop
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.formatearFechaCalendarioUtc
 import com.escuelafutbol.academia.ui.util.formatearFechaDiaLocal
@@ -506,75 +504,16 @@ fun PlayersScreen(
     jugadorFotoAmpliada?.let { amp ->
         val fotoModel = amp.coilFotoModel(context)
         if (fotoModel != null) {
-            JugadorFotoAmpliadaDialog(
-                nombreJugador = amp.nombre,
-                model = fotoModel,
+            FullscreenImageViewerDialog(
+                titulo = amp.nombre,
+                imageModel = fotoModel,
+                contentDescription = stringResource(R.string.player_photo_cd),
                 onDismiss = { jugadorFotoAmpliada = null },
             )
         } else {
             LaunchedEffect(amp.id) { jugadorFotoAmpliada = null }
         }
     }
-    }
-}
-
-@Composable
-private fun JugadorFotoAmpliadaDialog(
-    nombreJugador: String,
-    model: Any,
-    onDismiss: () -> Unit,
-) {
-    val maxH = LocalConfiguration.current.screenHeightDp.dp * 0.78f
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-        ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.88f))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(0.92f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    nombreJugador,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White.copy(alpha = 0.95f),
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
-                val fotoInteraction = remember { MutableInteractionSource() }
-                AsyncImage(
-                    model = model,
-                    contentDescription = stringResource(R.string.player_photo_cd),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = maxH)
-                        .clip(MaterialTheme.shapes.large)
-                        .clickable(
-                            interactionSource = fotoInteraction,
-                            indication = null,
-                        ) { },
-                    contentScale = ContentScale.Fit,
-                )
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.padding(top = 16.dp),
-                ) {
-                    Text(
-                        stringResource(R.string.player_photo_viewer_close),
-                        color = Color.White.copy(alpha = 0.9f),
-                    )
-                }
-            }
-        }
     }
 }
 

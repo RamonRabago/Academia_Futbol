@@ -30,6 +30,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,9 +50,16 @@ import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
+import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+
+private sealed class InicioImageViewer {
+    data object Logo : InicioImageViewer()
+    data object PortadaAcademia : InicioImageViewer()
+    data class PortadaCategoria(val nombre: String) : InicioImageViewer()
+}
 
 @Composable
 fun InicioScreen(
@@ -62,6 +74,10 @@ fun InicioScreen(
     onNavigate: (route: String) -> Unit,
 ) {
     val context = LocalContext.current
+    var imageViewer by remember { mutableStateOf<InicioImageViewer?>(null) }
+    val portadaCategoriaModel = categoriaPortada?.coilPortadaCategoriaModel(context)
+    val portadaAcademiaModel = config.coilPortadaModel(context)
+    val portadaMostrada = portadaCategoriaModel ?: portadaAcademiaModel
     val textoBienvenidaSesion =
         if (sesionEtiqueta.isNullOrBlank()) null
         else stringResource(R.string.home_welcome_user, sesionEtiqueta)
@@ -87,13 +103,21 @@ fun InicioScreen(
                         .height(coverH)
                         .align(Alignment.TopCenter),
                 ) {
-                    val portadaModel = categoriaPortada?.coilPortadaCategoriaModel(context)
-                        ?: config.coilPortadaModel(context)
-                    if (portadaModel != null) {
+                    if (portadaMostrada != null) {
                         AsyncImage(
-                            model = portadaModel,
+                            model = portadaMostrada,
                             contentDescription = stringResource(R.string.academy_cover),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable {
+                                    imageViewer = if (portadaCategoriaModel != null) {
+                                        InicioImageViewer.PortadaCategoria(
+                                            checkNotNull(categoriaPortada).nombre,
+                                        )
+                                    } else {
+                                        InicioImageViewer.PortadaAcademia
+                                    }
+                                },
                             contentScale = ContentScale.Crop,
                         )
                     } else {
@@ -120,7 +144,9 @@ fun InicioScreen(
                         AsyncImage(
                             model = logoModel,
                             contentDescription = stringResource(R.string.academy_logo_profile),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable { imageViewer = InicioImageViewer.Logo },
                             contentScale = ContentScale.Crop,
                         )
                     } else {
@@ -207,6 +233,40 @@ fun InicioScreen(
                     }
                 }
             }
+        }
+    }
+
+    imageViewer?.let { v ->
+        val model = when (v) {
+            InicioImageViewer.Logo -> config.coilLogoModel(context)
+            InicioImageViewer.PortadaAcademia -> config.coilPortadaModel(context)
+            is InicioImageViewer.PortadaCategoria ->
+                categoriaPortada?.takeIf { it.nombre == v.nombre }
+                    ?.coilPortadaCategoriaModel(context)
+        }
+        val titulo = when (v) {
+            InicioImageViewer.Logo -> stringResource(R.string.academy_logo_section)
+            InicioImageViewer.PortadaAcademia -> stringResource(R.string.academy_cover_section)
+            is InicioImageViewer.PortadaCategoria -> stringResource(
+                R.string.category_cover_viewer_title,
+                v.nombre,
+            )
+        }
+        val cd = when (v) {
+            InicioImageViewer.Logo -> stringResource(R.string.academy_logo_profile)
+            InicioImageViewer.PortadaAcademia -> stringResource(R.string.academy_cover)
+            is InicioImageViewer.PortadaCategoria ->
+                stringResource(R.string.player_photo_tap_to_expand)
+        }
+        if (model != null) {
+            FullscreenImageViewerDialog(
+                titulo = titulo,
+                imageModel = model,
+                contentDescription = cd,
+                onDismiss = { imageViewer = null },
+            )
+        } else {
+            LaunchedEffect(v) { imageViewer = null }
         }
     }
 }

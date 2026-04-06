@@ -118,6 +118,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
 import com.escuelafutbol.academia.data.local.entity.Staff
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
@@ -130,6 +131,11 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private sealed class AcademiaBrandingImageViewer {
+    data object Portada : AcademiaBrandingImageViewer()
+    data object Logo : AcademiaBrandingImageViewer()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -165,6 +171,7 @@ fun AcademiaScreen(
     val authSession by authVm.sessionStatus.collectAsState()
     val cuentaPerfil = remember(authSession, authBusy) { authVm.editableProfileSnapshot() }
     var pantallaMiembros by remember { mutableStateOf(false) }
+    var brandingImageViewer by remember { mutableStateOf<AcademiaBrandingImageViewer?>(null) }
     var dialogoPerfil by remember { mutableStateOf(false) }
     var perfilNombre by remember { mutableStateOf("") }
     var perfilApellido by remember { mutableStateOf("") }
@@ -413,7 +420,11 @@ fun AcademiaScreen(
                         AsyncImage(
                             model = portadaModel,
                             contentDescription = stringResource(R.string.academy_cover),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable {
+                                    brandingImageViewer = AcademiaBrandingImageViewer.Portada
+                                },
                             contentScale = ContentScale.Crop,
                         )
                     } else {
@@ -469,7 +480,10 @@ fun AcademiaScreen(
                             contentDescription = stringResource(R.string.academy_logo_profile),
                             modifier = Modifier
                                 .size(88.dp)
-                                .clip(CircleShape),
+                                .clip(CircleShape)
+                                .clickable {
+                                    brandingImageViewer = AcademiaBrandingImageViewer.Logo
+                                },
                             contentScale = ContentScale.Crop,
                         )
                     } else {
@@ -1079,6 +1093,35 @@ fun AcademiaScreen(
                 pendienteTrasPin = null
             },
         )
+    }
+
+    brandingImageViewer?.let { kind ->
+        val model = when (kind) {
+            AcademiaBrandingImageViewer.Portada -> config.coilPortadaModel(context)
+            AcademiaBrandingImageViewer.Logo -> config.coilLogoModel(context)
+        }
+        val titulo = when (kind) {
+            AcademiaBrandingImageViewer.Portada ->
+                stringResource(R.string.academy_cover_section)
+            AcademiaBrandingImageViewer.Logo ->
+                stringResource(R.string.academy_logo_section)
+        }
+        val cd = when (kind) {
+            AcademiaBrandingImageViewer.Portada ->
+                stringResource(R.string.academy_cover)
+            AcademiaBrandingImageViewer.Logo ->
+                stringResource(R.string.academy_logo_profile)
+        }
+        if (model != null) {
+            FullscreenImageViewerDialog(
+                titulo = titulo,
+                imageModel = model,
+                contentDescription = cd,
+                onDismiss = { brandingImageViewer = null },
+            )
+        } else {
+            LaunchedEffect(kind) { brandingImageViewer = null }
+        }
     }
 }
 

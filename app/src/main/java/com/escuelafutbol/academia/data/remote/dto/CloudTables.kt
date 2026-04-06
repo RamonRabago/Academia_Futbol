@@ -470,7 +470,11 @@ data class AsistenciaInsert(
 
 )
 
-
+@Serializable
+data class AsistenciaUpdatePatch(
+    @SerialName("fecha_dia_ms") val fechaDiaMs: Long,
+    val presente: Boolean,
+)
 
 @Serializable
 

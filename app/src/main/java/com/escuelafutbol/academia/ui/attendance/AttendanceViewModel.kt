@@ -8,6 +8,7 @@ import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.ui.util.DayMillis
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
+import com.escuelafutbol.academia.ui.util.jugadoresActivosSnapshot
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.time.ZoneId
@@ -29,7 +30,7 @@ class AttendanceViewModel(
     private val jugadorDao: JugadorDao,
     private val asistenciaDao: AsistenciaDao,
     private val filtroCategoria: StateFlow<String?>,
-    categoriasPermitidasOperacion: StateFlow<Set<String>?>,
+    private val categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : ViewModel() {
 
     val fechaDia = MutableStateFlow(DayMillis.today())
@@ -76,23 +77,42 @@ class AttendanceViewModel(
     fun marcarAsistencia(jugadorId: Long, presente: Boolean) {
         val día = fechaDia.value
         viewModelScope.launch {
-            asistenciaDao.upsert(
-                Asistencia(jugadorId = jugadorId, fechaDia = día, presente = presente),
-            )
+            val prev = asistenciaDao.getPorJugadorYDia(jugadorId, día)
+            val next = if (prev != null) {
+                prev.copy(presente = presente, needsCloudPush = true)
+            } else {
+                Asistencia(
+                    jugadorId = jugadorId,
+                    fechaDia = día,
+                    presente = presente,
+                    needsCloudPush = true,
+                )
+            }
+            asistenciaDao.upsert(next)
         }
     }
 
     fun marcarTodosPresentes() {
         val día = fechaDia.value
         viewModelScope.launch {
-            val lista = when (val c = filtroCategoria.value) {
-                null -> jugadorDao.getAll()
-                else -> jugadorDao.getByCategoria(c)
-            }
+            val lista = jugadoresActivosSnapshot(
+                jugadorDao,
+                filtroCategoria.value,
+                categoriasPermitidasOperacion.value,
+            )
             for (j in lista) {
-                asistenciaDao.upsert(
-                    Asistencia(jugadorId = j.id, fechaDia = día, presente = true),
-                )
+                val prev = asistenciaDao.getPorJugadorYDia(j.id, día)
+                val next = if (prev != null) {
+                    prev.copy(presente = true, needsCloudPush = true)
+                } else {
+                    Asistencia(
+                        jugadorId = j.id,
+                        fechaDia = día,
+                        presente = true,
+                        needsCloudPush = true,
+                    )
+                }
+                asistenciaDao.upsert(next)
             }
         }
     }

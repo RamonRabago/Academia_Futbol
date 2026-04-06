@@ -24,6 +24,16 @@ interface AsistenciaDao {
     @Query("SELECT * FROM asistencias WHERE remoteId IS NULL")
     suspend fun getSinRemoto(): List<Asistencia>
 
+    @Query(
+        "SELECT * FROM asistencias WHERE remoteId IS NOT NULL AND needsCloudPush = 1",
+    )
+    suspend fun getRemotasPendientesPush(): List<Asistencia>
+
+    @Query(
+        "SELECT * FROM asistencias WHERE jugadorId = :jugadorId AND fechaDia = :fechaDia LIMIT 1",
+    )
+    suspend fun getPorJugadorYDia(jugadorId: Long, fechaDia: Long): Asistencia?
+
     @Query("SELECT * FROM asistencias WHERE remoteId = :remoteId LIMIT 1")
     suspend fun getPorRemoteId(remoteId: String): Asistencia?
 

@@ -33,7 +33,7 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         Staff::class,
         StaffCategoria::class,
     ],
-    version = 25,
+    version = 26,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -306,6 +306,15 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_25_26 =
+            object : Migration(25, 26) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "ALTER TABLE asistencias ADD COLUMN needsCloudPush INTEGER NOT NULL DEFAULT 0",
+                    )
+                }
+            }
+
         private val MIGRATION_19_20 =
             object : Migration(19, 20) {
                 override fun migrate(db: SupportSQLiteDatabase) {
@@ -369,6 +378,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_22_23,
                     MIGRATION_23_24,
                     MIGRATION_24_25,
+                    MIGRATION_25_26,
                 )
                 .build()
     }

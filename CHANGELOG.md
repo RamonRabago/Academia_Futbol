@@ -6,6 +6,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Asistencia → nube:** columna Room **`needsCloudPush`** (migración **25 → 26**) y **`pushAsistencias`** hace **UPDATE** en `asistencias` cuando el registro ya tiene `remoteId` y hubo cambios locales (`AsistenciaUpdatePatch`). **`pullAsistencias`** deja `needsCloudPush` en falso al fusionar.
+
+- **Visor de imágenes a pantalla completa** (`FullscreenImageViewerDialog`): reutilizable para branding y jugadores. **Portada** y **logo** de la academia son pulsables en **Academia**, **Inicio** (cabecera con solape del avatar) y en el **selector de categoría** (barra, franja superior y miniatura por categoría si hay portada). En Inicio, si la portada visible es la de la categoría en curso, el título del visor usa `category_cover_viewer_title`.
+
 - **Editar jugador:** botón **Editar** en la tarjeta expandida; formulario compartido con el alta (`FormularioJugadorUi`, `edit_player` / `player_edit`). `actualizarJugador` en Room y **`JugadorRemoteRepository`** + **`JugadorRemoteUpdatePatch`** en Supabase (campos editables; no cambia `fecha_alta_ms` ni auditoría de alta). Si no hay permiso para ver mensualidad en el dispositivo, al guardar se mantienen **becado** y **mensualidad** del registro.
 
 - **Auditoría de alta de jugador:** columnas **`alta_por_user_id`** y **`alta_por_nombre`** en Supabase (`jugadores`); en Room **`altaPorUserId`** (v24) y **`altaPorNombre`** (v25). Al guardar, se persisten el UUID de Auth y la **etiqueta visible** (metadata o correo) vía `etiquetaVisibleDesdeAuthMetadata`. La ficha muestra **«Alta por: [nombre]»**. SQL `20260422130000_jugador_alta_por_user.sql` y `20260423120000_jugador_alta_por_nombre.sql`.
@@ -50,7 +54,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
-- **Foto en tarjeta de jugador:** tocar la **miniatura** abre un visor a pantalla completa (fondo oscuro, nombre, imagen a `Fit`, cerrar con botón, toque fuera o atrás); el resto de la fila sigue expandiendo/contrayendo detalles (`JugadorFotoAmpliadaDialog`, strings `player_photo_tap_to_expand`, `player_photo_viewer_close`).
+- **Asistencia:** al marcar presente/ausente se **fusiona** con el registro existente (se mantiene `remoteId`) y se marca **`needsCloudPush`** para subir cambios; «Marcar todos presentes» usa **`jugadoresActivosSnapshot`** (misma lista que en pantalla, p. ej. coach con categorías asignadas). Texto del botón en `attendance_mark_all_present`.
+
+- **Foto en tarjeta de jugador:** tocar la **miniatura** abre el mismo visor compartido (`FullscreenImageViewerDialog`); el resto de la fila sigue expandiendo/contrayendo detalles (strings `player_photo_tap_to_expand`, `player_photo_viewer_close`).
 
 - **Lista de jugadores (`PlayersScreen`):** filas **compactas** (foto 40dp, nombre, categoría, fecha de alta y mensualidad resumida); al **tocar la fila** se **expande** con animación el bloque de detalles (CURP, documentos, contacto, notas, acciones). Solo **un jugador expandido** a la vez; chevron animado y tono de tarjeta algo más alto al expandir. Strings de accesibilidad `player_card_*`.
 

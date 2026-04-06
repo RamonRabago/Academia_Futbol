@@ -38,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,9 +58,16 @@ import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.ui.SessionViewModel
+import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+
+private sealed class CategoriaPickerImageViewer {
+    data object Logo : CategoriaPickerImageViewer()
+    data object AcademiaPortada : CategoriaPickerImageViewer()
+    data class CategoriaPortada(val nombre: String) : CategoriaPickerImageViewer()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,6 +105,7 @@ fun CategoriaSelectionScreen(
     var dialogoNueva by remember { mutableStateOf(false) }
     var textoNueva by remember { mutableStateOf("") }
     var portadaPickNombre by remember { mutableStateOf<String?>(null) }
+    var imageViewer by remember { mutableStateOf<CategoriaPickerImageViewer?>(null) }
     val pickPortada = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri ->
@@ -117,11 +126,14 @@ fun CategoriaSelectionScreen(
                         if (logoModel != null) {
                             AsyncImage(
                                 model = logoModel,
-                                contentDescription = null,
+                                contentDescription = stringResource(R.string.academy_logo_profile),
                                 modifier = Modifier
                                     .padding(end = 12.dp)
                                     .size(36.dp)
-                                    .clip(CircleShape),
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        imageViewer = CategoriaPickerImageViewer.Logo
+                                    },
                                 contentScale = ContentScale.Crop,
                             )
                         }
@@ -152,10 +164,13 @@ fun CategoriaSelectionScreen(
             if (portadaModel != null) {
                 AsyncImage(
                     model = portadaModel,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.academy_cover),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(88.dp),
+                        .height(88.dp)
+                        .clickable {
+                            imageViewer = CategoriaPickerImageViewer.AcademiaPortada
+                        },
                     contentScale = ContentScale.Crop,
                 )
             }
@@ -268,8 +283,15 @@ fun CategoriaSelectionScreen(
                                     if (thumb != null) {
                                         AsyncImage(
                                             model = thumb,
-                                            contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(),
+                                            contentDescription = stringResource(
+                                                R.string.player_photo_tap_to_expand,
+                                            ),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clickable {
+                                                    imageViewer =
+                                                        CategoriaPickerImageViewer.CategoriaPortada(cat.nombre)
+                                                },
                                             contentScale = ContentScale.Crop,
                                         )
                                     }
@@ -360,5 +382,38 @@ fun CategoriaSelectionScreen(
                 ) { Text(stringResource(R.string.cancel)) }
             },
         )
+    }
+
+    imageViewer?.let { v ->
+        val model = when (v) {
+            CategoriaPickerImageViewer.Logo -> config.coilLogoModel(ctx)
+            CategoriaPickerImageViewer.AcademiaPortada -> config.coilPortadaModel(ctx)
+            is CategoriaPickerImageViewer.CategoriaPortada ->
+                categoriasMostrar.find { it.nombre == v.nombre }?.coilPortadaCategoriaModel(ctx)
+        }
+        val titulo = when (v) {
+            CategoriaPickerImageViewer.Logo -> stringResource(R.string.academy_logo_section)
+            CategoriaPickerImageViewer.AcademiaPortada -> stringResource(R.string.academy_cover_section)
+            is CategoriaPickerImageViewer.CategoriaPortada -> stringResource(
+                R.string.category_cover_viewer_title,
+                v.nombre,
+            )
+        }
+        val cd = when (v) {
+            CategoriaPickerImageViewer.Logo -> stringResource(R.string.academy_logo_profile)
+            CategoriaPickerImageViewer.AcademiaPortada -> stringResource(R.string.academy_cover)
+            is CategoriaPickerImageViewer.CategoriaPortada ->
+                stringResource(R.string.player_photo_tap_to_expand)
+        }
+        if (model != null) {
+            FullscreenImageViewerDialog(
+                titulo = titulo,
+                imageModel = model,
+                contentDescription = cd,
+                onDismiss = { imageViewer = null },
+            )
+        } else {
+            LaunchedEffect(v) { imageViewer = null }
+        }
     }
 }

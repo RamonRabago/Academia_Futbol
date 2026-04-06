@@ -81,7 +81,7 @@ fun AttendanceScreen(viewModel: AttendanceViewModel, categoriaFiltro: String?) {
                         .fillMaxWidth()
                         .padding(bottom = 8.dp),
                 ) {
-                    Text("Marcar todos presentes")
+                    Text(stringResource(R.string.attendance_mark_all_present))
                 }
             }
             if (filas.isEmpty()) {

@@ -4,6 +4,7 @@
     <string name="app_brand_tagline">Gestión para academias y clubes de fútbol.</string>
     <string name="tab_players">Jugadores</string>
     <string name="tab_attendance">Asistencia</string>
+    <string name="attendance_mark_all_present">Marcar todos presentes</string>
     <string name="tab_stats">Estadísticas</string>
     <string name="tab_parents">Padres</string>
     <string name="add_player">Añadir jugador</string>
@@ -61,6 +62,7 @@
     <string name="pick_category_membership_loading">Obteniendo tu rol en el club desde la nube…</string>
     <string name="category_row_work_hint">Toca el texto para entrar con esta categoría.</string>
     <string name="category_pick_cover_cd">Elegir portada de la categoría</string>
+    <string name="category_cover_viewer_title">Portada: %s</string>
     <string name="category_clear_cover_cd">Quitar portada de la categoría</string>
     <string name="change_category">Cambiar categoría</string>
     <string name="working_in">Categoría: %1$s</string>

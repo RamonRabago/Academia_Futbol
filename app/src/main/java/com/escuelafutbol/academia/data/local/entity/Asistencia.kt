@@ -27,4 +27,6 @@ data class Asistencia(
     val fechaDia: Long,
     val presente: Boolean,
     val remoteId: String? = null,
+    /** True si hay cambios locales aún no reflejados en Supabase (insert o update). */
+    val needsCloudPush: Boolean = false,
 )

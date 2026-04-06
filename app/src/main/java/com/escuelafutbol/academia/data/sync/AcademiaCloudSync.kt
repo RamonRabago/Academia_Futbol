@@ -20,6 +20,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaRow
 import com.escuelafutbol.academia.data.remote.dto.RegenerateInviteCodesResult
 import com.escuelafutbol.academia.data.remote.dto.AsistenciaRow
+import com.escuelafutbol.academia.data.remote.dto.AsistenciaUpdatePatch
 import com.escuelafutbol.academia.data.remote.dto.CategoriaInsert
 import com.escuelafutbol.academia.data.remote.dto.CategoriaPortadaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.CategoriaRow
@@ -682,7 +683,21 @@ class AcademiaCloudSync(
             val row = client.from("asistencias").insert(
                 a.toCloudInsert(academiaId, remote),
             ) { select() }.decodeSingle<AsistenciaRow>()
-            aDao.upsert(a.copy(remoteId = row.id))
+            aDao.upsert(a.copy(remoteId = row.id, needsCloudPush = false))
+        }
+        for (a in aDao.getRemotasPendientesPush()) {
+            val rid = a.remoteId ?: continue
+            val jug = jDao.getById(a.jugadorId) ?: continue
+            if (jug.remoteId == null) continue
+            client.from("asistencias").update(
+                AsistenciaUpdatePatch(
+                    fechaDiaMs = a.fechaDia,
+                    presente = a.presente,
+                ),
+            ) {
+                filter { eq("id", rid) }
+            }
+            aDao.upsert(a.copy(needsCloudPush = false))
         }
     }
 
@@ -812,6 +827,7 @@ class AcademiaCloudSync(
                 fechaDia = row.fechaDiaMs,
                 presente = row.presente,
                 remoteId = row.id,
+                needsCloudPush = false,
             )
             if (existing != null) {
                 dao.upsert(entity.copy(id = existing.id))
