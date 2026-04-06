@@ -6,6 +6,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Editar jugador:** botón **Editar** en la tarjeta expandida; formulario compartido con el alta (`FormularioJugadorUi`, `edit_player` / `player_edit`). `actualizarJugador` en Room y **`JugadorRemoteRepository`** + **`JugadorRemoteUpdatePatch`** en Supabase (campos editables; no cambia `fecha_alta_ms` ni auditoría de alta). Si no hay permiso para ver mensualidad en el dispositivo, al guardar se mantienen **becado** y **mensualidad** del registro.
+
 - **Auditoría de alta de jugador:** columnas **`alta_por_user_id`** y **`alta_por_nombre`** en Supabase (`jugadores`); en Room **`altaPorUserId`** (v24) y **`altaPorNombre`** (v25). Al guardar, se persisten el UUID de Auth y la **etiqueta visible** (metadata o correo) vía `etiquetaVisibleDesdeAuthMetadata`. La ficha muestra **«Alta por: [nombre]»**. SQL `20260422130000_jugador_alta_por_user.sql` y `20260423120000_jugador_alta_por_nombre.sql`.
 - **RPC `alta_por_user_labels_for_academia`** + **UPDATE** de backfill en `20260424103000_alta_por_nombre_backfill_and_rpc.sql`: rellena `alta_por_nombre` en filas antiguas desde `auth.users`; la app llama al RPC cuando hay jugadores con UUID de alta pero sin nombre en Room (`PlayersViewModel.etiquetasAltaPorUid`, `AcademiaMiembrosRepository.etiquetasAltaPorUsuario`, DTO `AltaPorUserLabelRow`).
 

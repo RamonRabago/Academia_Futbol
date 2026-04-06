@@ -220,10 +220,11 @@ fun PlayersScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val mostrarAlta by viewModel.mostrarAltaJugador.collectAsState()
-    val altaFormSession by viewModel.altaFormSession.collectAsState()
-    val altaCurpDocPath by viewModel.altaCurpDocPath.collectAsState()
-    val altaActaPath by viewModel.altaActaPath.collectAsState()
+    val formularioJugador by viewModel.formularioJugador.collectAsState()
+    val formularioAbierto = formularioJugador !is FormularioJugadorUi.Oculto
+    val formularioSession by viewModel.formularioSession.collectAsState()
+    val formCurpDocPath by viewModel.formCurpDocPath.collectAsState()
+    val formActaPath by viewModel.formActaPath.collectAsState()
 
     var jugadorHistorial by remember { mutableStateOf<Jugador?>(null) }
     var jugadorBaja by remember { mutableStateOf<Jugador?>(null) }
@@ -233,8 +234,8 @@ fun PlayersScreen(
     /** Evita que un "atrás" del sistema al cerrar el selector cierre el alta. */
     var awaitingExternalActivityResult by remember { mutableStateOf(false) }
 
-    LaunchedEffect(mostrarAlta) {
-        sessionVm.setImpideVolverASeleccionCategoria(mostrarAlta)
+    LaunchedEffect(formularioAbierto) {
+        sessionVm.setImpideVolverASeleccionCategoria(formularioAbierto)
     }
 
     LaunchedEffect(jugadores) {
@@ -270,8 +271,8 @@ fun PlayersScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-    BackHandler(enabled = mostrarAlta && !awaitingExternalActivityResult) {
-        viewModel.cerrarAltaJugador()
+    BackHandler(enabled = formularioAbierto && !awaitingExternalActivityResult) {
+        viewModel.cerrarFormularioJugador()
     }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -282,10 +283,12 @@ fun PlayersScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.abrirAltaJugador() },
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
+            if (!formularioAbierto) {
+                FloatingActionButton(
+                    onClick = { viewModel.abrirAltaJugador() },
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
+                }
             }
         },
     ) { padding ->
@@ -333,6 +336,7 @@ fun PlayersScreen(
                         puedeVerMensualidad = puedeVerMensualidad,
                         etiquetasAltaPorUid = etiquetasAltaPorUid,
                         onAmpliarFoto = { jugadorFotoAmpliada = j },
+                        onEditar = { viewModel.abrirEdicionJugador(j) },
                         onHistorial = { jugadorHistorial = j },
                         onDarBaja = { jugadorBaja = j },
                     )
@@ -341,15 +345,17 @@ fun PlayersScreen(
         }
     }
 
-    if (mostrarAlta) {
-        key(altaFormSession) {
+    if (formularioAbierto) {
+        val jugadorExistente = (formularioJugador as? FormularioJugadorUi.Edicion)?.jugador
+        key(formularioSession) {
             JugadorFormDialog(
-                categoriaInicial = categoriaFiltro.orEmpty(),
+                categoriaInicialAlta = categoriaFiltro.orEmpty(),
+                jugadorExistente = jugadorExistente,
                 puedeVerMensualidad = puedeVerMensualidad,
-                curpDocPath = altaCurpDocPath,
-                onCurpDocPathChange = { viewModel.setAltaCurpDocPath(it) },
-                actaPath = altaActaPath,
-                onActaPathChange = { viewModel.setAltaActaPath(it) },
+                curpDocPath = formCurpDocPath,
+                onCurpDocPathChange = { viewModel.setFormCurpDocPath(it) },
+                actaPath = formActaPath,
+                onActaPathChange = { viewModel.setFormActaPath(it) },
                 onRequestPickCurpDocumento = {
                     awaitingExternalActivityResult = true
                     pickCurpDocLauncher.launch("*/*")
@@ -359,22 +365,42 @@ fun PlayersScreen(
                     pickActaLauncher.launch("*/*")
                 },
                 setAwaitingExternalResult = { awaitingExternalActivityResult = it },
-                onDismiss = { viewModel.cerrarAltaJugador() },
+                onDismiss = { viewModel.cerrarFormularioJugador() },
                 onGuardar = { nombre, categoria, fechaNacMs, tel, email, notas, foto, curpVal, curpDocRuta, actaRuta, becadoVal, mensualidad ->
-                    viewModel.guardarJugador(
-                        nombre,
-                        categoria,
-                        fechaNacMs,
-                        tel,
-                        email,
-                        notas,
-                        foto,
-                        curpVal,
-                        curpDocRuta,
-                        actaRuta,
-                        becadoVal,
-                        mensualidad,
-                    )
+                    val base = jugadorExistente
+                    if (base != null) {
+                        viewModel.actualizarJugador(
+                            base,
+                            puedeVerMensualidad,
+                            nombre,
+                            categoria,
+                            fechaNacMs,
+                            tel,
+                            email,
+                            notas,
+                            foto,
+                            curpVal,
+                            curpDocRuta,
+                            actaRuta,
+                            becadoVal,
+                            mensualidad,
+                        )
+                    } else {
+                        viewModel.guardarJugador(
+                            nombre,
+                            categoria,
+                            fechaNacMs,
+                            tel,
+                            email,
+                            notas,
+                            foto,
+                            curpVal,
+                            curpDocRuta,
+                            actaRuta,
+                            becadoVal,
+                            mensualidad,
+                        )
+                    }
                 },
             )
         }
@@ -587,6 +613,7 @@ private fun JugadorCard(
     puedeVerMensualidad: Boolean,
     etiquetasAltaPorUid: Map<String, String>,
     onAmpliarFoto: () -> Unit,
+    onEditar: () -> Unit,
     onHistorial: () -> Unit,
     onDarBaja: () -> Unit,
 ) {
@@ -865,13 +892,31 @@ private fun JugadorCard(
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
                             TextButton(onClick = onHistorial, modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.player_history))
+                                Text(
+                                    stringResource(R.string.player_history),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            TextButton(onClick = onEditar, modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.player_edit),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                             TextButton(onClick = onDarBaja, modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.player_discharge))
+                                Text(
+                                    stringResource(R.string.player_discharge),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
@@ -884,7 +929,8 @@ private fun JugadorCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun JugadorFormDialog(
-    categoriaInicial: String,
+    categoriaInicialAlta: String,
+    jugadorExistente: Jugador?,
     puedeVerMensualidad: Boolean,
     curpDocPath: String?,
     onCurpDocPathChange: (String?) -> Unit,
@@ -912,7 +958,7 @@ private fun JugadorFormDialog(
 ) {
     val context = LocalContext.current
     var nombre by remember { mutableStateOf("") }
-    var categoria by remember { mutableStateOf(categoriaInicial) }
+    var categoria by remember { mutableStateOf(categoriaInicialAlta) }
     var fechaNacMs by remember { mutableStateOf<Long?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
     val maxYear = remember { LocalDate.now(ZoneOffset.UTC).year }
@@ -935,6 +981,40 @@ private fun JugadorFormDialog(
     var fotoPath by remember { mutableStateOf<String?>(null) }
     var cameraFile by remember { mutableStateOf<File?>(null) }
     var curpTxt by remember { mutableStateOf("") }
+
+    LaunchedEffect(jugadorExistente?.id, categoriaInicialAlta) {
+        val j = jugadorExistente
+        if (j == null) {
+            nombre = ""
+            categoria = categoriaInicialAlta
+            fechaNacMs = null
+            tel = ""
+            email = ""
+            notas = ""
+            mensualidadTxt = ""
+            becado = false
+            fotoPath = null
+            curpTxt = ""
+        } else {
+            nombre = j.nombre
+            categoria = j.categoria
+            fechaNacMs = j.fechaNacimientoMillis
+            tel = j.telefonoTutor.orEmpty()
+            email = j.emailTutor.orEmpty()
+            notas = j.notas.orEmpty()
+            becado = j.becado
+            mensualidadTxt = when {
+                j.becado -> ""
+                j.mensualidad != null -> {
+                    val v = j.mensualidad
+                    if (v % 1.0 == 0.0) v.toInt().toString() else v.toString()
+                }
+                else -> ""
+            }
+            fotoPath = j.fotoRutaAbsoluta?.takeIf { File(it).exists() }
+            curpTxt = j.curp.orEmpty()
+        }
+    }
 
     LaunchedEffect(becado) {
         if (becado) mensualidadTxt = ""
@@ -1072,7 +1152,9 @@ private fun JugadorFormDialog(
         ) {
             Column(Modifier.padding(24.dp)) {
                 Text(
-                    stringResource(R.string.add_player),
+                    stringResource(
+                        if (jugadorExistente == null) R.string.add_player else R.string.edit_player,
+                    ),
                     style = MaterialTheme.typography.headlineSmall,
                 )
                 Spacer(Modifier.height(16.dp))
@@ -1108,6 +1190,14 @@ private fun JugadorFormDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 val path = fotoPath
+                                val hayFotoLocal = path != null && File(path).exists()
+                                val modeloRemoto = remember(jugadorExistente?.id, path) {
+                                    if (jugadorExistente != null && !hayFotoLocal) {
+                                        jugadorExistente.coilFotoModel(context)
+                                    } else {
+                                        null
+                                    }
+                                }
                                 Box(
                                     modifier = Modifier
                                         .size(56.dp)
@@ -1117,18 +1207,23 @@ private fun JugadorFormDialog(
                                             pickGallery.launch("image/*")
                                         },
                                 ) {
-                                    if (path != null && File(path).exists()) {
-                                        AsyncImage(
+                                    when {
+                                        hayFotoLocal -> AsyncImage(
                                             model = ImageRequest.Builder(context)
-                                                .data(File(path))
+                                                .data(File(path!!))
                                                 .crossfade(true)
                                                 .build(),
                                             contentDescription = stringResource(R.string.player_photo_cd),
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop,
                                         )
-                                    } else {
-                                        Box(
+                                        modeloRemoto != null -> AsyncImage(
+                                            model = modeloRemoto,
+                                            contentDescription = stringResource(R.string.player_photo_cd),
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                        )
+                                        else -> Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .background(MaterialTheme.colorScheme.surfaceVariant),

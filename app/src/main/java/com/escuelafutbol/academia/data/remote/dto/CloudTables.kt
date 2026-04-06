@@ -272,6 +272,36 @@ data class JugadorInsert(
 
 
 
+/** PATCH de datos editables en `jugadores` (no toca `fecha_alta_ms`, URLs ni auditoría de alta). */
+@Serializable
+data class JugadorRemoteUpdatePatch(
+    val nombre: String,
+    val categoria: String,
+    @SerialName("fecha_nacimiento_ms") val fechaNacimientoMs: Long? = null,
+    @SerialName("anio_nacimiento") val anioNacimiento: Int? = null,
+    @SerialName("telefono_tutor") val telefonoTutor: String? = null,
+    @SerialName("email_tutor") val emailTutor: String? = null,
+    val notas: String? = null,
+    val curp: String? = null,
+    val mensualidad: Double? = null,
+    val becado: Boolean = false,
+) {
+    companion object {
+        fun fromJugador(j: Jugador) = JugadorRemoteUpdatePatch(
+            nombre = j.nombre,
+            categoria = j.categoria,
+            fechaNacimientoMs = j.fechaNacimientoMillis,
+            anioNacimiento = j.anioNacimiento,
+            telefonoTutor = j.telefonoTutor,
+            emailTutor = j.emailTutor,
+            notas = j.notas,
+            curp = j.curp,
+            mensualidad = if (j.becado) null else j.mensualidad,
+            becado = j.becado,
+        )
+    }
+}
+
 fun Jugador.toCloudInsert(academiaId: String) = JugadorInsert(
 
     academiaId = academiaId,

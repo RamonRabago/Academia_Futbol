@@ -8,11 +8,11 @@ import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.remote.AcademiaMiembrosRepository
+import com.escuelafutbol.academia.data.remote.JugadorRemoteRepository
 import com.escuelafutbol.academia.ui.util.etiquetaVisibleDesdeAuthMetadata
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
-import io.github.jan.supabase.auth.auth
-import kotlinx.serialization.json.JsonObject
 import com.escuelafutbol.academia.util.anioDesdeMillisUtcDia
+import io.github.jan.supabase.auth.auth
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,11 +21,18 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+
+sealed class FormularioJugadorUi {
+    data object Oculto : FormularioJugadorUi()
+    data object Alta : FormularioJugadorUi()
+    data class Edicion(val jugador: Jugador) : FormularioJugadorUi()
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayersViewModel(
@@ -43,53 +50,55 @@ class PlayersViewModel(
             jugadoresActivosFlow(jugadorDao, cat, permitidas)
         }
 
-    /**
-     * Estado del formulario de alta en el ViewModel (no en `rememberSaveable`) para que sobreviva
-     * a recreación de actividad / recomposiciones al volver del selector de archivos (CURP, acta).
-     */
-    private val _mostrarAltaJugador = MutableStateFlow(false)
-    val mostrarAltaJugador: StateFlow<Boolean> = _mostrarAltaJugador.asStateFlow()
+    private val _formularioJugador = MutableStateFlow<FormularioJugadorUi>(FormularioJugadorUi.Oculto)
+    val formularioJugador: StateFlow<FormularioJugadorUi> = _formularioJugador.asStateFlow()
 
-    private val _altaFormSession = MutableStateFlow(0)
-    val altaFormSession: StateFlow<Int> = _altaFormSession.asStateFlow()
+    private val _formularioSession = MutableStateFlow(0)
+    val formularioSession: StateFlow<Int> = _formularioSession.asStateFlow()
 
-    private val _altaCurpDocPath = MutableStateFlow<String?>(null)
-    val altaCurpDocPath: StateFlow<String?> = _altaCurpDocPath.asStateFlow()
+    private val _formCurpDocPath = MutableStateFlow<String?>(null)
+    val formCurpDocPath: StateFlow<String?> = _formCurpDocPath.asStateFlow()
 
-    private val _altaActaPath = MutableStateFlow<String?>(null)
-    val altaActaPath: StateFlow<String?> = _altaActaPath.asStateFlow()
+    private val _formActaPath = MutableStateFlow<String?>(null)
+    val formActaPath: StateFlow<String?> = _formActaPath.asStateFlow()
 
     fun abrirAltaJugador() {
-        _altaFormSession.update { it + 1 }
-        _altaCurpDocPath.value = null
-        _altaActaPath.value = null
-        _mostrarAltaJugador.value = true
+        _formularioSession.update { it + 1 }
+        _formCurpDocPath.value = null
+        _formActaPath.value = null
+        _formularioJugador.value = FormularioJugadorUi.Alta
     }
 
-    fun cerrarAltaJugador() {
-        _mostrarAltaJugador.value = false
+    fun abrirEdicionJugador(jugador: Jugador) {
+        _formularioSession.update { it + 1 }
+        _formCurpDocPath.value = jugador.curpDocumentoRutaAbsoluta?.takeIf { File(it).exists() }
+        _formActaPath.value = jugador.actaNacimientoRutaAbsoluta?.takeIf { File(it).exists() }
+        _formularioJugador.value = FormularioJugadorUi.Edicion(jugador)
     }
 
-    fun setAltaCurpDocPath(path: String?) {
-        _altaCurpDocPath.value = path
+    fun cerrarFormularioJugador() {
+        _formularioJugador.value = FormularioJugadorUi.Oculto
     }
 
-    fun setAltaActaPath(path: String?) {
-        _altaActaPath.value = path
+    fun setFormCurpDocPath(path: String?) {
+        _formCurpDocPath.value = path
     }
 
-    /** Tras copiar desde un Uri: borra el archivo anterior si había y asigna la nueva ruta (en IO). */
+    fun setFormActaPath(path: String?) {
+        _formActaPath.value = path
+    }
+
     fun aplicarRutaCurpCopiada(nuevaRutaAbsoluta: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            _altaCurpDocPath.value?.let { runCatching { File(it).delete() } }
-            _altaCurpDocPath.value = nuevaRutaAbsoluta
+            _formCurpDocPath.value?.let { runCatching { File(it).delete() } }
+            _formCurpDocPath.value = nuevaRutaAbsoluta
         }
     }
 
     fun aplicarRutaActaCopiada(nuevaRutaAbsoluta: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            _altaActaPath.value?.let { runCatching { File(it).delete() } }
-            _altaActaPath.value = nuevaRutaAbsoluta
+            _formActaPath.value?.let { runCatching { File(it).delete() } }
+            _formActaPath.value = nuevaRutaAbsoluta
         }
     }
 
@@ -155,8 +164,63 @@ class PlayersViewModel(
                 user?.userMetadata as? JsonObject,
                 user?.email,
             )
-            jugadorDao.insertJugadorConAlta(
-                Jugador(
+            withContext(Dispatchers.IO) {
+                jugadorDao.insertJugadorConAlta(
+                    Jugador(
+                        nombre = nombre.trim(),
+                        categoria = categoria.trim(),
+                        fechaNacimientoMillis = fechaNacimientoMillis,
+                        anioNacimiento = anio,
+                        telefonoTutor = telefonoTutor?.trim()?.takeIf { it.isNotEmpty() },
+                        emailTutor = emailTutor?.trim()?.takeIf { it.isNotEmpty() },
+                        notas = notas?.trim()?.takeIf { it.isNotEmpty() },
+                        fotoRutaAbsoluta = fotoRutaAbsoluta,
+                        curp = curp?.trim()?.uppercase()?.takeIf { it.isNotEmpty() },
+                        curpDocumentoRutaAbsoluta = curpDocumentoRutaAbsoluta,
+                        actaNacimientoRutaAbsoluta = actaNacimientoRutaAbsoluta,
+                        fechaAltaMillis = ahora,
+                        activo = true,
+                        fechaBajaMillis = null,
+                        mensualidad = cuota,
+                        becado = becado,
+                        altaPorUserId = altaPor,
+                        altaPorNombre = altaPorNombre,
+                    ),
+                )
+            }
+            cerrarFormularioJugador()
+        }
+    }
+
+    fun actualizarJugador(
+        base: Jugador,
+        puedeVerMensualidad: Boolean,
+        nombre: String,
+        categoria: String,
+        fechaNacimientoMillis: Long?,
+        telefonoTutor: String?,
+        emailTutor: String?,
+        notas: String?,
+        fotoRutaAbsoluta: String?,
+        curp: String?,
+        curpDocumentoRutaAbsoluta: String?,
+        actaNacimientoRutaAbsoluta: String?,
+        becado: Boolean,
+        mensualidad: Double?,
+    ) {
+        viewModelScope.launch {
+            val anio = fechaNacimientoMillis?.let { anioDesdeMillisUtcDia(it) }
+            withContext(Dispatchers.IO) {
+                val current = jugadorDao.getById(base.id) ?: base
+                val becadoFinal = if (puedeVerMensualidad) becado else current.becado
+                val cuota = if (!puedeVerMensualidad) {
+                    current.mensualidad
+                } else if (becadoFinal) {
+                    null
+                } else {
+                    mensualidad
+                }
+                val updated = current.copy(
                     nombre = nombre.trim(),
                     categoria = categoria.trim(),
                     fechaNacimientoMillis = fechaNacimientoMillis,
@@ -168,16 +232,19 @@ class PlayersViewModel(
                     curp = curp?.trim()?.uppercase()?.takeIf { it.isNotEmpty() },
                     curpDocumentoRutaAbsoluta = curpDocumentoRutaAbsoluta,
                     actaNacimientoRutaAbsoluta = actaNacimientoRutaAbsoluta,
-                    fechaAltaMillis = ahora,
-                    activo = true,
-                    fechaBajaMillis = null,
                     mensualidad = cuota,
-                    becado = becado,
-                    altaPorUserId = altaPor,
-                    altaPorNombre = altaPorNombre,
-                ),
-            )
-            cerrarAltaJugador()
+                    becado = becadoFinal,
+                )
+                jugadorDao.update(updated)
+                val rid = updated.remoteId
+                val client = getApplication<AcademiaApplication>().supabaseClient
+                if (!rid.isNullOrBlank() && client != null) {
+                    runCatching {
+                        JugadorRemoteRepository(client).actualizarCamposJugador(rid, updated)
+                    }
+                }
+            }
+            cerrarFormularioJugador()
         }
     }
 

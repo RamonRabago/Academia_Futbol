@@ -7,6 +7,8 @@
     <string name="tab_stats">Estadísticas</string>
     <string name="tab_parents">Padres</string>
     <string name="add_player">Añadir jugador</string>
+    <string name="edit_player">Editar jugador</string>
+    <string name="player_edit">Editar</string>
     <string name="save">Guardar</string>
     <string name="cancel">Cancelar</string>
     <string name="name">Nombre</string>
