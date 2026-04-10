@@ -24,6 +24,9 @@ interface StaffDao {
     @Query("SELECT * FROM staff WHERE remoteId = :remoteId LIMIT 1")
     suspend fun getPorRemoteId(remoteId: String): Staff?
 
+    @Query("SELECT * FROM staff WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): Staff?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(staff: Staff): Long
 

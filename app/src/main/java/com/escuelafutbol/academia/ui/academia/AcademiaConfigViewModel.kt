@@ -10,8 +10,10 @@ import com.escuelafutbol.academia.data.remote.dto.RegenerateInviteCodesResult
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
 import com.escuelafutbol.academia.data.local.security.StaffPinHasher
 import com.escuelafutbol.academia.ui.theme.normalizeBrandColorHex
+import io.github.jan.supabase.auth.auth
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -182,6 +184,33 @@ class AcademiaConfigViewModel(
                     mensualidadVisibleDueno = visibleDueno,
                 ),
             )
+        }
+    }
+
+    /**
+     * [diaDelMes] en 1..28 o null para quitar la regla. Valores fuera de rango se ignoran.
+     * [onResult] true si se persistió en Room; false si no hay permiso de administración.
+     */
+    fun guardarDiaLimitePagoMes(diaDelMes: Int?, onResult: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val dao = database.academiaConfigDao()
+            val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
+            val uid = (getApplication<Application>() as AcademiaApplication).supabaseClient
+                ?.auth?.currentUserOrNull()?.id?.toString()
+            if (!actual.puedeMutarDiaLimitePagoMes(uid)) {
+                onResult?.invoke(false)
+                return@launch
+            }
+            val normalizado = diaDelMes?.takeIf { it in 1..28 }
+            dao.upsert(actual.copy(diaLimitePagoMes = normalizado))
+            val aid = actual.remoteAcademiaId
+            if (aid != null) {
+                val app = getApplication<Application>() as AcademiaApplication
+                app.supabaseClient?.let { client ->
+                    AcademiaCloudSync(client, database).pushAcademiaDiaLimitePago(aid)
+                }
+            }
+            onResult?.invoke(true)
         }
     }
 

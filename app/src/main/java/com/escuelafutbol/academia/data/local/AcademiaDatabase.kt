@@ -11,6 +11,7 @@ import com.escuelafutbol.academia.data.local.dao.SessionCategoriaRecienteDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
+import com.escuelafutbol.academia.data.local.dao.CobroMensualDao
 import com.escuelafutbol.academia.data.local.dao.StaffCategoriaDao
 import com.escuelafutbol.academia.data.local.dao.StaffDao
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
@@ -19,6 +20,7 @@ import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
+import com.escuelafutbol.academia.data.local.entity.CobroMensualAlumno
 import com.escuelafutbol.academia.data.local.entity.Staff
 import com.escuelafutbol.academia.data.local.entity.StaffCategoria
 
@@ -32,8 +34,9 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         SessionCategoriaReciente::class,
         Staff::class,
         StaffCategoria::class,
+        CobroMensualAlumno::class,
     ],
-    version = 26,
+    version = 29,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -45,6 +48,8 @@ abstract class AcademiaDatabase : RoomDatabase() {
     abstract fun staffDao(): StaffDao
 
     abstract fun staffCategoriaDao(): StaffCategoriaDao
+
+    abstract fun cobroMensualDao(): CobroMensualDao
 
     companion object {
 
@@ -315,6 +320,45 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_26_27 =
+            object : Migration(26, 27) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE staff ADD COLUMN sueldoMensual REAL")
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `cobros_mensuales_alumno` (
+                          `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                          `jugadorId` INTEGER NOT NULL,
+                          `periodoYyyyMm` TEXT NOT NULL,
+                          `importeEsperado` REAL NOT NULL,
+                          `importePagado` REAL NOT NULL,
+                          `notas` TEXT,
+                          `remoteId` TEXT,
+                          `needsCloudPush` INTEGER NOT NULL DEFAULT 0
+                        )
+                        """.trimIndent().replace("\n", " "),
+                    )
+                    db.execSQL(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS `index_cobros_mensuales_alumno_jugadorId_periodoYyyyMm` " +
+                            "ON `cobros_mensuales_alumno` (`jugadorId`, `periodoYyyyMm`)",
+                    )
+                }
+            }
+
+        private val MIGRATION_27_28 =
+            object : Migration(27, 28) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE academia_config ADD COLUMN diaLimitePagoMes INTEGER")
+                }
+            }
+
+        private val MIGRATION_28_29 =
+            object : Migration(28, 29) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE academia_config ADD COLUMN remoteAcademiaCuentaUserId TEXT")
+                }
+            }
+
         private val MIGRATION_19_20 =
             object : Migration(19, 20) {
                 override fun migrate(db: SupportSQLiteDatabase) {
@@ -379,6 +423,9 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_23_24,
                     MIGRATION_24_25,
                     MIGRATION_25_26,
+                    MIGRATION_26_27,
+                    MIGRATION_27_28,
+                    MIGRATION_28_29,
                 )
                 .build()
     }

@@ -1,5 +1,8 @@
 *.iml
 .gradle/
+
+# Distribución Gradle del wrapper (local, ~130MB; no versionar)
+gradle/wrapper/gradle-*-bin.zip
 local.properties
 .idea/
 .DS_Store

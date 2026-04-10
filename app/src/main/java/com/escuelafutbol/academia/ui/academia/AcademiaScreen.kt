@@ -122,10 +122,12 @@ import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
 import com.escuelafutbol.academia.data.local.entity.Staff
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
 import com.escuelafutbol.academia.data.local.model.RolStaff
 import com.escuelafutbol.academia.ui.theme.normalizeBrandColorHex
 import com.escuelafutbol.academia.ui.theme.parseBrandColorOrNull
 import java.io.File
+import java.text.NumberFormat
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -143,6 +145,7 @@ fun AcademiaScreen(
     configVm: AcademiaConfigViewModel,
     staffVm: StaffViewModel,
     viewModelFactory: ViewModelProvider.Factory,
+    sessionAuthUserId: String = "",
     onSignOut: (() -> Unit)? = null,
 ) {
     val config by configVm.config.collectAsState()
@@ -157,6 +160,9 @@ fun AcademiaScreen(
     val scope = rememberCoroutineScope()
     val nombreGuardadoMsg = stringResource(R.string.academy_name_saved)
     val nombreDenegadoMsg = stringResource(R.string.academy_name_save_denied)
+    val diaLimiteGuardadoMsg = stringResource(R.string.academy_payment_deadline_saved)
+    val diaLimiteQuitadoMsg = stringResource(R.string.academy_payment_deadline_cleared)
+    val diaLimiteDenegadoMsg = stringResource(R.string.academy_payment_deadline_save_denied)
 
     var nombreAcademiaEdit by remember(config.nombreAcademia) { mutableStateOf(config.nombreAcademia) }
     var dialogoStaff by remember { mutableStateOf(false) }
@@ -791,6 +797,135 @@ fun AcademiaScreen(
                         },
                     )
                 }
+                val puedeEditarDiaLimite = config.puedeMutarDiaLimitePagoMes(
+                    sessionAuthUserId.takeIf { it.isNotBlank() },
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    stringResource(R.string.academy_payment_deadline_title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    stringResource(R.string.academy_payment_deadline_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                if (!puedeEditarDiaLimite) {
+                    Text(
+                        stringResource(R.string.academy_payment_deadline_owner_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                    Text(
+                        run {
+                            val dia = config.diaLimitePagoMes
+                            if (dia != null) {
+                                stringResource(R.string.academy_payment_deadline_readonly_value, dia)
+                            } else {
+                                stringResource(R.string.academy_payment_deadline_readonly_none)
+                            }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                } else {
+                    var diaLimiteTxt by remember { mutableStateOf("") }
+                    LaunchedEffect(config.diaLimitePagoMes) {
+                        diaLimiteTxt = config.diaLimitePagoMes?.toString().orEmpty()
+                    }
+                    OutlinedTextField(
+                        value = diaLimiteTxt,
+                        onValueChange = { v -> diaLimiteTxt = v.filter { it.isDigit() }.take(2) },
+                        label = { Text(stringResource(R.string.academy_payment_deadline_label)) },
+                        supportingText = { Text(stringResource(R.string.academy_payment_deadline_support)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp),
+                    )
+                    Row(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        TextButton(
+                            onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                diaLimiteTxt = ""
+                                configVm.guardarDiaLimitePagoMes(null) { ok ->
+                                    if (ok) {
+                                        viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    }
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = if (ok) diaLimiteQuitadoMsg else diaLimiteDenegadoMsg,
+                                            duration = SnackbarDuration.Short,
+                                        )
+                                    }
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.academy_payment_deadline_clear))
+                        }
+                        Button(
+                            onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                when {
+                                    diaLimiteTxt.isBlank() -> {
+                                        configVm.guardarDiaLimitePagoMes(null) { ok ->
+                                            if (ok) {
+                                                viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                            }
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = if (ok) {
+                                                        diaLimiteQuitadoMsg
+                                                    } else {
+                                                        diaLimiteDenegadoMsg
+                                                    },
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    else -> {
+                                        val d = diaLimiteTxt.toIntOrNull()
+                                        if (d != null && d in 1..28) {
+                                            configVm.guardarDiaLimitePagoMes(d) { ok ->
+                                                if (ok) {
+                                                    viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                                }
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        message = if (ok) {
+                                                            diaLimiteGuardadoMsg
+                                                        } else {
+                                                            diaLimiteDenegadoMsg
+                                                        },
+                                                        duration = SnackbarDuration.Short,
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = context.getString(R.string.academy_payment_deadline_invalid),
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.academy_payment_deadline_save))
+                        }
+                    }
+                }
             }
             item {
                 Spacer(Modifier.height(8.dp))
@@ -1029,7 +1164,7 @@ fun AcademiaScreen(
                     dialogoStaff = false
                     staffEditar = null
                 },
-                onGuardar = { nombre, rol, tel, email, fotoPath, quitarFoto, categorias ->
+                onGuardar = { nombre, rol, tel, email, fotoPath, quitarFoto, sueldoMensual, categorias ->
                     val editando = staffEditar
                     if (editando != null) {
                         staffVm.actualizar(
@@ -1040,10 +1175,11 @@ fun AcademiaScreen(
                             email,
                             fotoPath,
                             quitarFoto,
+                            sueldoMensual,
                             categorias,
                         )
                     } else {
-                        staffVm.agregar(nombre, rol, tel, email, fotoPath, categorias)
+                        staffVm.agregar(nombre, rol, tel, email, fotoPath, sueldoMensual, categorias)
                     }
                     dialogoStaff = false
                     staffEditar = null
@@ -1349,6 +1485,13 @@ private fun StaffCard(
                             MaterialTheme.colorScheme.outline
                         },
                     )
+                    staff.sueldoMensual?.takeIf { it > 0 }?.let { sm ->
+                        Text(
+                            NumberFormat.getCurrencyInstance(Locale.getDefault()).format(sm),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
                     listOfNotNull(staff.telefono, staff.email).joinToString(" · ").takeIf { it.isNotEmpty() }
                         ?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
@@ -1379,6 +1522,7 @@ private fun StaffFormDialog(
         email: String?,
         fotoRutaAbsoluta: String?,
         quitarFoto: Boolean,
+        sueldoMensual: Double?,
         categorias: Set<String>,
     ) -> Unit,
 ) {
@@ -1390,6 +1534,7 @@ private fun StaffFormDialog(
     var email by remember { mutableStateOf("") }
     var fotoPath by remember { mutableStateOf<String?>(null) }
     var sinFoto by remember { mutableStateOf(false) }
+    var sueldoTxt by remember { mutableStateOf("") }
     var cameraFile by remember { mutableStateOf<File?>(null) }
     var seleccionCategorias by remember { mutableStateOf(setOf<String>()) }
 
@@ -1406,12 +1551,14 @@ private fun StaffFormDialog(
             tel = s.telefono.orEmpty()
             email = s.email.orEmpty()
             fotoPath = s.fotoRutaAbsoluta
+            sueldoTxt = s.sueldoMensual?.takeIf { it > 0 }?.toString().orEmpty()
         } else {
             nombre = ""
             rol = RolStaff.PROFESOR
             tel = ""
             email = ""
             fotoPath = null
+            sueldoTxt = ""
         }
     }
 
@@ -1731,6 +1878,14 @@ private fun StaffFormDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    OutlinedTextField(
+                        value = sueldoTxt,
+                        onValueChange = { sueldoTxt = it },
+                        label = { Text(stringResource(R.string.staff_monthly_salary)) },
+                        placeholder = { Text(stringResource(R.string.staff_monthly_salary_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(
@@ -1744,6 +1899,7 @@ private fun StaffFormDialog(
                     Spacer(Modifier.width(8.dp))
                     TextButton(
                         onClick = {
+                            val sueldo = sueldoTxt.trim().replace(',', '.').toDoubleOrNull()
                             onGuardar(
                                 nombre,
                                 rol,
@@ -1751,6 +1907,7 @@ private fun StaffFormDialog(
                                 email,
                                 fotoPath,
                                 sinFoto,
+                                sueldo,
                                 seleccionCategorias,
                             )
                         },

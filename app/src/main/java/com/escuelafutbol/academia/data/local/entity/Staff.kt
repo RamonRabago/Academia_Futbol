@@ -14,4 +14,6 @@ data class Staff(
     val fotoRutaAbsoluta: String?,
     val fotoUrlSupabase: String? = null,
     val remoteId: String? = null,
+    /** Sueldo mensual de referencia (solo gestión interna). */
+    val sueldoMensual: Double? = null,
 )

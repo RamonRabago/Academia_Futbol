@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.ButtonDefaults
@@ -78,6 +79,8 @@ import com.escuelafutbol.academia.ui.home.InicioScreen
 import com.escuelafutbol.academia.ui.attendance.AttendanceScreen
 import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
+import com.escuelafutbol.academia.ui.finanzas.FinanzasScreen
+import com.escuelafutbol.academia.ui.finanzas.FinanzasViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaSelectionScreen
 import com.escuelafutbol.academia.ui.parents.ParentsScreen
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
@@ -98,6 +101,7 @@ import com.escuelafutbol.academia.ui.auth.SetNewPasswordScreen
 import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
 import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
 import com.escuelafutbol.academia.data.local.model.membresiaNubeAunNoResuelta
 import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
@@ -113,11 +117,12 @@ private sealed class Tab(
     data object Jugadores : Tab("jugadores", R.string.tab_players)
     data object Asistencia : Tab("asistencia", R.string.tab_attendance)
     data object Estadisticas : Tab("estadisticas", R.string.tab_stats)
+    data object Finanzas : Tab("finanzas", R.string.tab_finances)
     data object Padres : Tab("padres", R.string.tab_parents)
     data object Academia : Tab("academia", R.string.tab_academy)
 
     companion object {
-        val entries = listOf(Inicio, Jugadores, Asistencia, Estadisticas, Padres, Academia)
+        val entries = listOf(Inicio, Jugadores, Asistencia, Estadisticas, Finanzas, Padres, Academia)
     }
 }
 
@@ -267,6 +272,7 @@ private fun AcademiaRootAuthenticatedContent(
             filtroCategoria = filtroCategoria,
             authVm = authVm,
             mostrandoSelectorCategoria = !enPrincipal,
+            sessionAuthUserId = authUserIdKey,
         )
     }
 }
@@ -281,6 +287,7 @@ private fun AcademiaMainScaffold(
     filtroCategoria: String?,
     authVm: AuthViewModel,
     mostrandoSelectorCategoria: Boolean,
+    sessionAuthUserId: String,
 ) {
     val navController = rememberNavController()
 
@@ -444,6 +451,7 @@ private fun AcademiaMainScaffold(
                                     Tab.Jugadores -> Icons.Default.Group
                                     Tab.Asistencia -> Icons.Default.TaskAlt
                                     Tab.Estadisticas -> Icons.Default.Assessment
+                                    Tab.Finanzas -> Icons.Default.Payments
                                     Tab.Padres -> Icons.Default.MailOutline
                                     Tab.Academia -> Icons.Default.Settings
                                 },
@@ -522,9 +530,16 @@ private fun AcademiaMainScaffold(
                 val vm: StatsViewModel = viewModel(factory = childFactory)
                 StatsScreen(viewModel = vm, configAcademia = config)
             }
+            composable(Tab.Finanzas.route) {
+                val vm: FinanzasViewModel = viewModel(factory = childFactory)
+                FinanzasScreen(
+                    viewModel = vm,
+                    puedeVerFinanzas = config.puedeVerMensualidadEnEsteDispositivo(),
+                )
+            }
             composable(Tab.Padres.route) {
                 val vm: ParentsViewModel = viewModel(factory = childFactory)
-                ParentsScreen(viewModel = vm, config = config)
+                ParentsScreen(viewModel = vm)
             }
             composable(Tab.Academia.route) {
                 val cfg: AcademiaConfigViewModel = viewModel(factory = factory)
@@ -533,6 +548,7 @@ private fun AcademiaMainScaffold(
                     configVm = cfg,
                     staffVm = stf,
                     viewModelFactory = factory,
+                    sessionAuthUserId = sessionAuthUserId,
                     onSignOut = { authVm.signOut() },
                 )
             }

@@ -2,6 +2,7 @@ package com.escuelafutbol.academia.ui.navigation
 
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import java.util.Locale
 
 /**
@@ -10,6 +11,10 @@ import java.util.Locale
  */
 fun rutaPrincipalVisible(route: String, config: AcademiaConfig, rolDispositivo: RolDispositivo): Boolean {
     val cloudRol = config.cloudMembresiaRol?.lowercase(Locale.ROOT)
+    if (route == "finanzas") {
+        if (config.remoteAcademiaId != null && cloudRol == "parent") return false
+        return config.puedeVerMensualidadEnEsteDispositivo()
+    }
     if (config.remoteAcademiaId != null && cloudRol == "parent") {
         return route == "inicio" || route == "padres" || route == "academia"
     }

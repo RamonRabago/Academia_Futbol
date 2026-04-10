@@ -34,8 +34,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
-import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import java.text.DateFormat
+import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
@@ -44,7 +44,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun ParentsScreen(
     viewModel: ParentsViewModel,
-    config: AcademiaConfig,
 ) {
     val mensaje by viewModel.mensaje.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -53,10 +52,9 @@ fun ParentsScreen(
     val dateFmt = remember {
         DateFormat.getDateInstance(DateFormat.SHORT, Locale.getDefault())
     }
+    val moneyFmt = remember { NumberFormat.getCurrencyInstance(Locale.getDefault()) }
 
-    val contenidoFlow = remember(config.remoteAcademiaId, config.cloudMembresiaRol) {
-        viewModel.contenidoSegunMembresia(config)
-    }
+    val contenidoFlow = remember { viewModel.contenidoSegunMembresia() }
     val contenido by contenidoFlow.collectAsState(initial = ParentsTabContent.StaffComunicaciones)
 
     Scaffold(
@@ -146,6 +144,41 @@ fun ParentsScreen(
                             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                         )
                     }
+                    if (c.reglaLimitePagoActiva && c.totalAdeudoVencido > 0.009) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                ),
+                            ) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(
+                                        stringResource(R.string.parent_payment_reminder_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                    Text(
+                                        stringResource(R.string.parent_payment_reminder_body),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.padding(top = 6.dp),
+                                    )
+                                    Text(
+                                        stringResource(
+                                            R.string.parent_payment_total_label,
+                                            moneyFmt.format(c.totalAdeudoVencido),
+                                        ),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.padding(top = 10.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                     items(c.hijos, key = { it.nombre + it.categoria }) { hijo ->
                         Card(
                             modifier = Modifier
@@ -162,6 +195,32 @@ fun ParentsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
+                                if (hijo.mesesVencidos.isNotEmpty()) {
+                                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                                    Text(
+                                        stringResource(R.string.parent_payment_section_child),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                    Text(
+                                        stringResource(
+                                            R.string.parent_payment_child_owed,
+                                            moneyFmt.format(hijo.totalAdeudoHijo),
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                    hijo.mesesVencidos.forEach { mes ->
+                                        Text(
+                                            stringResource(
+                                                R.string.parent_payment_month_line,
+                                                mes.etiquetaMes,
+                                                moneyFmt.format(mes.saldoPendiente),
+                                            ),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 4.dp),
+                                        )
+                                    }
+                                }
                                 if (hijo.ultimasAsistencias.isNotEmpty()) {
                                     HorizontalDivider(Modifier.padding(vertical = 10.dp))
                                     Text(
@@ -196,6 +255,16 @@ fun ParentsScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                    if (!c.reglaLimitePagoActiva) {
+                        item {
+                            Text(
+                                stringResource(R.string.parent_payment_no_deadline_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
                         }
                     }
                 }

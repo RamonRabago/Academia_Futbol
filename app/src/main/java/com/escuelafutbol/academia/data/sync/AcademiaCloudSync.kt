@@ -8,6 +8,7 @@ import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
+import com.escuelafutbol.academia.data.remote.dto.AcademiaDiaLimitePagoPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
 import com.escuelafutbol.academia.data.remote.dto.AcademiaLogoUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaLinkRow
@@ -21,6 +22,8 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaRow
 import com.escuelafutbol.academia.data.remote.dto.RegenerateInviteCodesResult
 import com.escuelafutbol.academia.data.remote.dto.AsistenciaRow
 import com.escuelafutbol.academia.data.remote.dto.AsistenciaUpdatePatch
+import com.escuelafutbol.academia.data.remote.dto.CobroMensualPatch
+import com.escuelafutbol.academia.data.remote.dto.CobroMensualRow
 import com.escuelafutbol.academia.data.remote.dto.CategoriaInsert
 import com.escuelafutbol.academia.data.remote.dto.CategoriaPortadaUrlPatch
 import com.escuelafutbol.academia.data.remote.dto.CategoriaRow
@@ -78,6 +81,7 @@ class AcademiaCloudSync(
             if (!esPadreNube) {
                 pushAcademiaNombre(academiaId)
                 pushAcademiaThemeColors(academiaId)
+                pushAcademiaDiaLimitePago(academiaId)
                 pushAcademiaMedia(uid, academiaId)
                 pushCategorias(academiaId)
                 pushCategoriaPortadas(uid, academiaId)
@@ -85,6 +89,7 @@ class AcademiaCloudSync(
                 pushJugadorFotosLocales(uid, academiaId)
                 pushHistorial(academiaId)
                 pushAsistencias(academiaId)
+                pushCobrosMensuales(academiaId)
                 pushStaff(academiaId)
                 pushStaffFotosLocales(uid, academiaId)
                 pushStaffCategorias(academiaId)
@@ -98,6 +103,7 @@ class AcademiaCloudSync(
             val jugadorMap = buildJugadorRemoteMap()
             pullHistorial(academiaId, jugadorMap)
             pullAsistencias(academiaId, jugadorMap)
+            pullCobrosMensuales(academiaId, jugadorMap)
             pullStaff(academiaId)
             pullStaffCategorias(academiaId)
             pullAcademiaConfig(academiaId)
@@ -391,6 +397,8 @@ class AcademiaCloudSync(
                 academiaGestionNubePermitida = puedeGestionar,
                 cloudMembresiaRol = cloudRol,
                 cloudCoachCategoriasJson = cloudCats,
+                diaLimitePagoMes = row.diaLimitePagoMes,
+                remoteAcademiaCuentaUserId = row.userId.trim().takeIf { it.isNotEmpty() },
             ),
         )
     }
@@ -444,6 +452,23 @@ class AcademiaCloudSync(
             ),
         ) {
             filter { eq("id", academiaId) }
+        }
+    }
+
+    suspend fun pushAcademiaDiaLimitePago(academiaId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val cfg = db.academiaConfigDao().getActual() ?: return@runCatching
+            if (cfg.remoteAcademiaId != null && !cfg.academiaGestionNubePermitida) return@runCatching
+            if (cfg.remoteAcademiaId != null) {
+                val uid = client.auth.currentUserOrNull()?.id?.toString()?.trim()?.lowercase(Locale.ROOT)
+                val owner = cfg.remoteAcademiaCuentaUserId?.trim()?.lowercase(Locale.ROOT)
+                if (owner.isNullOrEmpty() || uid.isNullOrEmpty() || uid != owner) return@runCatching
+            }
+            client.from("academias").update(
+                AcademiaDiaLimitePagoPatch(diaLimitePagoMes = cfg.diaLimitePagoMes),
+            ) {
+                filter { eq("id", academiaId) }
+            }
         }
     }
 
@@ -837,6 +862,53 @@ class AcademiaCloudSync(
         }
     }
 
+    private suspend fun pushCobrosMensuales(academiaId: String) {
+        val jDao = db.jugadorDao()
+        val cDao = db.cobroMensualDao()
+        for (c in cDao.getSinRemoto()) {
+            val j = jDao.getById(c.jugadorId) ?: continue
+            val jr = j.remoteId ?: continue
+            val row = client.from("jugador_cobros_mensual").insert(c.toCloudInsert(academiaId, jr)) {
+                select()
+            }.decodeSingle<CobroMensualRow>()
+            cDao.update(c.copy(remoteId = row.id, needsCloudPush = false))
+        }
+        for (c in cDao.getRemotosPendientesPush()) {
+            val rid = c.remoteId ?: continue
+            client.from("jugador_cobros_mensual").update(
+                CobroMensualPatch(
+                    importeEsperado = c.importeEsperado,
+                    importePagado = c.importePagado,
+                    notas = c.notas,
+                ),
+            ) {
+                filter { eq("id", rid) }
+            }
+            cDao.update(c.copy(needsCloudPush = false))
+        }
+    }
+
+    private suspend fun pullCobrosMensuales(academiaId: String, jugadorMap: Map<String, Long>) {
+        val cDao = db.cobroMensualDao()
+        val rows = runCatching {
+            client.from("jugador_cobros_mensual").select {
+                filter { eq("academia_id", academiaId) }
+            }.decodeList<CobroMensualRow>()
+        }.getOrElse { emptyList() }
+        for (row in rows) {
+            val localJid = jugadorMap[row.jugadorId] ?: continue
+            val existingRemote = cDao.getPorRemoteId(row.id)
+            val existingLocal = cDao.getByJugadorYPeriodo(localJid, row.periodoYyyyMm)
+            val base = existingRemote ?: existingLocal
+            val merged = row.toLocalMerged(localJid, base)
+            if (base != null) {
+                cDao.update(merged.copy(id = base.id))
+            } else {
+                cDao.insert(merged.copy(id = 0L))
+            }
+        }
+    }
+
     private suspend fun pullStaff(academiaId: String) {
         val dao = db.staffDao()
         val rows = client.from("equipo_staff").select {
@@ -936,6 +1008,8 @@ class AcademiaCloudSync(
                 academiaGestionNubePermitida = puedeGestionar,
                 cloudMembresiaRol = cloudRol,
                 cloudCoachCategoriasJson = cloudCats,
+                diaLimitePagoMes = row.diaLimitePagoMes,
+                remoteAcademiaCuentaUserId = row.userId.trim().takeIf { it.isNotEmpty() },
             ),
         )
     }

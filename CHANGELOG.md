@@ -6,6 +6,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Día límite de pago y adeudo visible a padres:** en **Academia → Mensualidad y privacidad** se configura el día del mes (1–28) o se deja sin regla; se guarda en Room **`diaLimitePagoMes`** (BD v**28**) y **`remoteAcademiaCuentaUserId`** (v**29**, UUID de `academias.user_id` para saber quién es el dueño de cuenta). **Solo ese dueño** puede editar el día límite en app (lectura para coordinadores/admin); **`pushAcademiaDiaLimitePago`** y **`guardarDiaLimitePagoMes`** lo comprueban. Supabase: trigger **`20260426150000_academias_dia_limite_solo_dueno.sql`** impide cambiar **`dia_limite_pago_mes`** si no es `academia_is_owner`. Sync **`merge`/`pullAcademiaConfig`** rellenan el UUID del dueño. En **Padres**, si la regla aplica y hay saldo vencido, recordatorio por hijo (`ParentsViewModel`, `ParentsScreen`, `PagoPlazoUtil`). SQL previo **`20260426120000_academia_dia_limite_pago_y_padre_cobros.sql`** (columna + RLS cobros padres). **`CobroMensualDao.observeTodos`**.
+
+- **Finanzas (cobros mensuales y nómina staff):** pestaña **Finanzas** con mes navegable (`YYYY-MM`), resumen (adeudo histórico sumando pendientes de meses registrados, totales del mes, desglose por categoría), lista de alumnos con registro de cobro o **Registrar mes**, **Prellenar mes con cuotas de fichas** (alumnos activos no becados con mensualidad &gt; 0). Room **`cobros_mensuales_alumno`** (v**27**), **`CobroMensualDao`**, sync **`jugador_cobros_mensual`** en Supabase (`20260425140000_jugador_cobros_y_staff_sueldo.sql`). Repos **`CobroMensualRemoteRepository`**; visibilidad alineada con mensualidades; padres en nube sin pestaña.
+- **Staff — sueldo mensual:** columna Room **`sueldoMensual`**, formulario en **Academia → Equipo**, tarjeta y sync **`equipo_staff.sueldo_mensual`**; **`StaffRemoteRepository`** actualiza nube al guardar si hay `remoteId`.
+
 - **Asistencia → nube:** columna Room **`needsCloudPush`** (migración **25 → 26**) y **`pushAsistencias`** hace **UPDATE** en `asistencias` cuando el registro ya tiene `remoteId` y hubo cambios locales (`AsistenciaUpdatePatch`). **`pullAsistencias`** deja `needsCloudPush` en falso al fusionar.
 
 - **Visor de imágenes a pantalla completa** (`FullscreenImageViewerDialog`): reutilizable para branding y jugadores. **Portada** y **logo** de la academia son pulsables en **Academia**, **Inicio** (cabecera con solape del avatar) y en el **selector de categoría** (barra, franja superior y miniatura por categoría si hay portada). En Inicio, si la portada visible es la de la categoría en curso, el título del visor usa `category_cover_viewer_title`.
@@ -54,6 +59,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Pestaña Padres:** **`ParentsScreen`** deja de recibir `AcademiaConfig`; el estado (incl. día límite y cobros) se deriva de **`ParentsViewModel`** vía **`academiaConfigDao.observe()`** y flujos de jugadores/asistencias/cobros.
+
+- **Gradle wrapper:** distribución **local** `gradle/wrapper/gradle-8.9-bin.zip` referenciada en `gradle-wrapper.properties` (`distributionUrl=gradle-8.9-bin.zip`, `validateDistributionUrl=false`) para sincronizar sin depender de `services.gradle.org`. El ZIP no se versiona (`.gitignore`: `gradle/wrapper/gradle-*-bin.zip`). Tras clonar en otra PC, copiar ahí el mismo ZIP o volver a URL HTTPS. `networkTimeout` sigue en **120 s** por si se restaura descarga remota.
+
 - **Asistencia:** al marcar presente/ausente se **fusiona** con el registro existente (se mantiene `remoteId`) y se marca **`needsCloudPush`** para subir cambios; «Marcar todos presentes» usa **`jugadoresActivosSnapshot`** (misma lista que en pantalla, p. ej. coach con categorías asignadas). Texto del botón en `attendance_mark_all_present`.
 
 - **Foto en tarjeta de jugador:** tocar la **miniatura** abre el mismo visor compartido (`FullscreenImageViewerDialog`); el resto de la fila sigue expandiendo/contrayendo detalles (strings `player_photo_tap_to_expand`, `player_photo_viewer_close`).
@@ -74,6 +83,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Corregido
 
+- **Día límite de pago:** al guardar o quitar la regla se muestra **snackbar** (éxito o sin permiso), vibración de confirmación y se oculta el teclado, alineado con «Guardar nombre» (`AcademiaScreen`, `AcademiaConfigViewModel.guardarDiaLimitePagoMes` con callback).
 - **Snackbar «No se pudo actualizar los datos en la nube» en exceso:** el sync al **reanudar** la actividad podía ejecutarse cuando **`currentUserOrNull()`** aún era null o fallaba por red; ahora se **omite** el sync sin usuario y los fallos genéricos **no** muestran snackbar en el sync automático (siguen los avisos de onboarding / elegir academia). `CloudSyncViewModel.runAutoSyncLocked(mostrarErrorGenericoSiFalla)`.
 
 - **Alta de jugador + documento CURP (o acta):** los `ActivityResult` de **CURP y acta** se registran siempre en **`PlayersScreen`** (no dentro del formulario condicional); copia vía `copiarUriAdjuntoAJugador` + `lifecycleScope`. **`BackHandler`** del alta vive en la pantalla y se **desactiva** mientras hay selector/cámara/recorte/permiso (`awaitingExternalActivityResult`) para que el “atrás” al cerrar el gestor no cierre el registro. El formulario sigue siendo capa en `Box` sobre el `Scaffold`. **Visibilidad del alta y rutas de adjuntos** viven en **`PlayersViewModel`** (`StateFlow`) para que no se pierdan al recrear la actividad al volver del selector; la pantalla usa `abrirAltaJugador` / `cerrarAltaJugador` / `aplicarRuta*Copiada` y `guardarJugador` cierra el alta al terminar.

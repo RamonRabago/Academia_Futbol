@@ -25,6 +25,11 @@ data class AcademiaConfig(
     val pinStaffHash: String? = null,
     /** UUID de la fila `academias` en Supabase para este usuario. */
     val remoteAcademiaId: String? = null,
+    /**
+     * UUID Auth del dueño de la cuenta de la academia (`academias.user_id` en Supabase).
+     * Se rellena al sincronizar; sirve para saber si la sesión actual puede editar reglas reservadas al dueño (p. ej. día límite de pago).
+     */
+    val remoteAcademiaCuentaUserId: String? = null,
     /** Código de club en nube (`academias.codigo_club`); legado; puede quedar null tras códigos por rol. */
     val codigoClubRemoto: String? = null,
     /** Invitación solo entrenador (`academias.codigo_invite_coach`). */
@@ -49,6 +54,11 @@ data class AcademiaConfig(
     val cloudMembresiaRol: String? = null,
     /** JSON `["Cat A","Cat B"]` — categorías asignadas al miembro coach en Supabase. */
     val cloudCoachCategoriasJson: String? = null,
+    /**
+     * Día del mes (1–28) hasta el cual se espera el pago mensual; después, con saldo pendiente, el padre ve recordatorio.
+     * Null = la academia no aplica esta regla.
+     */
+    val diaLimitePagoMes: Int? = null,
 ) {
     companion object {
         val DEFAULT = AcademiaConfig(
@@ -64,6 +74,7 @@ data class AcademiaConfig(
             rolDispositivo = RolDispositivo.PADRE_TUTOR.name,
             pinStaffHash = null,
             remoteAcademiaId = null,
+            remoteAcademiaCuentaUserId = null,
             codigoClubRemoto = null,
             codigoInviteCoachRemoto = null,
             codigoInviteCoordinatorRemoto = null,
@@ -73,6 +84,7 @@ data class AcademiaConfig(
             academiaGestionNubePermitida = true,
             cloudMembresiaRol = null,
             cloudCoachCategoriasJson = null,
+            diaLimitePagoMes = null,
         )
     }
 }

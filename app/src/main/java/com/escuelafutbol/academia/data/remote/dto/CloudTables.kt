@@ -5,6 +5,7 @@ package com.escuelafutbol.academia.data.remote.dto
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
+import com.escuelafutbol.academia.data.local.entity.CobroMensualAlumno
 import com.escuelafutbol.academia.data.local.entity.Staff
 
 import kotlinx.serialization.SerialName
@@ -48,6 +49,8 @@ data class AcademiaRow(
     @SerialName("codigo_invite_coordinator") val codigoInviteCoordinator: String? = null,
 
     @SerialName("codigo_invite_parent") val codigoInviteParent: String? = null,
+
+    @SerialName("dia_limite_pago_mes") val diaLimitePagoMes: Int? = null,
 
 )
 
@@ -494,6 +497,8 @@ data class StaffRow(
 
     @SerialName("foto_url") val fotoUrl: String? = null,
 
+    @SerialName("sueldo_mensual") val sueldoMensual: Double? = null,
+
 )
 
 
@@ -513,6 +518,8 @@ data class StaffInsert(
     val email: String? = null,
 
     @SerialName("foto_url") val fotoUrl: String? = null,
+
+    @SerialName("sueldo_mensual") val sueldoMensual: Double? = null,
 
 )
 
@@ -546,6 +553,8 @@ fun Staff.toCloudInsert(academiaId: String) = StaffInsert(
     email = email,
 
     fotoUrl = null,
+
+    sueldoMensual = sueldoMensual,
 
 )
 
@@ -584,6 +593,8 @@ fun StaffRow.toLocalMerged(existing: Staff?) = Staff(
 
     remoteId = id,
 
+    sueldoMensual = sueldoMensual ?: existing?.sueldoMensual,
+
 )
 
 @Serializable
@@ -608,9 +619,74 @@ data class JugadorCurpDocUrlPatch(@SerialName("curp_documento_url") val curpDocu
 data class StaffFotoUrlPatch(@SerialName("foto_url") val fotoUrl: String)
 
 @Serializable
+data class StaffCamposPatch(
+    val nombre: String,
+    val rol: String,
+    val telefono: String? = null,
+    val email: String? = null,
+    @SerialName("sueldo_mensual") val sueldoMensual: Double? = null,
+)
+
+@Serializable
+data class CobroMensualRow(
+    val id: String,
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("jugador_id") val jugadorId: String,
+    @SerialName("periodo_yyyy_mm") val periodoYyyyMm: String,
+    @SerialName("importe_esperado") val importeEsperado: Double,
+    @SerialName("importe_pagado") val importePagado: Double,
+    val notas: String? = null,
+)
+
+@Serializable
+data class CobroMensualInsert(
+    @SerialName("academia_id") val academiaId: String,
+    @SerialName("jugador_id") val jugadorId: String,
+    @SerialName("periodo_yyyy_mm") val periodoYyyyMm: String,
+    @SerialName("importe_esperado") val importeEsperado: Double,
+    @SerialName("importe_pagado") val importePagado: Double,
+    val notas: String? = null,
+)
+
+@Serializable
+data class CobroMensualPatch(
+    @SerialName("importe_esperado") val importeEsperado: Double,
+    @SerialName("importe_pagado") val importePagado: Double,
+    val notas: String? = null,
+)
+
+fun CobroMensualAlumno.toCloudInsert(academiaId: String, jugadorRemoteId: String) = CobroMensualInsert(
+    academiaId = academiaId,
+    jugadorId = jugadorRemoteId,
+    periodoYyyyMm = periodoYyyyMm,
+    importeEsperado = importeEsperado,
+    importePagado = importePagado,
+    notas = notas,
+)
+
+fun CobroMensualRow.toLocalMerged(
+    localJugadorId: Long,
+    existing: CobroMensualAlumno?,
+): CobroMensualAlumno = CobroMensualAlumno(
+    id = existing?.id ?: 0L,
+    jugadorId = localJugadorId,
+    periodoYyyyMm = periodoYyyyMm,
+    importeEsperado = importeEsperado,
+    importePagado = importePagado,
+    notas = notas,
+    remoteId = id,
+    needsCloudPush = false,
+)
+
+@Serializable
 data class AcademiaColoresPatch(
     @SerialName("color_primario_hex") val colorPrimarioHex: String? = null,
     @SerialName("color_secundario_hex") val colorSecundarioHex: String? = null,
+)
+
+@Serializable
+data class AcademiaDiaLimitePagoPatch(
+    @SerialName("dia_limite_pago_mes") val diaLimitePagoMes: Int? = null,
 )
 
 @Serializable

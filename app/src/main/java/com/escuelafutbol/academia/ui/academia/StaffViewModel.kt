@@ -7,8 +7,10 @@ import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.StaffCategoriaDao
 import com.escuelafutbol.academia.data.local.dao.StaffDao
+import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.entity.Staff
 import com.escuelafutbol.academia.data.local.model.RolStaff
+import com.escuelafutbol.academia.data.remote.StaffRemoteRepository
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,6 +49,7 @@ class StaffViewModel(
         telefono: String?,
         email: String?,
         fotoRutaAbsoluta: String?,
+        sueldoMensual: Double?,
         categorias: Set<String>,
     ) {
         viewModelScope.launch {
@@ -58,6 +61,7 @@ class StaffViewModel(
                     telefono = telefono?.trim()?.takeIf { it.isNotEmpty() },
                     email = email?.trim()?.takeIf { it.isNotEmpty() },
                     fotoRutaAbsoluta = fotoRutaAbsoluta,
+                    sueldoMensual = sueldoMensual?.takeIf { it > 0 },
                 ),
             )
             staffCategoriaDao.setCategoriasForStaff(id, categorias)
@@ -72,23 +76,26 @@ class StaffViewModel(
         email: String?,
         fotoRutaAbsoluta: String?,
         quitarFoto: Boolean = false,
+        sueldoMensual: Double?,
         categorias: Set<String>,
     ) {
         viewModelScope.launch {
             if (!puedeGestionarStaffEnNube()) return@launch
+            val sueldo = sueldoMensual?.takeIf { it > 0 }
             if (quitarFoto) {
                 anterior.fotoRutaAbsoluta?.let { runCatching { File(it).delete() } }
-                staffDao.insert(
-                    anterior.copy(
-                        nombre = nombre.trim(),
-                        rol = rol.name,
-                        telefono = telefono?.trim()?.takeIf { it.isNotEmpty() },
-                        email = email?.trim()?.takeIf { it.isNotEmpty() },
-                        fotoRutaAbsoluta = null,
-                        fotoUrlSupabase = null,
-                    ),
+                val guardado = anterior.copy(
+                    nombre = nombre.trim(),
+                    rol = rol.name,
+                    telefono = telefono?.trim()?.takeIf { it.isNotEmpty() },
+                    email = email?.trim()?.takeIf { it.isNotEmpty() },
+                    fotoRutaAbsoluta = null,
+                    fotoUrlSupabase = null,
+                    sueldoMensual = sueldo,
                 )
+                staffDao.insert(guardado)
                 staffCategoriaDao.setCategoriasForStaff(anterior.id, categorias)
+                pushStaffCamposSiNube(guardado)
                 return@launch
             }
             val vieja = anterior.fotoRutaAbsoluta
@@ -96,22 +103,29 @@ class StaffViewModel(
             if (vieja != null && vieja != nueva) {
                 runCatching { File(vieja).delete() }
             }
-            staffDao.insert(
-                anterior.copy(
-                    nombre = nombre.trim(),
-                    rol = rol.name,
-                    telefono = telefono?.trim()?.takeIf { it.isNotEmpty() },
-                    email = email?.trim()?.takeIf { it.isNotEmpty() },
-                    fotoRutaAbsoluta = nueva,
-                    fotoUrlSupabase = if (nueva == anterior.fotoRutaAbsoluta) {
-                        anterior.fotoUrlSupabase
-                    } else {
-                        null
-                    },
-                ),
+            val guardado = anterior.copy(
+                nombre = nombre.trim(),
+                rol = rol.name,
+                telefono = telefono?.trim()?.takeIf { it.isNotEmpty() },
+                email = email?.trim()?.takeIf { it.isNotEmpty() },
+                fotoRutaAbsoluta = nueva,
+                fotoUrlSupabase = if (nueva == anterior.fotoRutaAbsoluta) {
+                    anterior.fotoUrlSupabase
+                } else {
+                    null
+                },
+                sueldoMensual = sueldo,
             )
+            staffDao.insert(guardado)
             staffCategoriaDao.setCategoriasForStaff(anterior.id, categorias)
+            pushStaffCamposSiNube(guardado)
         }
+    }
+
+    private suspend fun pushStaffCamposSiNube(staff: Staff) {
+        val rid = staff.remoteId ?: return
+        val client = (getApplication() as AcademiaApplication).supabaseClient ?: return
+        runCatching { StaffRemoteRepository(client).actualizarCamposStaff(rid, staff) }
     }
 
     fun eliminar(s: Staff) {

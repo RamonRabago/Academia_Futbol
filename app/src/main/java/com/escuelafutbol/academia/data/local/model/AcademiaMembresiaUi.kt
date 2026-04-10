@@ -1,6 +1,7 @@
 package com.escuelafutbol.academia.data.local.model
 
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import java.util.Locale
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -24,6 +25,17 @@ fun AcademiaConfig.membresiaNubeAunNoResuelta(): Boolean =
 fun AcademiaConfig.esPadreMembresiaNube(): Boolean =
     remoteAcademiaId != null &&
         cloudMembresiaRol?.equals("parent", ignoreCase = true) == true
+
+/**
+ * Puede editar el día límite de pago mensual: sin academia en nube, o sesión actual = dueño de cuenta
+ * (`academias.user_id`, cacheado en [AcademiaConfig.remoteAcademiaCuentaUserId]).
+ */
+fun AcademiaConfig.puedeMutarDiaLimitePagoMes(uidSesionAuth: String?): Boolean {
+    if (remoteAcademiaId == null) return true
+    val cuenta = remoteAcademiaCuentaUserId?.trim()?.lowercase(Locale.ROOT) ?: return false
+    val uid = uidSesionAuth?.trim()?.lowercase(Locale.ROOT) ?: return false
+    return uid == cuenta
+}
 
 fun AcademiaConfig.cloudCoachCategoriasPermitidasOperacion(): Set<String>? {
     if (remoteAcademiaId == null) return null
