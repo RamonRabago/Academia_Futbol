@@ -62,6 +62,7 @@ import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+import java.util.Locale
 
 private sealed class CategoriaPickerImageViewer {
     data object Logo : CategoriaPickerImageViewer()
@@ -88,14 +89,16 @@ fun CategoriaSelectionScreen(
             categoriasUi
         } else {
             val permitidas = categoriasPermitidasCoach
+            val permitidasNorm = permitidas.map { it.trim().lowercase(Locale.ROOT) }.toSet()
+            fun keyCat(cat: Categoria) = cat.nombre.trim().lowercase(Locale.ROOT)
             val coincidentes = categoriasUi.filter { cat ->
-                permitidas.contains(cat.nombre.trim())
+                keyCat(cat) in permitidasNorm
             }
-            val yaCubiertos = coincidentes.map { it.nombre.trim() }.toSet()
+            val yaCubiertos = coincidentes.map { keyCat(it) }.toSet()
             val sinteticas = permitidas
-                .filter { p -> p !in yaCubiertos }
-                .map { Categoria(nombre = it) }
-            (coincidentes + sinteticas).sortedBy { it.nombre }
+                .filter { p -> p.trim().lowercase(Locale.ROOT) !in yaCubiertos }
+                .map { Categoria(nombre = it.trim()) }
+            (coincidentes + sinteticas).sortedBy { it.nombre.lowercase(Locale.ROOT) }
         }
     }
     val ocultarTodasLasCategorias =

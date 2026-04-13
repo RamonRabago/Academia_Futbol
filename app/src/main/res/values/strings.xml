@@ -296,6 +296,10 @@
     <string name="auth_account_hint">Tu sesión está sincronizada de forma segura. Si cierras sesión, tendrás que volver a identificarte.</string>
     <string name="auth_account_label_name">Nombre</string>
     <string name="auth_account_label_email">Correo</string>
+    <string name="auth_account_label_role">Rol en el club</string>
+    <string name="auth_account_role_local">Administración local (academia sin enlace en la nube)</string>
+    <string name="auth_account_role_pending">Sincronizando tu rol con el club…</string>
+    <string name="auth_account_role_unknown">Miembro del club</string>
     <string name="auth_account_no_profile_data">Completa tu nombre en «Editar perfil» o revisa que el correo de la cuenta sea el correcto.</string>
     <string name="auth_edit_profile">Editar perfil</string>
     <string name="auth_edit_profile_title">Tu perfil</string>

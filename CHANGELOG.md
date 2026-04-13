@@ -6,6 +6,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Academia → Tu cuenta:** muestra el **rol en el club** según la sesión (`cloudMembresiaRol`: padre/tutor, entrenador, coordinador, administrador, dueño) o textos de **academia local** / **sincronizando rol** si aplica (`AcademiaScreen`, `strings.xml`).
+
 - **Día límite de pago y adeudo visible a padres:** en **Academia → Mensualidad y privacidad** se configura el día del mes (1–28) o se deja sin regla; se guarda en Room **`diaLimitePagoMes`** (BD v**28**) y **`remoteAcademiaCuentaUserId`** (v**29**, UUID de `academias.user_id` para saber quién es el dueño de cuenta). **Solo ese dueño** puede editar el día límite en app (lectura para coordinadores/admin); **`pushAcademiaDiaLimitePago`** y **`guardarDiaLimitePagoMes`** lo comprueban. Supabase: trigger **`20260426150000_academias_dia_limite_solo_dueno.sql`** impide cambiar **`dia_limite_pago_mes`** si no es `academia_is_owner`. Sync **`merge`/`pullAcademiaConfig`** rellenan el UUID del dueño. En **Padres**, si la regla aplica y hay saldo vencido, recordatorio por hijo (`ParentsViewModel`, `ParentsScreen`, `PagoPlazoUtil`). SQL previo **`20260426120000_academia_dia_limite_pago_y_padre_cobros.sql`** (columna + RLS cobros padres). **`CobroMensualDao.observeTodos`**.
 
 - **Finanzas (cobros mensuales y nómina staff):** pestaña **Finanzas** con mes navegable (`YYYY-MM`), resumen (adeudo histórico sumando pendientes de meses registrados, totales del mes, desglose por categoría), lista de alumnos con registro de cobro o **Registrar mes**, **Prellenar mes con cuotas de fichas** (alumnos activos no becados con mensualidad &gt; 0). Room **`cobros_mensuales_alumno`** (v**27**), **`CobroMensualDao`**, sync **`jugador_cobros_mensual`** en Supabase (`20260425140000_jugador_cobros_y_staff_sueldo.sql`). Repos **`CobroMensualRemoteRepository`**; visibilidad alineada con mensualidades; padres en nube sin pestaña.
@@ -84,6 +86,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Enlace roto a academia**: al limpiar `remoteAcademiaId` se restablece `academiaGestionNubePermitida = true`.
 
 ### Corregido
+
+- **Selector «¿con qué categoría trabajas?» sin miniatura de portada:** la lista mezclaba `categorias` y nombres de `jugadores` con clave de nombre **exacto**; si el texto no coincidía (espacios, mayúsculas), se mostraba una fila **sintética** sin `portadaUrlSupabase` / ruta local. **`CategoriaPickerViewModel`** unifica por nombre **normalizado** (trim + minúsculas) y prioriza la fila con portada; **`CategoriaSelectionScreen`** filtra al coach con la misma normalización.
 
 - **Día límite de pago:** al guardar o quitar la regla se muestra **snackbar** (éxito o sin permiso), vibración de confirmación y se oculta el teclado, alineado con «Guardar nombre» (`AcademiaScreen`, `AcademiaConfigViewModel.guardarDiaLimitePagoMes` con callback).
 - **Snackbar «No se pudo actualizar los datos en la nube» en exceso:** el sync al **reanudar** la actividad podía ejecutarse cuando **`currentUserOrNull()`** aún era null o fallaba por red; ahora se **omite** el sync sin usuario y los fallos genéricos **no** muestran snackbar en el sync automático (siguen los avisos de onboarding / elegir academia). `CloudSyncViewModel.runAutoSyncLocked(mostrarErrorGenericoSiFalla)`.

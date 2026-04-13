@@ -110,6 +110,7 @@ import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
+import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Staff
 import com.escuelafutbol.academia.data.local.model.rolDispositivoEfectivo
 import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
@@ -953,6 +954,19 @@ fun AcademiaScreen(
                         stringResource(R.string.auth_account_section),
                         style = MaterialTheme.typography.titleSmall,
                     )
+                    if (authSession is SessionStatus.Authenticated) {
+                        Text(
+                            stringResource(R.string.auth_account_label_role),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                        Text(
+                            stringResource(config.authAccountRoleLabelRes()),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                     if (authSession is SessionStatus.Authenticated && cuentaPerfil != null) {
                         val nombreCompleto =
                             "${cuentaPerfil.nombre} ${cuentaPerfil.apellido}".trim()
@@ -995,7 +1009,7 @@ fun AcademiaScreen(
                         stringResource(R.string.auth_account_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 12.dp),
                     )
                     OutlinedButton(
                         onClick = { dialogoPerfil = true },
@@ -1241,6 +1255,18 @@ fun AcademiaScreen(
         }
     }
 }
+
+/** Texto para «Tu cuenta» según `cloudMembresiaRol` y si la academia está enlazada en la nube. */
+private fun AcademiaConfig.authAccountRoleLabelRes(): Int =
+    when (cloudMembresiaRol?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() }) {
+        "parent" -> R.string.rol_padre_tutor
+        "coach" -> R.string.members_rol_coach
+        "coordinator" -> R.string.rol_coordinador
+        "admin" -> R.string.members_rol_admin
+        "owner" -> R.string.rol_dueno_academia
+        null -> if (remoteAcademiaId == null) R.string.auth_account_role_local else R.string.auth_account_role_pending
+        else -> R.string.auth_account_role_unknown
+    }
 
 @Composable
 private fun StaffCard(

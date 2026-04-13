@@ -8,6 +8,7 @@ import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,11 +27,32 @@ class CategoriaPickerViewModel(
         categoriaDao.observeAllOrdered(),
         jugadorDao.observeCategorias(),
     ) { desdeTabla, desdeJugadores ->
-        val map = desdeTabla.associateBy { it.nombre }.toMutableMap()
-        for (jn in desdeJugadores) {
-            map.putIfAbsent(jn, Categoria(nombre = jn))
+        fun Categoria.portadaScore(): Int = when {
+            !portadaUrlSupabase.isNullOrBlank() -> 2
+            portadaRutaAbsoluta != null && File(portadaRutaAbsoluta).exists() -> 1
+            else -> 0
         }
-        map.values.sortedBy { it.nombre }
+        fun claveNormalizada(nombre: String): String =
+            nombre.trim().lowercase(Locale.ROOT)
+
+        val map = mutableMapOf<String, Categoria>()
+        for (c in desdeTabla) {
+            val key = claveNormalizada(c.nombre)
+            if (key.isEmpty()) continue
+            val prev = map[key]
+            if (prev == null || c.portadaScore() > prev.portadaScore()) {
+                map[key] = c
+            }
+        }
+        for (jn in desdeJugadores) {
+            val key = claveNormalizada(jn)
+            if (key.isEmpty()) continue
+            if (!map.containsKey(key)) {
+                val display = jn.trim()
+                map[key] = Categoria(nombre = display)
+            }
+        }
+        map.values.sortedWith(compareBy { it.nombre.lowercase(Locale.ROOT) })
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
