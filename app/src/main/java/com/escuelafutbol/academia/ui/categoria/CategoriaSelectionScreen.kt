@@ -57,13 +57,12 @@ import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
+import com.escuelafutbol.academia.data.local.model.normalizarClaveCategoriaNombre
 import com.escuelafutbol.academia.ui.SessionViewModel
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
-import java.util.Locale
-
 private sealed class CategoriaPickerImageViewer {
     data object Logo : CategoriaPickerImageViewer()
     data object AcademiaPortada : CategoriaPickerImageViewer()
@@ -81,6 +80,8 @@ fun CategoriaSelectionScreen(
     /** Mientras la membresía en nube no está en Room (p. ej. tras cambiar de cuenta). */
     esperandoMembresiaNube: Boolean = false,
     modifier: Modifier = Modifier,
+    /** Tras elegir categoría (o «todas»): p. ej. volver a Inicio para no quedar en la pestaña que había detrás. */
+    onCategoriaConfirmada: () -> Unit = {},
 ) {
     val nombreAcademia = config.nombreAcademia
     val categoriasUi by pickerVm.categoriasUi.collectAsState()
@@ -89,16 +90,16 @@ fun CategoriaSelectionScreen(
             categoriasUi
         } else {
             val permitidas = categoriasPermitidasCoach
-            val permitidasNorm = permitidas.map { it.trim().lowercase(Locale.ROOT) }.toSet()
-            fun keyCat(cat: Categoria) = cat.nombre.trim().lowercase(Locale.ROOT)
+            val permitidasNorm = permitidas.map { normalizarClaveCategoriaNombre(it) }.toSet()
+            fun keyCat(cat: Categoria) = normalizarClaveCategoriaNombre(cat.nombre)
             val coincidentes = categoriasUi.filter { cat ->
                 keyCat(cat) in permitidasNorm
             }
             val yaCubiertos = coincidentes.map { keyCat(it) }.toSet()
             val sinteticas = permitidas
-                .filter { p -> p.trim().lowercase(Locale.ROOT) !in yaCubiertos }
+                .filter { p -> normalizarClaveCategoriaNombre(p) !in yaCubiertos }
                 .map { Categoria(nombre = it.trim()) }
-            (coincidentes + sinteticas).sortedBy { it.nombre.lowercase(Locale.ROOT) }
+            (coincidentes + sinteticas).sortedBy { normalizarClaveCategoriaNombre(it.nombre) }
         }
     }
     val ocultarTodasLasCategorias =
@@ -245,7 +246,10 @@ fun CategoriaSelectionScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { sessionVm.confirmarSeleccion(null) },
+                                    .clickable {
+                                        sessionVm.confirmarSeleccion(null)
+                                        onCategoriaConfirmada()
+                                    },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                 ),
@@ -267,7 +271,12 @@ fun CategoriaSelectionScreen(
                             }
                         }
                     }
-                    items(categoriasMostrar, key = { it.nombre }) { cat ->
+                    items(
+                        categoriasMostrar,
+                        key = { c ->
+                            "${c.nombre}|${c.portadaUrlSupabase}|${c.portadaRutaAbsoluta}"
+                        },
+                    ) { cat ->
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier
@@ -275,26 +284,30 @@ fun CategoriaSelectionScreen(
                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                val thumb = cat.coilPortadaCategoriaModel(ctx)
                                 Box(
                                     modifier = Modifier
                                         .size(width = 64.dp, height = 44.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .clickable {
+                                            if (thumb != null) {
+                                                imageViewer =
+                                                    CategoriaPickerImageViewer.CategoriaPortada(cat.nombre)
+                                            } else {
+                                                sessionVm.confirmarSeleccion(cat.nombre)
+                                                onCategoriaConfirmada()
+                                            }
+                                        },
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    val thumb = cat.coilPortadaCategoriaModel(ctx)
                                     if (thumb != null) {
                                         AsyncImage(
                                             model = thumb,
                                             contentDescription = stringResource(
                                                 R.string.player_photo_tap_to_expand,
                                             ),
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .clickable {
-                                                    imageViewer =
-                                                        CategoriaPickerImageViewer.CategoriaPortada(cat.nombre)
-                                                },
+                                            modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop,
                                         )
                                     }
@@ -303,7 +316,10 @@ fun CategoriaSelectionScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .padding(horizontal = 10.dp)
-                                        .clickable { sessionVm.confirmarSeleccion(cat.nombre) },
+                                        .clickable {
+                                            sessionVm.confirmarSeleccion(cat.nombre)
+                                            onCategoriaConfirmada()
+                                        },
                                 ) {
                                     Text(
                                         cat.nombre,
@@ -392,7 +408,10 @@ fun CategoriaSelectionScreen(
             CategoriaPickerImageViewer.Logo -> config.coilLogoModel(ctx)
             CategoriaPickerImageViewer.AcademiaPortada -> config.coilPortadaModel(ctx)
             is CategoriaPickerImageViewer.CategoriaPortada ->
-                categoriasMostrar.find { it.nombre == v.nombre }?.coilPortadaCategoriaModel(ctx)
+                categoriasMostrar.find {
+                    normalizarClaveCategoriaNombre(it.nombre) ==
+                        normalizarClaveCategoriaNombre(v.nombre)
+                }?.coilPortadaCategoriaModel(ctx)
         }
         val titulo = when (v) {
             CategoriaPickerImageViewer.Logo -> stringResource(R.string.academy_logo_section)

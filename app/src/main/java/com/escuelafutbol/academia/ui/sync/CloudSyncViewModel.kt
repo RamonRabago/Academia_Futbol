@@ -2,6 +2,7 @@ package com.escuelafutbol.academia.ui.sync
 
 import android.app.Application
 import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.AcademiaApplication
@@ -47,16 +48,47 @@ class CloudSyncViewModel(
 
     fun onLifecycleResume() {
         viewModelScope.launch {
-            runAutoSyncLocked(mostrarErrorGenericoSiFalla = false)
+            runSyncLocked(
+                respectMinInterval = true,
+                mostrarErrorGenericoSiFalla = false,
+                skipPush = false,
+            )
         }
     }
 
     /**
+     * Pull-to-refresh: no aplica el intervalo mínimo y **solo descarga** (pull), sin subidas.
+     * Así un error en push (RLS, red al subir fotos, etc.) no bloquea traer categorías y jugadores.
+     */
+    fun requestManualSync() {
+        viewModelScope.launch {
+            runSyncLocked(
+                respectMinInterval = false,
+                mostrarErrorGenericoSiFalla = true,
+                skipPush = true,
+            )
+        }
+    }
+
+    private suspend fun runAutoSyncLocked(mostrarErrorGenericoSiFalla: Boolean) {
+        runSyncLocked(
+            respectMinInterval = true,
+            mostrarErrorGenericoSiFalla = mostrarErrorGenericoSiFalla,
+            skipPush = false,
+        )
+    }
+
+    /**
+     * @param respectMinInterval Si true, respeta [MIN_INTERVAL_MS] tras el último intento (sync automático).
      * @param mostrarErrorGenericoSiFalla Si es false (sync al abrir / al reanudar), no se muestra el snackbar
      * genérico ante timeouts o fallos puntuales: evita spam cuando la sesión aún no está lista o la red va justa.
      * Siguen mostrándose los avisos que requieren acción (onboarding / elegir academia).
      */
-    private suspend fun runAutoSyncLocked(mostrarErrorGenericoSiFalla: Boolean) {
+    private suspend fun runSyncLocked(
+        respectMinInterval: Boolean,
+        mostrarErrorGenericoSiFalla: Boolean,
+        skipPush: Boolean,
+    ) {
         syncMutex.withLock {
             val app = application as AcademiaApplication
             val client = app.supabaseClient ?: return@withLock
@@ -67,15 +99,21 @@ class CloudSyncViewModel(
                 return@withLock
             }
 
-            val now = SystemClock.elapsedRealtime()
-            if (lastSyncEndedElapsedMs != 0L && now - lastSyncEndedElapsedMs < MIN_INTERVAL_MS) {
-                return@withLock
+            if (respectMinInterval) {
+                val now = SystemClock.elapsedRealtime()
+                if (lastSyncEndedElapsedMs != 0L && now - lastSyncEndedElapsedMs < MIN_INTERVAL_MS) {
+                    return@withLock
+                }
             }
 
             _syncing.value = true
             try {
-                val result = AcademiaCloudSync(client, app.database).syncAll()
-                when (val err = result.exceptionOrNull()?.message) {
+                val result = AcademiaCloudSync(client, app.database).syncAll(skipPush = skipPush)
+                val failure = result.exceptionOrNull()
+                if (failure != null) {
+                    Log.e(TAG, "syncAll skipPush=$skipPush falló", failure)
+                }
+                when (val err = failure?.message) {
                     "NEEDS_ACADEMY_ONBOARDING" ->
                         _userVisibleSyncIssues.tryEmit(
                             application.getString(R.string.sync_needs_onboarding),
@@ -100,6 +138,7 @@ class CloudSyncViewModel(
     }
 
     companion object {
+        private const val TAG = "CloudSyncVM"
         private const val MIN_INTERVAL_MS = 70_000L
         private const val INITIAL_DELAY_MS = 650L
     }

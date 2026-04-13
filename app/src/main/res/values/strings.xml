@@ -310,6 +310,7 @@
     <string name="auth_config_body">Añade en local.properties (en la raíz del proyecto, no lo subas a Git) las líneas SUPABASE_URL y SUPABASE_ANON_KEY con la URL del proyecto y la clave publicable o anon. Luego vuelve a compilar la app.</string>
     <string name="auth_email_confirmed_toast">¡Listo! Correo confirmado. Ya puedes usar la app.</string>
     <string name="sync_error_generic">No se pudo actualizar los datos en la nube. Comprueba la conexión e inténtalo más tarde.</string>
+    <string name="pull_to_refresh_cd">Desliza hacia abajo para sincronizar con la nube</string>
     <string name="sync_needs_onboarding">Primero crea tu academia o únete con el código del club.</string>
     <string name="sync_needs_pick_academy">Tienes varias academias: elige con cuál trabajar en esta pantalla.</string>
     <string name="onboarding_academia_title">Tu academia en la nube</string>

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -37,6 +38,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -102,11 +105,13 @@ import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
 import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
+import com.escuelafutbol.academia.data.local.model.categoriaPortadaParaFiltro
 import com.escuelafutbol.academia.data.local.model.membresiaNubeAunNoResuelta
 import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
 import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.flow.combine
 
 private sealed class Tab(
     val route: String,
@@ -244,8 +249,11 @@ private fun AcademiaRootAuthenticatedContent(
         config.remoteAcademiaId,
         config.cloudMembresiaRol,
         config.cloudCoachCategoriasJson,
+        config.remoteAcademiaCuentaUserId,
+        authUserIdKey,
     ) {
-        if (config.membresiaNubeAunNoResuelta()) {
+        val uidSesion = authUserIdKey.takeIf { it.isNotBlank() }
+        if (config.membresiaNubeAunNoResuelta(uidSesion)) {
             sessionVm.actualizarRestriccionOperacionCoach(
                 permitidas = null,
                 esperandoMembresiaNube = true,
@@ -276,6 +284,7 @@ private fun AcademiaRootAuthenticatedContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AcademiaMainScaffold(
     sessionVm: SessionViewModel,
@@ -306,8 +315,9 @@ private fun AcademiaMainScaffold(
     val etiquetaCuentaSesion = authVm.cuentaEtiquetaVisible()
     val sessionBarAccountLabel = stringResource(R.string.session_bar_account_label)
 
-    val tabsVisibles = remember(config) {
-        Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config) }
+    val uidSesionRol = sessionAuthUserId.takeIf { it.isNotBlank() }
+    val tabsVisibles = remember(config, uidSesionRol) {
+        Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config, uidSesionRol) }
     }
 
     val syncVm: CloudSyncViewModel = viewModel(factory = factory)
@@ -425,59 +435,82 @@ private fun AcademiaMainScaffold(
             }
         },
         bottomBar = {
-            NavigationBar {
-                tabsVisibles.forEach { tab ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            if (mostrandoSelectorCategoria) {
-                                sessionVm.cerrarSelectorCategoria()
-                            }
-                            navController.navigate(tab.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = when (tab) {
-                                    Tab.Inicio -> Icons.Default.Home
-                                    Tab.Jugadores -> Icons.Default.Group
-                                    Tab.Asistencia -> Icons.Default.TaskAlt
-                                    Tab.Estadisticas -> Icons.Default.Assessment
-                                    Tab.Finanzas -> Icons.Default.Payments
-                                    Tab.Padres -> Icons.Default.MailOutline
-                                    Tab.Academia -> Icons.Default.Settings
-                                },
-                                contentDescription = null,
-                            )
-                        },
-                        label = { Text(stringResource(tab.labelRes)) },
-                    )
+            // Con el selector a pantalla completa, la barra inferior seguía visible: un toque en «Academia»
+            // cerraba el selector y navegaba a esa pestaña, como si el tap en la lista hubiera fallado.
+            if (!mostrandoSelectorCategoria) {
+                NavigationBar {
+                    tabsVisibles.forEach { tab ->
+                        val selected =
+                            currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(tab.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = when (tab) {
+                                        Tab.Inicio -> Icons.Default.Home
+                                        Tab.Jugadores -> Icons.Default.Group
+                                        Tab.Asistencia -> Icons.Default.TaskAlt
+                                        Tab.Estadisticas -> Icons.Default.Assessment
+                                        Tab.Finanzas -> Icons.Default.Payments
+                                        Tab.Padres -> Icons.Default.MailOutline
+                                        Tab.Academia -> Icons.Default.Settings
+                                    },
+                                    contentDescription = null,
+                                )
+                            },
+                            label = { Text(stringResource(tab.labelRes)) },
+                        )
+                    }
                 }
             }
         },
     ) { innerPadding ->
-        if (mostrandoSelectorCategoria) {
-            val pickerVm: CategoriaPickerViewModel = viewModel(factory = factory)
-            val categoriasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
-            val esperandoMembresia by sessionVm.esperandoMembresiaNubeParaSelector.collectAsState()
-            CategoriaSelectionScreen(
-                sessionVm = sessionVm,
-                pickerVm = pickerVm,
-                config = config,
-                categoriasPermitidasCoach = categoriasCoach,
-                esperandoMembresiaNube = esperandoMembresia,
-                modifier = Modifier.padding(innerPadding),
-            )
-        } else {
-        NavHost(
-            navController = navController,
-            startDestination = Tab.Inicio.route,
-            modifier = Modifier.padding(innerPadding),
+        val syncing by syncVm.syncing.collectAsState()
+        val pullRefreshState = rememberPullToRefreshState()
+        val pullRefreshCd = stringResource(R.string.pull_to_refresh_cd)
+        PullToRefreshBox(
+            isRefreshing = syncing,
+            onRefresh = { syncVm.requestManualSync() },
+            state = pullRefreshState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .semantics { contentDescription = pullRefreshCd },
         ) {
+            if (mostrandoSelectorCategoria) {
+                val pickerVm: CategoriaPickerViewModel = viewModel(factory = factory)
+                val categoriasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
+                val esperandoMembresia by sessionVm.esperandoMembresiaNubeParaSelector.collectAsState()
+                CategoriaSelectionScreen(
+                    sessionVm = sessionVm,
+                    pickerVm = pickerVm,
+                    config = config,
+                    categoriasPermitidasCoach = categoriasCoach,
+                    esperandoMembresiaNube = esperandoMembresia,
+                    modifier = Modifier.fillMaxSize(),
+                    onCategoriaConfirmada = {
+                        navController.navigate(Tab.Inicio.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            } else {
+                NavHost(
+                    navController = navController,
+                    startDestination = Tab.Inicio.route,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
             composable(Tab.Inicio.route) {
                 val appInicio = context.applicationContext as AcademiaApplication
                 val categoriaInicio by produceState<Categoria?>(null, filtroCategoria) {
@@ -486,16 +519,21 @@ private fun AcademiaMainScaffold(
                         value = null
                         return@produceState
                     }
-                    appInicio.database.categoriaDao().observeByNombre(nombreCat).collect {
-                        value = it
-                    }
+                    val daoCat = appInicio.database.categoriaDao()
+                    val daoJug = appInicio.database.jugadorDao()
+                    combine(
+                        daoCat.observeAllOrdered(),
+                        daoJug.observeCategorias(),
+                    ) { tabla, jugadores ->
+                        categoriaPortadaParaFiltro(nombreCat, tabla, jugadores)
+                    }.collect { value = it }
                 }
                 InicioScreen(
                     config = config,
                     categoriaPortada = categoriaInicio,
                     categoriaEtiqueta = etiquetaCategoria,
                     accesoRapidoVisible = { route ->
-                        rutaPrincipalVisible(route, config)
+                        rutaPrincipalVisible(route, config, uidSesionRol)
                     },
                     sesionEtiqueta = etiquetaCuentaSesion,
                     onNavigate = { route ->
@@ -516,6 +554,7 @@ private fun AcademiaMainScaffold(
                     sessionVm = sessionVm,
                     categoriaFiltro = filtroCategoria,
                     configAcademia = cfg,
+                    sessionAuthUserId = sessionAuthUserId,
                 )
             }
             composable(Tab.Asistencia.route) {
@@ -524,13 +563,17 @@ private fun AcademiaMainScaffold(
             }
             composable(Tab.Estadisticas.route) {
                 val vm: StatsViewModel = viewModel(factory = childFactory)
-                StatsScreen(viewModel = vm, configAcademia = config)
+                StatsScreen(
+                    viewModel = vm,
+                    configAcademia = config,
+                    sessionAuthUserId = sessionAuthUserId,
+                )
             }
             composable(Tab.Finanzas.route) {
                 val vm: FinanzasViewModel = viewModel(factory = childFactory)
                 FinanzasScreen(
                     viewModel = vm,
-                    puedeVerFinanzas = config.puedeVerMensualidadEnEsteDispositivo(),
+                    puedeVerFinanzas = config.puedeVerMensualidadEnEsteDispositivo(uidSesionRol),
                 )
             }
             composable(Tab.Padres.route) {
@@ -548,7 +591,8 @@ private fun AcademiaMainScaffold(
                     onSignOut = { authVm.signOut() },
                 )
             }
-        }
+                }
+            }
         }
     }
 }

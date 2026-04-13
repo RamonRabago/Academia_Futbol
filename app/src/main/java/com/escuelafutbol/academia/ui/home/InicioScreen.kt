@@ -51,6 +51,7 @@ import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
+import com.escuelafutbol.academia.data.local.model.normalizarClaveCategoriaNombre
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
@@ -242,8 +243,10 @@ fun InicioScreen(
             InicioImageViewer.Logo -> config.coilLogoModel(context)
             InicioImageViewer.PortadaAcademia -> config.coilPortadaModel(context)
             is InicioImageViewer.PortadaCategoria ->
-                categoriaPortada?.takeIf { it.nombre == v.nombre }
-                    ?.coilPortadaCategoriaModel(context)
+                categoriaPortada?.takeIf {
+                    normalizarClaveCategoriaNombre(it.nombre) ==
+                        normalizarClaveCategoriaNombre(v.nombre)
+                }?.coilPortadaCategoriaModel(context)
         }
         val titulo = when (v) {
             InicioImageViewer.Logo -> stringResource(R.string.academy_logo_section)

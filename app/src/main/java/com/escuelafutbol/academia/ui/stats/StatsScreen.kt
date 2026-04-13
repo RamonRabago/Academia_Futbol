@@ -41,9 +41,11 @@ import java.util.Locale
 fun StatsScreen(
     viewModel: StatsViewModel,
     configAcademia: AcademiaConfig,
+    sessionAuthUserId: String = "",
 ) {
     val stats by viewModel.stats.collectAsState()
-    val puedeCuotas = configAcademia.puedeVerMensualidadEnEsteDispositivo()
+    val uidSesion = sessionAuthUserId.takeIf { it.isNotBlank() }
+    val puedeCuotas = configAcademia.puedeVerMensualidadEnEsteDispositivo(uidSesion)
     var mostrarDetalleCuotas by remember { mutableStateOf(false) }
 
     Scaffold(

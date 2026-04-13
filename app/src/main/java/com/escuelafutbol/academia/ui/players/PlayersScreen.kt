@@ -185,8 +185,11 @@ private suspend fun copiarUriAdjuntoAJugador(
 }
 
 @Composable
-private fun MensualidadVisibilidadAviso(config: AcademiaConfig) {
-    val texto = when (config.rolDispositivoEfectivo()) {
+private fun MensualidadVisibilidadAviso(
+    config: AcademiaConfig,
+    uidSesionAuth: String?,
+) {
+    val texto = when (config.rolDispositivoEfectivo(uidSesionAuth)) {
         RolDispositivo.PADRE_TUTOR -> stringResource(R.string.fee_visibility_as_padre)
         else -> stringResource(R.string.fee_visibility_as_staff_off)
     }
@@ -212,8 +215,10 @@ fun PlayersScreen(
     sessionVm: SessionViewModel,
     categoriaFiltro: String?,
     configAcademia: AcademiaConfig,
+    sessionAuthUserId: String = "",
 ) {
-    val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo()
+    val uidSesion = sessionAuthUserId.takeIf { it.isNotBlank() }
+    val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo(uidSesion)
     val jugadores by viewModel.jugadores.collectAsState()
     val etiquetasAltaPorUid by viewModel.etiquetasAltaPorUid.collectAsState()
     val context = LocalContext.current
@@ -299,7 +304,7 @@ fun PlayersScreen(
                     .padding(16.dp),
             ) {
                 if (!puedeVerMensualidad) {
-                    MensualidadVisibilidadAviso(configAcademia)
+                    MensualidadVisibilidadAviso(configAcademia, uidSesion)
                     Spacer(Modifier.height(12.dp))
                 }
                 Text(
@@ -321,7 +326,7 @@ fun PlayersScreen(
             ) {
                 if (!puedeVerMensualidad) {
                     item(key = "aviso_mensualidad") {
-                        MensualidadVisibilidadAviso(configAcademia)
+                        MensualidadVisibilidadAviso(configAcademia, uidSesion)
                         Spacer(Modifier.height(4.dp))
                     }
                 }

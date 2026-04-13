@@ -9,7 +9,9 @@ import com.escuelafutbol.academia.data.local.entity.Staff
 import java.io.File
 
 fun AcademiaConfig.coilLogoModel(context: Context): Any? {
-    logoUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    logoUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { url ->
+        return ImageRequest.Builder(context).data(url).crossfade(true).build()
+    }
     val path = logoRutaAbsoluta ?: return null
     val f = File(path)
     if (!f.exists()) return null
@@ -17,7 +19,9 @@ fun AcademiaConfig.coilLogoModel(context: Context): Any? {
 }
 
 fun Categoria.coilPortadaCategoriaModel(context: Context): Any? {
-    portadaUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    portadaUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { url ->
+        return ImageRequest.Builder(context).data(url).crossfade(true).build()
+    }
     val path = portadaRutaAbsoluta ?: return null
     val f = File(path)
     if (!f.exists()) return null
@@ -25,7 +29,9 @@ fun Categoria.coilPortadaCategoriaModel(context: Context): Any? {
 }
 
 fun AcademiaConfig.coilPortadaModel(context: Context): Any? {
-    portadaUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    portadaUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { url ->
+        return ImageRequest.Builder(context).data(url).crossfade(true).build()
+    }
     val path = portadaRutaAbsoluta ?: return null
     val f = File(path)
     if (!f.exists()) return null

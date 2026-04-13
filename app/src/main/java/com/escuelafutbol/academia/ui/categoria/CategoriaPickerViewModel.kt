@@ -7,8 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Categoria
+import com.escuelafutbol.academia.data.local.model.mergeCategoriasParaUi
 import java.io.File
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,32 +27,7 @@ class CategoriaPickerViewModel(
         categoriaDao.observeAllOrdered(),
         jugadorDao.observeCategorias(),
     ) { desdeTabla, desdeJugadores ->
-        fun Categoria.portadaScore(): Int = when {
-            !portadaUrlSupabase.isNullOrBlank() -> 2
-            portadaRutaAbsoluta != null && File(portadaRutaAbsoluta).exists() -> 1
-            else -> 0
-        }
-        fun claveNormalizada(nombre: String): String =
-            nombre.trim().lowercase(Locale.ROOT)
-
-        val map = mutableMapOf<String, Categoria>()
-        for (c in desdeTabla) {
-            val key = claveNormalizada(c.nombre)
-            if (key.isEmpty()) continue
-            val prev = map[key]
-            if (prev == null || c.portadaScore() > prev.portadaScore()) {
-                map[key] = c
-            }
-        }
-        for (jn in desdeJugadores) {
-            val key = claveNormalizada(jn)
-            if (key.isEmpty()) continue
-            if (!map.containsKey(key)) {
-                val display = jn.trim()
-                map[key] = Categoria(nombre = display)
-            }
-        }
-        map.values.sortedWith(compareBy { it.nombre.lowercase(Locale.ROOT) })
+        mergeCategoriasParaUi(desdeTabla, desdeJugadores)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

@@ -4,7 +4,21 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ## [Sin publicar]
 
+### Corregido
+
+- **Selector de categoría — navegación y toques:** la barra inferior seguía visible sobre el selector; un toque cerca de «Academia» cerraba el selector y abría esa pestaña. La barra se **oculta** mientras eliges categoría; al **confirmar** categoría (o «todas») se **vuelve a Inicio** para no quedar en la pestaña anterior. La fila de categoría: miniatura vacía también **confirma** al tocar; con imagen, el recuadro abre el visor y el texto confirma (`CategoriaSelectionScreen`, `AcademiaRoot`).
+
+- **Imágenes Supabase en Coil:** URLs de logo/portada (academia y categoría) pasan por `ImageRequest` con **crossfade** en lugar de `String` crudo (`CoilAcademyImages.kt`), para carga más fiable en miniaturas.
+
+- **Dueño de academia también en `academia_miembros` como padre/tutor:** `resolveMembresiaCloud` tomaba la primera membresía y podía dejar `cloudMembresiaRol = parent` aunque la sesión fuera **dueño de cuenta** (`academias.user_id`), activando sync modo padre (menos `pull`, recorte de jugadores, sin categorías/portadas vía RLS). Ahora **dueño de cuenta tiene prioridad** sobre la fila de miembro (`AcademiaCloudSync`).
+
+- **Inicio — portada de categoría:** la cabecera usaba solo `observeByNombre` sobre Room; el selector ya fusionaba tabla + jugadores y enriquecía portadas por **clave normalizada**. Eso hacía que en Inicio se viera casi siempre la **portada de la academia** aunque la categoría activa tuviera URL en otra fila o nombre ligeramente distinto. Ahora Inicio resuelve la categoría con la misma lógica (`mergeCategoriasParaUi` / `categoriaPortadaParaFiltro`, `AcademiaRoot`, `CategoriaPickerViewModel`, `CategoriaListaUiMerge.kt`).
+
+- **Selector de categoría / portadas con academia en nube:** si `cloudMembresiaRol` aún no estaba en Room pero la sesión es **dueño de cuenta** (`remoteAcademiaCuentaUserId`), la app dejaba `esperandoMembresiaNube` y el modo restrictivo; ahora se considera membresía resuelta para el dueño y `rolDispositivoEfectivo` / mensualidad / pestañas usan el UID de sesión (`AcademiaMembresiaUi`, `RolDispositivo`, `AcademiaNavPolicy`, `AcademiaRoot`, pantallas que consultan mensualidad).
+
 ### Añadido
+
+- **Pull-to-refresh (deslizar hacia abajo):** en el contenido principal (pestañas y selector de categoría) dispara **sincronización con Supabase** al instante, sin esperar el intervalo automático de 70 s (`CloudSyncViewModel.requestManualSync`, `PullToRefreshBox` en `AcademiaRoot`, `pull_to_refresh_cd` en `strings.xml`).
 
 - **Academia → Tu cuenta:** muestra el **rol en el club** según la sesión (`cloudMembresiaRol`: padre/tutor, entrenador, coordinador, administrador, dueño) o textos de **academia local** / **sincronizando rol** si aplica (`AcademiaScreen`, `strings.xml`).
 
@@ -61,6 +75,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Pull-to-refresh:** el gesto **solo descarga** datos desde Supabase (`syncAll(skipPush = true)`), sin ejecutar subidas antes. Así un fallo en push (RLS, red al subir, etc.) no impide actualizar listas y portadas al deslizar. El sync completo (push + pull) sigue en arranque y al reanudar la app (`AcademiaCloudSync`, `CloudSyncViewModel`).
+
 - **Modo dispositivo eliminado en UI:** ya no hay selector en Academia; el comportamiento (pestañas, mensualidades, vista familia) sale de **`rolDispositivoEfectivo()`** según `cloudMembresiaRol` y academia en nube. Sync persiste `rolDispositivo` en Room alineado al rol; alta de academia propia inserta `DUENO_ACADEMIA`. **Cambiar PIN** del staff queda bajo **Mensualidad y privacidad**. `rutaPrincipalVisible` solo recibe `config`; retirados `guardarRolDispositivo` y `PendienteTrasPin.Rol`.
 
 - **Pestaña Padres:** **`ParentsScreen`** deja de recibir `AcademiaConfig`; el estado (incl. día límite y cobros) se deriva de **`ParentsViewModel`** vía **`academiaConfigDao.observe()`** y flujos de jugadores/asistencias/cobros.
@@ -87,7 +103,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Corregido
 
-- **Selector «¿con qué categoría trabajas?» sin miniatura de portada:** la lista mezclaba `categorias` y nombres de `jugadores` con clave de nombre **exacto**; si el texto no coincidía (espacios, mayúsculas), se mostraba una fila **sintética** sin `portadaUrlSupabase` / ruta local. **`CategoriaPickerViewModel`** unifica por nombre **normalizado** (trim + minúsculas) y prioriza la fila con portada; **`CategoriaSelectionScreen`** filtra al coach con la misma normalización.
+- **Selector «¿con qué categoría trabajas?» sin miniatura de portada:** la lista mezclaba `categorias` y nombres de `jugadores` con clave de nombre **exacto**; si el texto no coincidía (espacios, mayúsculas), se mostraba una fila **sintética** sin `portadaUrlSupabase` / ruta local. **`CategoriaPickerViewModel`** unifica por **`normalizarClaveCategoriaNombre`** (NFC, guiones tipográficos, espacios), prioriza la fila con portada y **enriquece** filas sin foto si en Room hay otra fila equivalente con URL/archivo; **`CategoriaSelectionScreen`** usa la misma clave para coach y **`LazyColumn` key** incluye portada para recargar Coil.
 
 - **Día límite de pago:** al guardar o quitar la regla se muestra **snackbar** (éxito o sin permiso), vibración de confirmación y se oculta el teclado, alineado con «Guardar nombre» (`AcademiaScreen`, `AcademiaConfigViewModel.guardarDiaLimitePagoMes` con callback).
 - **Snackbar «No se pudo actualizar los datos en la nube» en exceso:** el sync al **reanudar** la actividad podía ejecutarse cuando **`currentUserOrNull()`** aún era null o fallaba por red; ahora se **omite** el sync sin usuario y los fallos genéricos **no** muestran snackbar en el sync automático (siguen los avisos de onboarding / elegir academia). `CloudSyncViewModel.runAutoSyncLocked(mostrarErrorGenericoSiFalla)`.

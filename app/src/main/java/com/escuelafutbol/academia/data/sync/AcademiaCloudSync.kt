@@ -71,7 +71,11 @@ class AcademiaCloudSync(
         val coachCategoriasJson: String?,
     )
 
-    suspend fun syncAll(): Result<Unit> = withContext(Dispatchers.IO) {
+    /**
+     * @param skipPush Si true, solo descarga desde la nube (pull). Sirve para pull-to-refresh: un fallo en
+     * subida (push) no debe impedir traer categorías, jugadores y portadas.
+     */
+    suspend fun syncAll(skipPush: Boolean = false): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val uid = client.auth.currentUserOrNull()?.id?.toString()
                 ?: error("No hay sesión. Inicia sesión antes de sincronizar.")
@@ -80,7 +84,7 @@ class AcademiaCloudSync(
             val esPadreNube = cfgPre.remoteAcademiaId != null &&
                 cfgPre.cloudMembresiaRol?.equals("parent", ignoreCase = true) == true
 
-            if (!esPadreNube) {
+            if (!esPadreNube && !skipPush) {
                 pushAcademiaNombre(academiaId)
                 pushAcademiaThemeColors(academiaId)
                 pushAcademiaDiaLimitePago(academiaId)
@@ -303,10 +307,22 @@ class AcademiaCloudSync(
     }
 
     /**
-     * Prioridad: fila en `academia_miembros` (coach, coordinator, etc.). El atajo «dueño de academias.user_id»
-     * solo aplica si no hay membresía; si el dueño también tuviera fila coach, antes se ignoraba y no veía asignaciones.
+     * Rol efectivo para sync y UI.
+     *
+     * **Dueño de cuenta** (`academias.user_id` = sesión) tiene **prioridad absoluta** sobre cualquier fila en
+     * `academia_miembros`. Si no, un dueño que también estuviera dado de alta como **padre** (mismo correo /
+     * invitación tutor) quedaba con `cloudMembresiaRol = parent`: sync en modo padre, RLS devolvía pocos
+     * jugadores y a menudo vacío `categorias`, sin portadas.
+     *
+     * Si no es dueño de cuenta, se usa la membresía (coach, coordinator, admin, parent, …).
      */
     private suspend fun resolveMembresiaCloud(uid: String, row: AcademiaRow): MembresiaCloudLocal {
+        val uidNorm = uid.trim()
+        val ownerNorm = row.userId.trim()
+        if (ownerNorm.isNotEmpty() && uidNorm.equals(ownerNorm, ignoreCase = true)) {
+            return MembresiaCloudLocal(rol = "owner", coachCategoriasJson = null)
+        }
+
         val member = client.from("academia_miembros").select {
             filter {
                 eq("academia_id", row.id)
@@ -326,9 +342,6 @@ class AcademiaCloudSync(
             return MembresiaCloudLocal(rol = r, coachCategoriasJson = coachJson)
         }
 
-        if (row.userId == uid) {
-            return MembresiaCloudLocal(rol = "owner", coachCategoriasJson = null)
-        }
         return MembresiaCloudLocal(rol = null, coachCategoriasJson = null)
     }
 

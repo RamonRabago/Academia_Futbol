@@ -47,16 +47,19 @@ fun rolDispositivoSugeridoDesdeRolNube(cloudRol: String?): RolDispositivo? {
 /**
  * Modo de la app según la membresía en nube (sin selector manual).
  * Sin academia enlazada en nube: se asume gestión local como dueño.
- * Con academia en nube pero rol aún no resuelto: modo restrictivo hasta el sync.
+ * Con academia en nube pero rol aún no en Room: modo restrictivo hasta el sync, salvo si la sesión es
+ * el dueño de cuenta de la academia remota (`esSesionDueñoCuentaAcademiaRemota`).
  */
-fun AcademiaConfig.rolDispositivoEfectivo(): RolDispositivo {
+fun AcademiaConfig.rolDispositivoEfectivo(uidSesionAuth: String? = null): RolDispositivo {
     rolDispositivoSugeridoDesdeRolNube(cloudMembresiaRol)?.let { return it }
-    return if (remoteAcademiaId == null) RolDispositivo.DUENO_ACADEMIA else RolDispositivo.PADRE_TUTOR
+    if (remoteAcademiaId == null) return RolDispositivo.DUENO_ACADEMIA
+    if (esSesionDueñoCuentaAcademiaRemota(uidSesionAuth)) return RolDispositivo.DUENO_ACADEMIA
+    return RolDispositivo.PADRE_TUTOR
 }
 
 /** true si el rol actual del dispositivo puede ver mensualidades según permisos de la academia. */
-fun AcademiaConfig.puedeVerMensualidadEnEsteDispositivo(): Boolean {
-    val rol = rolDispositivoEfectivo()
+fun AcademiaConfig.puedeVerMensualidadEnEsteDispositivo(uidSesionAuth: String? = null): Boolean {
+    val rol = rolDispositivoEfectivo(uidSesionAuth)
     return when (rol) {
         RolDispositivo.PADRE_TUTOR -> false
         RolDispositivo.PROFESOR -> mensualidadVisibleProfesor

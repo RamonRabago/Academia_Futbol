@@ -141,7 +141,7 @@ fun AcademiaScreen(
 ) {
     val config by configVm.config.collectAsState()
     val staff by staffVm.staff.collectAsState()
-    val rolDispositivo = config.rolDispositivoEfectivo()
+    val rolDispositivo = config.rolDispositivoEfectivo(sessionAuthUserId.takeIf { it.isNotBlank() })
     val esPersonalClub = rolDispositivo.esPersonalClub()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current

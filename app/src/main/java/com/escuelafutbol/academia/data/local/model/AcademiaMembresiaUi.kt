@@ -15,11 +15,27 @@ private val stringListSer = ListSerializer(String.serializer())
  * Conjunto vacío = coach sin categorías asignadas en `academia_miembro_categorias`.
  */
 /**
+ * La sesión de auth coincide con el dueño de cuenta de la academia enlazada en nube
+ * ([AcademiaConfig.remoteAcademiaCuentaUserId], proveniente de `academias.user_id`).
+ */
+fun AcademiaConfig.esSesionDueñoCuentaAcademiaRemota(uidSesionAuth: String?): Boolean {
+    val cuenta = remoteAcademiaCuentaUserId?.trim()?.lowercase(Locale.ROOT) ?: return false
+    val uid = uidSesionAuth?.trim()?.lowercase(Locale.ROOT) ?: return false
+    return uid == cuenta
+}
+
+/**
  * Academia enlazada en nube pero aún no tenemos rol de membresía en Room (p. ej. tras cambiar de cuenta).
  * Hasta que no se resuelva, el selector de categorías no debe mostrar «todas» como si fuera dueño/admin.
+ *
+ * Si la sesión es el **dueño de cuenta** (`remoteAcademiaCuentaUserId`), no se considera pendiente: evita
+ * bloquear el selector mientras llega `cloudMembresiaRol` del sync.
  */
-fun AcademiaConfig.membresiaNubeAunNoResuelta(): Boolean =
-    remoteAcademiaId != null && cloudMembresiaRol == null
+fun AcademiaConfig.membresiaNubeAunNoResuelta(uidSesionAuth: String? = null): Boolean {
+    if (remoteAcademiaId == null || cloudMembresiaRol != null) return false
+    if (esSesionDueñoCuentaAcademiaRemota(uidSesionAuth)) return false
+    return true
+}
 
 /** Membresía en nube con rol padre/tutor (rutas y sync restringidos). */
 fun AcademiaConfig.esPadreMembresiaNube(): Boolean =
@@ -32,9 +48,7 @@ fun AcademiaConfig.esPadreMembresiaNube(): Boolean =
  */
 fun AcademiaConfig.puedeMutarDiaLimitePagoMes(uidSesionAuth: String?): Boolean {
     if (remoteAcademiaId == null) return true
-    val cuenta = remoteAcademiaCuentaUserId?.trim()?.lowercase(Locale.ROOT) ?: return false
-    val uid = uidSesionAuth?.trim()?.lowercase(Locale.ROOT) ?: return false
-    return uid == cuenta
+    return esSesionDueñoCuentaAcademiaRemota(uidSesionAuth)
 }
 
 fun AcademiaConfig.cloudCoachCategoriasPermitidasOperacion(): Set<String>? {
