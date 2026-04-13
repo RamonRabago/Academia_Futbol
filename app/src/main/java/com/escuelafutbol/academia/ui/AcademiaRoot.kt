@@ -100,7 +100,6 @@ import com.escuelafutbol.academia.ui.auth.LoginScreen
 import com.escuelafutbol.academia.ui.auth.SetNewPasswordScreen
 import com.escuelafutbol.academia.ui.auth.SupabaseConfigRequiredScreen
 import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
-import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
 import com.escuelafutbol.academia.data.local.model.membresiaNubeAunNoResuelta
@@ -307,11 +306,8 @@ private fun AcademiaMainScaffold(
     val etiquetaCuentaSesion = authVm.cuentaEtiquetaVisible()
     val sessionBarAccountLabel = stringResource(R.string.session_bar_account_label)
 
-    val rolDispositivo = remember(config.rolDispositivo) {
-        RolDispositivo.fromStored(config.rolDispositivo)
-    }
-    val tabsVisibles = remember(rolDispositivo, config.cloudMembresiaRol, config.remoteAcademiaId) {
-        Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config, rolDispositivo) }
+    val tabsVisibles = remember(config) {
+        Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config) }
     }
 
     val syncVm: CloudSyncViewModel = viewModel(factory = factory)
@@ -499,7 +495,7 @@ private fun AcademiaMainScaffold(
                     categoriaPortada = categoriaInicio,
                     categoriaEtiqueta = etiquetaCategoria,
                     accesoRapidoVisible = { route ->
-                        rutaPrincipalVisible(route, config, rolDispositivo)
+                        rutaPrincipalVisible(route, config)
                     },
                     sesionEtiqueta = etiquetaCuentaSesion,
                     onNavigate = { route ->

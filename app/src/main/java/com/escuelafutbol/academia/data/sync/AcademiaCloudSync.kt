@@ -7,6 +7,8 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
+import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.rolDispositivoSugeridoDesdeRolNube
 import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaDiaLimitePagoPatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaInsert
@@ -204,7 +206,7 @@ class AcademiaCloudSync(
             mensualidadVisibleProfesor = cfg.mensualidadVisibleProfesor,
             mensualidadVisibleCoordinador = cfg.mensualidadVisibleCoordinador,
             mensualidadVisibleDueno = cfg.mensualidadVisibleDueno,
-            rolDispositivo = cfg.rolDispositivo,
+            rolDispositivo = RolDispositivo.DUENO_ACADEMIA.name,
             pinStaffHash = cfg.pinStaffHash,
             colorPrimarioHex = cfg.temaColorPrimarioHex,
             colorSecundarioHex = cfg.temaColorSecundarioHex,
@@ -370,6 +372,8 @@ class AcademiaCloudSync(
             ?: cfg.academiaGestionNubePermitida
         val memb = uid?.let { resolveMembresiaCloud(it, row) }
         val (cloudRol, cloudCats) = cloudMembresiaFieldsForPull(uid, memb, cfg)
+        val rolPersistido = rolDispositivoSugeridoDesdeRolNube(cloudRol)?.name
+            ?: RolDispositivo.PADRE_TUTOR.name
         dao.upsert(
             cfg.copy(
                 remoteAcademiaId = row.id,
@@ -379,9 +383,7 @@ class AcademiaCloudSync(
                 mensualidadVisibleProfesor = row.mensualidadVisibleProfesor,
                 mensualidadVisibleCoordinador = row.mensualidadVisibleCoordinador,
                 mensualidadVisibleDueno = row.mensualidadVisibleDueno,
-                // Preferencia por dispositivo (Room); no pisar con `academias.rol_dispositivo` al hacer pull/merge
-                // (en nube es un solo valor por academia y suele quedar en PADRE_TUTOR).
-                rolDispositivo = cfg.rolDispositivo,
+                rolDispositivo = rolPersistido,
                 pinStaffHash = row.pinStaffHash ?: cfg.pinStaffHash,
                 temaColorPrimarioHex = row.colorPrimarioHex?.takeIf { it.isNotBlank() }
                     ?: cfg.temaColorPrimarioHex,
@@ -989,6 +991,8 @@ class AcademiaCloudSync(
             ?: cfg.academiaGestionNubePermitida
         val memb = uid?.let { resolveMembresiaCloud(it, row) }
         val (cloudRol, cloudCats) = cloudMembresiaFieldsForPull(uid, memb, cfg)
+        val rolPersistidoPull = rolDispositivoSugeridoDesdeRolNube(cloudRol)?.name
+            ?: RolDispositivo.PADRE_TUTOR.name
         dao.upsert(
             cfg.copy(
                 nombreAcademia = row.nombre.ifBlank { cfg.nombreAcademia },
@@ -1006,6 +1010,7 @@ class AcademiaCloudSync(
                 codigoInviteParentRemoto = row.codigoInviteParent?.takeIf { it.isNotBlank() }
                     ?: cfg.codigoInviteParentRemoto,
                 academiaGestionNubePermitida = puedeGestionar,
+                rolDispositivo = rolPersistidoPull,
                 cloudMembresiaRol = cloudRol,
                 cloudCoachCategoriasJson = cloudCats,
                 diaLimitePagoMes = row.diaLimitePagoMes,

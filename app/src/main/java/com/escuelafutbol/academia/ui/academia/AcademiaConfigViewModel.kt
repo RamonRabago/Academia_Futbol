@@ -9,7 +9,6 @@ import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.remote.dto.RegenerateInviteCodesResult
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
-import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
 import com.escuelafutbol.academia.data.local.security.StaffPinHasher
 import com.escuelafutbol.academia.ui.theme.normalizeBrandColorHex
@@ -211,14 +210,6 @@ class AcademiaConfigViewModel(
                 }
             }
             onResult?.invoke(true)
-        }
-    }
-
-    fun guardarRolDispositivo(rol: RolDispositivo) {
-        viewModelScope.launch {
-            val dao = database.academiaConfigDao()
-            val actual = dao.getActual() ?: AcademiaConfig.DEFAULT
-            dao.upsert(actual.copy(rolDispositivo = rol.name))
         }
     }
 

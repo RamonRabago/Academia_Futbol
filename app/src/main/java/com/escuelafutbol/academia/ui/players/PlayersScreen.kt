@@ -111,6 +111,7 @@ import com.escuelafutbol.academia.ui.SessionViewModel
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.rolDispositivoEfectivo
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import com.escuelafutbol.academia.data.local.model.JugadorHistorialTipo
 import java.io.File
@@ -185,7 +186,7 @@ private suspend fun copiarUriAdjuntoAJugador(
 
 @Composable
 private fun MensualidadVisibilidadAviso(config: AcademiaConfig) {
-    val texto = when (RolDispositivo.fromStored(config.rolDispositivo)) {
+    val texto = when (config.rolDispositivoEfectivo()) {
         RolDispositivo.PADRE_TUTOR -> stringResource(R.string.fee_visibility_as_padre)
         else -> stringResource(R.string.fee_visibility_as_staff_off)
     }

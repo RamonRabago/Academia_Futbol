@@ -59,9 +59,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Modo dispositivo eliminado en UI:** ya no hay selector en Academia; el comportamiento (pestañas, mensualidades, vista familia) sale de **`rolDispositivoEfectivo()`** según `cloudMembresiaRol` y academia en nube. Sync persiste `rolDispositivo` en Room alineado al rol; alta de academia propia inserta `DUENO_ACADEMIA`. **Cambiar PIN** del staff queda bajo **Mensualidad y privacidad**. `rutaPrincipalVisible` solo recibe `config`; retirados `guardarRolDispositivo` y `PendienteTrasPin.Rol`.
+
 - **Pestaña Padres:** **`ParentsScreen`** deja de recibir `AcademiaConfig`; el estado (incl. día límite y cobros) se deriva de **`ParentsViewModel`** vía **`academiaConfigDao.observe()`** y flujos de jugadores/asistencias/cobros.
 
-- **Gradle wrapper:** distribución **local** `gradle/wrapper/gradle-8.9-bin.zip` referenciada en `gradle-wrapper.properties` (`distributionUrl=gradle-8.9-bin.zip`, `validateDistributionUrl=false`) para sincronizar sin depender de `services.gradle.org`. El ZIP no se versiona (`.gitignore`: `gradle/wrapper/gradle-*-bin.zip`). Tras clonar en otra PC, copiar ahí el mismo ZIP o volver a URL HTTPS. `networkTimeout` sigue en **120 s** por si se restaura descarga remota.
+- **Gradle wrapper:** `distributionUrl` vuelve a **HTTPS** (`services.gradle.org`, Gradle **8.9**), `validateDistributionUrl=true`, para que **sync funcione en cualquier PC** sin copiar `gradle-*-bin.zip` al repo. La descarga se cachea en `GRADLE_USER_HOME/wrapper/dists`. Sigue `networkTimeout` **120 s**. (El `.gitignore` de ZIP locales en `gradle/wrapper/` puede quedarse por si alguien prueba distribución local.)
 
 - **Asistencia:** al marcar presente/ausente se **fusiona** con el registro existente (se mantiene `remoteId`) y se marca **`needsCloudPush`** para subir cambios; «Marcar todos presentes» usa **`jugadoresActivosSnapshot`** (misma lista que en pantalla, p. ej. coach con categorías asignadas). Texto del botón en `attendance_mark_all_present`.
 

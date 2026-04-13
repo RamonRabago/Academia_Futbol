@@ -19,7 +19,7 @@ data class AcademiaConfig(
     val mensualidadVisibleProfesor: Boolean = true,
     val mensualidadVisibleCoordinador: Boolean = true,
     val mensualidadVisibleDueno: Boolean = true,
-    /** [RolDispositivo.name] — quién usa este teléfono/tablet. */
+    /** [RolDispositivo.name] — espejo persistido en sync con la nube; en UI usar `rolDispositivoEfectivo()`. */
     val rolDispositivo: String = RolDispositivo.PADRE_TUTOR.name,
     /** Hash SHA-256 (con sal) del PIN; null hasta que el club lo defina. */
     val pinStaffHash: String? = null,

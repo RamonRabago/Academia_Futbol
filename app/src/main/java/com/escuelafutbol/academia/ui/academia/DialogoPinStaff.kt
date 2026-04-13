@@ -24,7 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
-import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import kotlinx.coroutines.launch
 
 enum class ModoDialogoPin {
@@ -34,7 +33,6 @@ enum class ModoDialogoPin {
 }
 
 sealed interface PendienteTrasPin {
-    data class Rol(val valor: RolDispositivo) : PendienteTrasPin
     data class Permisos(val prof: Boolean, val coord: Boolean, val dueno: Boolean) : PendienteTrasPin
 }
 

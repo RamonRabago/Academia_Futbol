@@ -4,11 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -19,8 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,8 +37,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.ManageAccounts
@@ -84,7 +75,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -121,7 +111,7 @@ import com.escuelafutbol.academia.ui.util.coilPortadaModel
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
 import com.escuelafutbol.academia.data.local.entity.Staff
-import com.escuelafutbol.academia.data.local.model.RolDispositivo
+import com.escuelafutbol.academia.data.local.model.rolDispositivoEfectivo
 import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
 import com.escuelafutbol.academia.data.local.model.RolStaff
 import com.escuelafutbol.academia.ui.theme.normalizeBrandColorHex
@@ -150,7 +140,7 @@ fun AcademiaScreen(
 ) {
     val config by configVm.config.collectAsState()
     val staff by staffVm.staff.collectAsState()
-    val rolDispositivo = RolDispositivo.fromStored(config.rolDispositivo)
+    val rolDispositivo = config.rolDispositivoEfectivo()
     val esPersonalClub = rolDispositivo.esPersonalClub()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -193,14 +183,6 @@ fun AcademiaScreen(
         }
     }
 
-    fun solicitarCambioRol(nuevo: RolDispositivo) {
-        val actual = RolDispositivo.fromStored(config.rolDispositivo)
-        if (nuevo == actual) return
-        pendienteTrasPin = PendienteTrasPin.Rol(nuevo)
-        modoDialogoPin =
-            if (config.pinStaffHash == null) ModoDialogoPin.CREAR else ModoDialogoPin.INGRESAR
-    }
-
     fun solicitarCambioPermisos(prof: Boolean, coord: Boolean, dueno: Boolean) {
         if (prof == config.mensualidadVisibleProfesor &&
             coord == config.mensualidadVisibleCoordinador &&
@@ -240,17 +222,6 @@ fun AcademiaScreen(
         ) {
             val puedeGestionarAcademia =
                 config.remoteAcademiaId == null || config.academiaGestionNubePermitida
-            item {
-                SeccionModoDispositivo(
-                    rolDispositivo = rolDispositivo,
-                    pinStaffConfigurado = config.pinStaffHash != null,
-                    solicitarCambioRol = { solicitarCambioRol(it) },
-                    onAbrirCambiarPin = {
-                        pendienteTrasPin = null
-                        modoDialogoPin = ModoDialogoPin.CAMBIAR
-                    },
-                )
-            }
             if (!esPersonalClub) {
                 item {
                     OutlinedCard(
@@ -797,6 +768,17 @@ fun AcademiaScreen(
                         },
                     )
                 }
+                if (config.pinStaffHash != null && rolDispositivo.esPersonalClub()) {
+                    TextButton(
+                        onClick = {
+                            pendienteTrasPin = null
+                            modoDialogoPin = ModoDialogoPin.CAMBIAR
+                        },
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Text(stringResource(R.string.pin_change_action))
+                    }
+                }
                 val puedeEditarDiaLimite = config.puedeMutarDiaLimitePagoMes(
                     sessionAuthUserId.takeIf { it.isNotBlank() },
                 )
@@ -1216,7 +1198,6 @@ fun AcademiaScreen(
             configVm = configVm,
             onEjecutarPendiente = { p ->
                 when (p) {
-                    is PendienteTrasPin.Rol -> configVm.guardarRolDispositivo(p.valor)
                     is PendienteTrasPin.Permisos -> configVm.guardarPermisosMensualidad(
                         p.prof,
                         p.coord,
@@ -1257,156 +1238,6 @@ fun AcademiaScreen(
             )
         } else {
             LaunchedEffect(kind) { brandingImageViewer = null }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SeccionModoDispositivo(
-    rolDispositivo: RolDispositivo,
-    pinStaffConfigurado: Boolean,
-    solicitarCambioRol: (RolDispositivo) -> Unit,
-    onAbrirCambiarPin: () -> Unit,
-) {
-    var detallesExpandido by rememberSaveable { mutableStateOf(false) }
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-    ) {
-        Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                stringResource(R.string.academy_device_role_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                stringResource(R.string.academy_device_hint_short),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
-                Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                    Text(
-                        stringResource(R.string.academy_device_who_uses),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        RolDispositivo.entries.forEach { rol ->
-                            val label = when (rol) {
-                                RolDispositivo.PADRE_TUTOR -> R.string.rol_padre_tutor
-                                RolDispositivo.PROFESOR -> R.string.rol_profesor
-                                RolDispositivo.COORDINADOR -> R.string.rol_coordinador
-                                RolDispositivo.DUENO_ACADEMIA -> R.string.rol_dueno_academia
-                            }
-                            FilterChip(
-                                selected = rolDispositivo == rol,
-                                onClick = { solicitarCambioRol(rol) },
-                                label = {
-                                    Text(
-                                        stringResource(label),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        maxLines = 1,
-                                    )
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                            )
-                        }
-                    }
-                }
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
-            ) {
-                TextButton(
-                    onClick = { detallesExpandido = !detallesExpandido },
-                    modifier = Modifier.align(Alignment.Start),
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
-                ) {
-                    Icon(
-                        if (detallesExpandido) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(
-                            if (detallesExpandido) {
-                                R.string.academy_device_hide_details
-                            } else {
-                                R.string.academy_device_show_details
-                            },
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-                if (pinStaffConfigurado && rolDispositivo.esPersonalClub()) {
-                    TextButton(
-                        onClick = onAbrirCambiarPin,
-                        modifier = Modifier.align(Alignment.Start),
-                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            stringResource(R.string.pin_change_action),
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                }
-            }
-            AnimatedVisibility(
-                visible = detallesExpandido,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Text(
-                        stringResource(R.string.academy_device_role_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        stringResource(R.string.academy_device_pin_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        stringResource(R.string.academy_permissions_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        stringResource(
-                            when (rolDispositivo) {
-                                RolDispositivo.PADRE_TUTOR -> R.string.academy_permissions_padre
-                                RolDispositivo.PROFESOR -> R.string.academy_permissions_profesor
-                                RolDispositivo.COORDINADOR -> R.string.academy_permissions_coordinador
-                                RolDispositivo.DUENO_ACADEMIA -> R.string.academy_permissions_dueno
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
         }
     }
 }
