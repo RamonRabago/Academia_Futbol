@@ -61,6 +61,7 @@ class AcademiaMiembrosRepository(
                     activo = r.activo,
                     displayLabel = null,
                     memberEmail = null,
+                    createdAt = r.createdAt,
                 )
             }.sortedWith(compareBy({ it.rol }, { it.userId }))
         }

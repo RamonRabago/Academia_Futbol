@@ -1,7 +1,14 @@
 package com.escuelafutbol.academia.ui
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -107,6 +114,7 @@ import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDisp
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
 import com.escuelafutbol.academia.data.local.model.categoriaPortadaParaFiltro
 import com.escuelafutbol.academia.data.local.model.membresiaNubeAunNoResuelta
+import com.escuelafutbol.academia.push.FcmRegistration
 import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
 import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
@@ -298,6 +306,27 @@ private fun AcademiaMainScaffold(
     sessionAuthUserId: String,
 ) {
     val navController = rememberNavController()
+    val appNav = context.applicationContext as AcademiaApplication
+
+    val activity = context as? ComponentActivity
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ -> }
+
+    LaunchedEffect(sessionAuthUserId) {
+        if (sessionAuthUserId.isBlank()) return@LaunchedEffect
+        FcmRegistration.syncTokenIfPossible(appNav)
+        val act = activity ?: return@LaunchedEffect
+        if (Build.VERSION.SDK_INT >= 33) {
+            val ok = ContextCompat.checkSelfPermission(
+                act,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!ok) {
+                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     BackHandler(enabled = mostrandoSelectorCategoria) {
         sessionVm.cerrarSelectorCategoria()
@@ -318,6 +347,20 @@ private fun AcademiaMainScaffold(
     val uidSesionRol = sessionAuthUserId.takeIf { it.isNotBlank() }
     val tabsVisibles = remember(config, uidSesionRol) {
         Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config, uidSesionRol) }
+    }
+
+    LaunchedEffect(navController, config, uidSesionRol) {
+        appNav.pendingNavigationRoute.collect { route ->
+            if (rutaPrincipalVisible(route, config, uidSesionRol)) {
+                navController.navigate(route) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        }
     }
 
     val syncVm: CloudSyncViewModel = viewModel(factory = factory)
@@ -578,7 +621,10 @@ private fun AcademiaMainScaffold(
             }
             composable(Tab.Padres.route) {
                 val vm: ParentsViewModel = viewModel(factory = childFactory)
-                ParentsScreen(viewModel = vm)
+                ParentsScreen(
+                    viewModel = vm,
+                    remoteAcademiaId = config.remoteAcademiaId,
+                )
             }
             composable(Tab.Academia.route) {
                 val cfg: AcademiaConfigViewModel = viewModel(factory = factory)

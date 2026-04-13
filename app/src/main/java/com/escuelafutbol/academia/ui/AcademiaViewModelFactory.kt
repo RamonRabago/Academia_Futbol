@@ -93,11 +93,14 @@ class AcademiaViewModelFactory(
                     database.cobroMensualDao(),
                     database.staffDao(),
                     database.academiaConfigDao(),
-                    s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
                 ) as T
             modelClass.isAssignableFrom(ParentsViewModel::class.java) ->
-                ParentsViewModel(application, database) as T
+                ParentsViewModel(
+                    application,
+                    database,
+                    s.categoriasPermitidasOperacion,
+                ) as T
             else -> throw IllegalArgumentException("ViewModel desconocido: ${modelClass.name}")
         }
     }

@@ -27,6 +27,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Alcance de la vista de finanzas: toda la academia o una sola categoría de alumnos. */
+sealed class FinanzasAlcance {
+    data object GeneralAcademia : FinanzasAlcance()
+    data class SoloCategoria(val nombre: String) : FinanzasAlcance()
+}
+
 data class FinanzaLineaAlumno(
     val jugador: Jugador,
     val cobro: CobroMensualAlumno?,
@@ -40,10 +46,19 @@ data class FinanzaResumenCategoria(
     val conRegistro: Int,
 )
 
+private data class DatosMesYStaff(
+    val jugadores: List<Jugador>,
+    val cobros: List<CobroMensualAlumno>,
+    val cobrosTodos: List<CobroMensualAlumno>,
+    val staff: List<Staff>,
+)
+
 data class FinanzasUiState(
     val periodoYyyyMm: String,
     /** Etiqueta legible del mes (p. ej. «abril de 2026»). */
     val periodoTitulo: String,
+    val alcance: FinanzasAlcance,
+    val categoriasDisponibles: List<String>,
     val lineas: List<FinanzaLineaAlumno>,
     val totalEsperadoMes: Double,
     val totalPagadoMes: Double,
@@ -61,44 +76,90 @@ class FinanzasViewModel(
     private val cobroMensualDao: CobroMensualDao,
     private val staffDao: StaffDao,
     private val academiaConfigDao: AcademiaConfigDao,
-    private val filtroCategoria: StateFlow<String?>,
     private val categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : AndroidViewModel(application) {
 
     private val app: AcademiaApplication get() = getApplication()
 
     private val periodoFlow = MutableStateFlow(YearMonth.now())
+    private val alcanceFlow = MutableStateFlow<FinanzasAlcance>(FinanzasAlcance.GeneralAcademia)
 
-    private val jugadoresFlow = combine(filtroCategoria, categoriasPermitidasOperacion) { c, p ->
-        Pair(c, p)
-    }.flatMapLatest { (cat, permitidas) ->
-        jugadoresActivosFlow(jugadorDao, cat, permitidas)
+    private val jugadoresFlow = combine(alcanceFlow, categoriasPermitidasOperacion) { alcance, permitidas ->
+        val filtroCategoria = when (alcance) {
+            FinanzasAlcance.GeneralAcademia -> null
+            is FinanzasAlcance.SoloCategoria -> alcance.nombre
+        }
+        Pair(filtroCategoria, permitidas)
+    }.flatMapLatest { (filtro, permitidas) ->
+        jugadoresActivosFlow(jugadorDao, filtro, permitidas)
+    }
+
+    private val categoriasDisponiblesFlow = combine(
+        categoriasPermitidasOperacion,
+        jugadorDao.observeAll(),
+    ) { permitidas, jugadores ->
+        val cats = jugadores
+            .map { it.categoria.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .sorted()
+        val p = permitidas
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.toSet()
+        if (p == null) cats else cats.filter { it in p }
     }
 
     private val cobrosDelMes = periodoFlow.flatMapLatest { ym ->
         cobroMensualDao.observeByPeriodo(ym.format(PERIODO_FMT))
     }
 
-    val uiState = combine(
+    private val datosMesYStaff = combine(
         jugadoresFlow,
         cobrosDelMes,
-        cobroMensualDao.observeAdeudoHistorico(),
+        cobroMensualDao.observeTodos(),
         staffDao.observeAll(),
+    ) { jugadores, cobros, cobrosTodos, staff ->
+        DatosMesYStaff(jugadores, cobros, cobrosTodos, staff)
+    }
+
+    private val periodoYAlcance = combine(
         periodoFlow,
-    ) { jugadores, cobros, adeudoHist, staff, periodo ->
+        alcanceFlow,
+        categoriasDisponiblesFlow,
+    ) { periodo, alcance, categoriasDisponibles ->
+        Triple(periodo, alcance, categoriasDisponibles)
+    }
+
+    val uiState = combine(datosMesYStaff, periodoYAlcance) { datos, pac ->
+        val (periodo, alcance, categoriasDisponibles) = pac
+        val jugadores = datos.jugadores
+        val cobros = datos.cobros
+        val cobrosTodos = datos.cobrosTodos
+        val staff = datos.staff
         val periodoStr = periodo.format(PERIODO_FMT)
         val periodoTitulo = periodo.month.getDisplayName(TextStyle.FULL, Locale("es", "MX")) +
             " " + periodo.year
         val cobroByJug = cobros.associateBy { it.jugadorId }
         val sorted = jugadores.sortedWith(compareBy({ it.categoria }, { it.nombre }))
         val lineas = sorted.map { j -> FinanzaLineaAlumno(j, cobroByJug[j.id]) }
+
         var esp = 0.0
         var pag = 0.0
-        for (c in cobros) {
+        for (ln in lineas) {
+            val c = ln.cobro ?: continue
             esp += c.importeEsperado
             pag += c.importePagado
         }
         val pendienteMes = (esp - pag).coerceAtLeast(0.0)
+
+        val idsVisibles = jugadores.map { it.id }.toSet()
+        val adeudoHistorico = cobrosTodos
+            .filter { it.jugadorId in idsVisibles }
+            .sumOf { cobroRow ->
+                (cobroRow.importeEsperado - cobroRow.importePagado).coerceAtLeast(0.0)
+            }
+
         val sueldos = staff.mapNotNull { it.sueldoMensual }.filter { it > 0 }.sum()
         val staffOrd = staff.sortedWith(compareBy({ it.rol }, { it.nombre }))
         val porCat = lineas
@@ -119,11 +180,13 @@ class FinanzasViewModel(
         FinanzasUiState(
             periodoYyyyMm = periodoStr,
             periodoTitulo = periodoTitulo,
+            alcance = alcance,
+            categoriasDisponibles = categoriasDisponibles,
             lineas = lineas,
             totalEsperadoMes = esp,
             totalPagadoMes = pag,
             pendienteMes = pendienteMes,
-            adeudoHistorico = adeudoHist,
+            adeudoHistorico = adeudoHistorico,
             totalSueldosStaff = sueldos,
             staffOrdenado = staffOrd,
             porCategoria = porCat,
@@ -134,6 +197,8 @@ class FinanzasViewModel(
         FinanzasUiState(
             periodoYyyyMm = YearMonth.now().format(PERIODO_FMT),
             periodoTitulo = "",
+            alcance = FinanzasAlcance.GeneralAcademia,
+            categoriasDisponibles = emptyList(),
             lineas = emptyList(),
             totalEsperadoMes = 0.0,
             totalPagadoMes = 0.0,
@@ -144,6 +209,15 @@ class FinanzasViewModel(
             porCategoria = emptyList(),
         ),
     )
+
+    fun setAlcanceGeneral() {
+        alcanceFlow.value = FinanzasAlcance.GeneralAcademia
+    }
+
+    fun setAlcanceCategoria(nombre: String) {
+        val n = nombre.trim()
+        if (n.isNotEmpty()) alcanceFlow.value = FinanzasAlcance.SoloCategoria(n)
+    }
 
     fun periodoAnterior() {
         periodoFlow.value = periodoFlow.value.minusMonths(1)
@@ -156,9 +230,13 @@ class FinanzasViewModel(
     fun prellenarMesConCuotasAlumnos() {
         viewModelScope.launch {
             val periodoStr = periodoFlow.value.format(PERIODO_FMT)
+            val filtro = when (val a = alcanceFlow.value) {
+                FinanzasAlcance.GeneralAcademia -> null
+                is FinanzasAlcance.SoloCategoria -> a.nombre
+            }
             val jugadores = jugadoresActivosSnapshot(
                 jugadorDao,
-                filtroCategoria.value,
+                filtro,
                 categoriasPermitidasOperacion.value,
             )
             for (j in jugadores) {

@@ -61,6 +61,7 @@ data class AcademiaMiembroRow(
     @SerialName("user_id") val userId: String,
     val rol: String,
     val activo: Boolean = true,
+    @SerialName("created_at") val createdAt: String? = null,
 )
 
 /** Respuesta de RPC `alta_por_user_labels_for_academia`. */
@@ -80,6 +81,7 @@ data class AcademiaMiembroListRow(
     val activo: Boolean = true,
     @SerialName("display_label") val displayLabel: String? = null,
     @SerialName("member_email") val memberEmail: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
 )
 
 @Serializable

@@ -158,6 +158,8 @@ fun AcademiaScreen(
     var nombreAcademiaEdit by remember(config.nombreAcademia) { mutableStateOf(config.nombreAcademia) }
     var dialogoStaff by remember { mutableStateOf(false) }
     var staffEditar by remember { mutableStateOf<Staff?>(null) }
+    /** Si no hay fila en Equipo, rellena el alta desde la ficha del entrenador en miembros. */
+    var staffPrefillCoachMiembro by remember { mutableStateOf<MiembroAdminUi?>(null) }
     var staffFormInstance by remember { mutableStateOf(0) }
     var staffEliminar by remember { mutableStateOf<Staff?>(null) }
     var modoDialogoPin by remember { mutableStateOf<ModoDialogoPin?>(null) }
@@ -924,6 +926,7 @@ fun AcademiaScreen(
                 Button(
                     onClick = {
                         staffEditar = null
+                        staffPrefillCoachMiembro = null
                         staffFormInstance++
                         dialogoStaff = true
                     },
@@ -940,6 +943,7 @@ fun AcademiaScreen(
                     categorias = categoriasStaff,
                     onEdit = {
                         dialogoStaff = false
+                        staffPrefillCoachMiembro = null
                         staffFormInstance++
                         staffEditar = m
                     },
@@ -1043,6 +1047,16 @@ fun AcademiaScreen(
                 AcademiaMiembrosAdminScreen(
                     academiaId = aid,
                     vm = miembrosVm,
+                    staff = staff,
+                    puedeDueñoEditarFichaCoachSueldo = config.puedeMutarDiaLimitePagoMes(sessionAuthUserId),
+                    onEditarEquipoParaCoach = { miembro, staffCoincidente ->
+                        staffPrefillCoachMiembro = if (staffCoincidente == null) miembro else null
+                        staffEditar = staffCoincidente
+                        staffFormInstance++
+                        if (staffCoincidente == null) {
+                            dialogoStaff = true
+                        }
+                    },
                     codigoInviteCoach = config.codigoInviteCoachRemoto,
                     codigoInviteCoordinator = config.codigoInviteCoordinatorRemoto,
                     codigoInviteParent = config.codigoInviteParentRemoto,
@@ -1151,14 +1165,16 @@ fun AcademiaScreen(
             val s = staffEditar
             value = if (s == null) emptySet() else staffVm.getCategoriasForStaffOnce(s.id).toSet()
         }
-        key(staffFormInstance) {
+        key(staffFormInstance, staffEditar?.id, staffPrefillCoachMiembro?.id) {
             StaffFormDialog(
                 staffExistente = staffEditar,
                 categoriasDisponibles = categoriasDisponibles,
                 initialCategoriasSeleccionadas = categoriasIniciales,
+                prefillCoachMember = staffPrefillCoachMiembro.takeIf { staffEditar == null },
                 onDismiss = {
                     dialogoStaff = false
                     staffEditar = null
+                    staffPrefillCoachMiembro = null
                 },
                 onGuardar = { nombre, rol, tel, email, fotoPath, quitarFoto, sueldoMensual, categorias ->
                     val editando = staffEditar
@@ -1179,6 +1195,7 @@ fun AcademiaScreen(
                     }
                     dialogoStaff = false
                     staffEditar = null
+                    staffPrefillCoachMiembro = null
                 },
             )
         }
@@ -1371,6 +1388,8 @@ private fun StaffFormDialog(
     staffExistente: Staff?,
     categoriasDisponibles: List<String>,
     initialCategoriasSeleccionadas: Set<String>,
+    /** Relleno al crear Equipo desde la ficha del entrenador (miembro nube sin fila local). */
+    prefillCoachMember: MiembroAdminUi?,
     onDismiss: () -> Unit,
     onGuardar: (
         nombre: String,
@@ -1395,27 +1414,43 @@ private fun StaffFormDialog(
     var cameraFile by remember { mutableStateOf<File?>(null) }
     var seleccionCategorias by remember { mutableStateOf(setOf<String>()) }
 
-    LaunchedEffect(initialCategoriasSeleccionadas) {
-        seleccionCategorias = initialCategoriasSeleccionadas.toSet()
-    }
-
-    LaunchedEffect(staffExistente) {
-        val s = staffExistente
+    LaunchedEffect(staffExistente, prefillCoachMember, initialCategoriasSeleccionadas, categoriasDisponibles) {
         sinFoto = false
-        if (s != null) {
-            nombre = s.nombre
-            rol = RolStaff.fromStored(s.rol)
-            tel = s.telefono.orEmpty()
-            email = s.email.orEmpty()
-            fotoPath = s.fotoRutaAbsoluta
-            sueldoTxt = s.sueldoMensual?.takeIf { it > 0 }?.toString().orEmpty()
-        } else {
-            nombre = ""
-            rol = RolStaff.PROFESOR
-            tel = ""
-            email = ""
-            fotoPath = null
-            sueldoTxt = ""
+        val s = staffExistente
+        val coach = prefillCoachMember
+        val catsDisponibles = categoriasDisponibles.toSet()
+        when {
+            s != null -> {
+                nombre = s.nombre
+                rol = RolStaff.fromStored(s.rol)
+                tel = s.telefono.orEmpty()
+                email = s.email.orEmpty()
+                fotoPath = s.fotoRutaAbsoluta
+                sueldoTxt = s.sueldoMensual?.takeIf { it > 0 }?.toString().orEmpty()
+                seleccionCategorias = initialCategoriasSeleccionadas.toSet()
+            }
+            coach != null -> {
+                nombre = coach.displayLabel?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: coach.memberEmail?.substringBefore("@")?.trim().orEmpty()
+                rol = RolStaff.PROFESOR
+                tel = ""
+                email = coach.memberEmail?.trim().orEmpty()
+                fotoPath = null
+                sueldoTxt = ""
+                seleccionCategorias = coach.nombresCategoriasCoach
+                    .filter { it in catsDisponibles }
+                    .toSet()
+                    .ifEmpty { initialCategoriasSeleccionadas.toSet() }
+            }
+            else -> {
+                nombre = ""
+                rol = RolStaff.PROFESOR
+                tel = ""
+                email = ""
+                fotoPath = null
+                sueldoTxt = ""
+                seleccionCategorias = initialCategoriasSeleccionadas.toSet()
+            }
         }
     }
 
@@ -1507,7 +1542,11 @@ private fun StaffFormDialog(
             Column(Modifier.padding(24.dp)) {
                 Text(
                     stringResource(
-                        if (staffExistente != null) R.string.edit_staff else R.string.add_staff,
+                        when {
+                            staffExistente != null -> R.string.edit_staff
+                            prefillCoachMember != null -> R.string.members_coach_ficha_dialog_title
+                            else -> R.string.add_staff
+                        },
                     ),
                     style = MaterialTheme.typography.headlineSmall,
                 )

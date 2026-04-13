@@ -2,20 +2,29 @@ package com.escuelafutbol.academia.ui.parents
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.CobroMensualAlumno
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
+import com.escuelafutbol.academia.data.remote.AcademiaMensajesCategoriaRepository
+import com.escuelafutbol.academia.data.remote.dto.AcademiaMensajeCategoriaRow
 import com.escuelafutbol.academia.ui.util.PagoPlazoUtil
+import io.github.jan.supabase.auth.auth
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class LineaAsistenciaPadreUi(val fechaDia: Long, val presente: Boolean)
 
@@ -39,22 +48,62 @@ sealed class ParentsTabContent {
     ) : ParentsTabContent()
 }
 
+data class ParentsMensajesUiState(
+    val cargando: Boolean = false,
+    val items: List<MensajeCategoriaUi> = emptyList(),
+    val error: String? = null,
+)
+
+data class MensajeCategoriaUi(
+    val id: String,
+    val categoriaNombre: String,
+    val tipo: String,
+    val titulo: String,
+    val cuerpo: String,
+    val createdAtMillis: Long,
+    val eventAtMillis: Long?,
+)
+
+object MensajeCategoriaTipo {
+    const val PARTIDO_EVENTO = "partido_evento"
+    const val CONVIVIO_LOGISTICA = "convivio_logistica"
+    const val ADMINISTRATIVO = "administrativo"
+    const val OTRO = "otro"
+
+    val todosWire: List<String> = listOf(
+        PARTIDO_EVENTO,
+        CONVIVIO_LOGISTICA,
+        ADMINISTRATIVO,
+        OTRO,
+    )
+}
+
 class ParentsViewModel(
     application: Application,
     private val database: AcademiaDatabase,
+    private val categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : AndroidViewModel(application) {
 
-    private val _mensaje = MutableStateFlow(
-        "Estimadas familias:\n\n" +
-            "Recordatorio de entrenamiento este fin de semana. " +
-            "Por favor, confirmar asistencia con el cuerpo técnico.\n\n" +
-            "— Academia",
-    )
-    val mensaje: StateFlow<String> = _mensaje.asStateFlow()
+    private val app: AcademiaApplication get() = getApplication()
 
-    fun actualizarMensaje(texto: String) {
-        _mensaje.update { texto }
-    }
+    private val _mensajesNube = MutableStateFlow(ParentsMensajesUiState())
+    val mensajesNube: StateFlow<ParentsMensajesUiState> = _mensajesNube.asStateFlow()
+
+    private val _enviandoMensaje = MutableStateFlow(false)
+    val enviandoMensaje: StateFlow<Boolean> = _enviandoMensaje.asStateFlow()
+
+    val categoriasParaMensajesStaff: StateFlow<List<String>> = combine(
+        categoriasPermitidasOperacion,
+        database.categoriaDao().observeAllOrdered(),
+    ) { permitidas, cats ->
+        val nombres = cats.map { it.nombre }.sorted()
+        val p = permitidas?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()
+        when {
+            p == null -> nombres
+            p.isEmpty() -> emptyList()
+            else -> nombres.filter { it.trim() in p }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun contenidoSegunMembresia(): Flow<ParentsTabContent> {
         return combine(
@@ -72,6 +121,85 @@ class ParentsViewModel(
                 construirPadreConHijos(cfg, jugadores, asistencias, cobros)
             }
         }
+    }
+
+    fun refrescarMensajes() {
+        viewModelScope.launch { refrescarMensajesSuspend() }
+    }
+
+    private suspend fun refrescarMensajesSuspend() {
+        val client = app.supabaseClient
+        val cfg = database.academiaConfigDao().getActual()
+        val aid = cfg?.remoteAcademiaId?.takeIf { it.isNotBlank() }
+        if (client == null || aid == null) {
+            _mensajesNube.value = ParentsMensajesUiState()
+            return
+        }
+        _mensajesNube.update { it.copy(cargando = true, error = null) }
+        val repo = AcademiaMensajesCategoriaRepository(client)
+        runCatching { repo.listar(aid) }
+            .onSuccess { rows ->
+                _mensajesNube.value = ParentsMensajesUiState(
+                    cargando = false,
+                    items = rows.map { it.toUi() },
+                    error = null,
+                )
+            }
+            .onFailure { e ->
+                _mensajesNube.update {
+                    it.copy(cargando = false, error = e.message ?: e.toString())
+                }
+            }
+    }
+
+    fun enviarMensajeCategoria(
+        categoriaNombre: String,
+        tipo: String,
+        titulo: String,
+        cuerpo: String,
+        onFinished: (Result<Unit>) -> Unit,
+    ) {
+        viewModelScope.launch {
+            _enviandoMensaje.value = true
+            try {
+                val r = enviarMensajeInterno(categoriaNombre, tipo, titulo, cuerpo)
+                if (r.isSuccess) refrescarMensajesSuspend()
+                onFinished(r)
+            } finally {
+                _enviandoMensaje.value = false
+            }
+        }
+    }
+
+    private suspend fun enviarMensajeInterno(
+        categoriaNombre: String,
+        tipo: String,
+        titulo: String,
+        cuerpo: String,
+    ): Result<Unit> {
+        val client = app.supabaseClient ?: return Result.failure(IllegalStateException("Sin conexión a la nube"))
+        val uid = client.auth.currentUserOrNull()?.id?.toString()?.takeIf { it.isNotBlank() }
+            ?: return Result.failure(IllegalStateException("Sin sesión"))
+        val cfg = database.academiaConfigDao().getActual()
+            ?: return Result.failure(IllegalStateException("Sin configuración"))
+        val aid = cfg.remoteAcademiaId?.takeIf { it.isNotBlank() }
+            ?: return Result.failure(IllegalStateException("Academia no vinculada a la nube"))
+        val cat = categoriaNombre.trim()
+        if (cat.isEmpty()) return Result.failure(IllegalStateException("Elige categoría"))
+        if (titulo.isBlank() || cuerpo.isBlank()) {
+            return Result.failure(IllegalStateException("Título y mensaje son obligatorios"))
+        }
+        if (tipo !in MensajeCategoriaTipo.todosWire) {
+            return Result.failure(IllegalStateException("Tipo no válido"))
+        }
+        return AcademiaMensajesCategoriaRepository(client).insertar(
+            academiaId = aid,
+            categoriaNombre = cat,
+            tipo = tipo,
+            titulo = titulo,
+            cuerpo = cuerpo,
+            authorUserId = uid,
+        )
     }
 
     private fun construirPadreConHijos(
@@ -111,3 +239,19 @@ class ParentsViewModel(
         return ParentsTabContent.PadreConHijos(hijos, totalGlobal, reglaActiva)
     }
 }
+
+private fun parseInstantMs(iso: String?): Long? =
+    iso?.takeIf { it.isNotBlank() }?.let {
+        runCatching { Instant.parse(it).toEpochMilli() }.getOrNull()
+    }
+
+private fun AcademiaMensajeCategoriaRow.toUi(): MensajeCategoriaUi =
+    MensajeCategoriaUi(
+        id = id,
+        categoriaNombre = categoriaNombre,
+        tipo = tipo,
+        titulo = titulo,
+        cuerpo = cuerpo,
+        createdAtMillis = parseInstantMs(createdAt) ?: 0L,
+        eventAtMillis = parseInstantMs(eventAt),
+    )

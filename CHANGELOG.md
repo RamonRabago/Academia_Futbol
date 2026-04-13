@@ -6,6 +6,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Corregido
 
+- **Gestionar miembros — botón «Ficha técnica»:** en tarjeta de entrenador, el `Row` de acciones comprimía el texto a un ancho mínimo y **«Ficha técnica»** se veía letra a letra en vertical; las acciones van en **`FlowRow`** con ancho completo para que pasen de línea con normalidad (`AcademiaMiembrosAdminScreen`).
+
+- **Migración `list_academia_miembros_for_manage`:** incluye `DROP FUNCTION …` antes de recrear la RPC al añadir `created_at`, porque Postgres **no permite** cambiar el tipo de fila devuelto solo con `CREATE OR REPLACE` (error `42P13` en el SQL Editor de Supabase).
+
 - **Selector de categoría — navegación y toques:** la barra inferior seguía visible sobre el selector; un toque cerca de «Academia» cerraba el selector y abría esa pestaña. La barra se **oculta** mientras eliges categoría; al **confirmar** categoría (o «todas») se **vuelve a Inicio** para no quedar en la pestaña anterior. La fila de categoría: miniatura vacía también **confirma** al tocar; con imagen, el recuadro abre el visor y el texto confirma (`CategoriaSelectionScreen`, `AcademiaRoot`).
 
 - **Imágenes Supabase en Coil:** URLs de logo/portada (academia y categoría) pasan por `ImageRequest` con **crossfade** en lugar de `String` crudo (`CoilAcademyImages.kt`), para carga más fiable en miniaturas.
@@ -17,6 +21,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Selector de categoría / portadas con academia en nube:** si `cloudMembresiaRol` aún no estaba en Room pero la sesión es **dueño de cuenta** (`remoteAcademiaCuentaUserId`), la app dejaba `esperandoMembresiaNube` y el modo restrictivo; ahora se considera membresía resuelta para el dueño y `rolDispositivoEfectivo` / mensualidad / pestañas usan el UID de sesión (`AcademiaMembresiaUi`, `RolDispositivo`, `AcademiaNavPolicy`, `AcademiaRoot`, pantallas que consultan mensualidad).
 
 ### Añadido
+
+- **Dueño — sueldo y ficha Equipo desde miembros:** en la ficha técnica del entrenador, el **dueño de cuenta** (`puedeMutarDiaLimitePagoMes`, misma regla que día límite de pago) ve **«Editar ficha en Equipo (sueldo y datos)»**: abre el formulario de **Academia → Equipo** (editar fila existente por correo o **alta rellenada** con nombre, correo y categorías del coach en nube). `StaffFormDialog` acepta `prefillCoachMember` (`AcademiaScreen`, `AcademiaMiembrosAdminScreen`).
+
+- **Gestionar miembros — ficha del entrenador:** pantalla a pantalla completa desde **Ficha técnica** en cada entrenador; muestra alta en el club (`created_at` vía RPC), categorías, estado de membresía y **sueldo/teléfono** si hay coincidencia por correo con **Academia → Equipo** (`AcademiaMiembrosAdminScreen`, `MiembroAdminUi`, migración SQL `list_academia_miembros_for_manage` con `created_at`).
+
+- **Push FCM:** dependencias Firebase Messaging, `google-services` (copia automática desde `google-services.json.example` si no existe `google-services.json`), `AcademiaFcmMessagingService`, registro de token vía RPC `register_fcm_token`, permiso `POST_NOTIFICATIONS`, navegación a pestaña **Padres** al tocar la notificación. Edge Function **`send-academia-mensaje-push`** (FCM HTTP v1) + guía **`docs/PUSH_FCM_SETUP.md`** (Firebase, secretos, webhook INSERT en `academia_mensajes_categoria`). SQL **`user_fcm_tokens`**, RPC **`parent_user_ids_for_categoria_mensaje`** (solo `service_role`).
+
+- **Padres — avisos por categoría (nube):** tabla Supabase **`academia_mensajes_categoria`**, RLS para que **padres** lean solo mensajes de categorías donde tienen hijo vinculado (`academia_padres_alumnos` + `jugadores.categoria`); **dueño/admin/coordinador** publican a cualquier categoría; **coach** solo a categorías asignadas (`academia_miembro_categorias`). Tipos: partido/entreno, convivio/logística, administrativo, otro. App: envío y lista en pestaña **Padres** (staff); bandeja con filtros y **Actualizar** para padres (`20260428120000_academia_mensajes_categoria.sql`, `AcademiaMensajesCategoriaRepository`, `ParentsViewModel`, `ParentsScreen`, `AcademiaRoot`).
 
 - **Pull-to-refresh (deslizar hacia abajo):** en el contenido principal (pestañas y selector de categoría) dispara **sincronización con Supabase** al instante, sin esperar el intervalo automático de 70 s (`CloudSyncViewModel.requestManualSync`, `PullToRefreshBox` en `AcademiaRoot`, `pull_to_refresh_cd` en `strings.xml`).
 
@@ -74,6 +86,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Strings** `academy_readonly_no_admin_*`, `academy_name_saved`, `academy_name_save_denied`.
 
 ### Cambiado
+
+- **Finanzas:** alcance propio **Toda la academia** vs **una categoría** (selector + diálogo), sin depender del filtro global de sesión; totales y adeudo histórico del mes se calculan solo sobre alumnos visibles en ese alcance. Vista en **pestañas** Resumen / Alumnos / Nómina (esta última solo con vista general). Resumen compacto en una tarjeta; desglose por categoría con acción «Ver solo esta categoría» (`FinanzasViewModel`, `FinanzasScreen`, `AcademiaViewModelFactory`).
 
 - **Pull-to-refresh:** el gesto **solo descarga** datos desde Supabase (`syncAll(skipPush = true)`), sin ejecutar subidas antes. Así un fallo en push (RLS, red al subir, etc.) no impide actualizar listas y portadas al deslizar. El sync completo (push + pull) sigue en arranque y al reanudar la app (`AcademiaCloudSync`, `CloudSyncViewModel`).
 

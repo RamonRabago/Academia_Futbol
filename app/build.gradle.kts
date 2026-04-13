@@ -6,6 +6,16 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
+}
+
+// Si no existe google-services.json (gitignore), copia el example para que compile; sustituye por el JSON real de Firebase Console.
+run {
+    val gsOut = layout.projectDirectory.file("google-services.json").asFile
+    val gsIn = layout.projectDirectory.file("google-services.json.example").asFile
+    if (!gsOut.exists() && gsIn.exists()) {
+        gsIn.copyTo(gsOut, overwrite = true)
+    }
 }
 
 val localSupabaseProps = Properties().apply {
@@ -111,4 +121,8 @@ dependencies {
     implementation(libs.supabase.storage.android)
     implementation(libs.ktor.client.android)
     implementation(libs.kotlinx.serialization.json)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 }

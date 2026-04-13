@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.util.Locale
 
 data class PadresVinculoUi(
@@ -33,6 +34,8 @@ data class MiembroAdminUi(
     val esDueñoCuentaAcademia: Boolean,
     val nombresCategoriasCoach: List<String>,
     val categoriaRemoteIds: List<String>,
+    /** Alta en el club (`academia_miembros.created_at`), millis UTC. */
+    val fechaAltaClubMillis: Long? = null,
 )
 
 class AcademiaMiembrosViewModel(
@@ -91,6 +94,7 @@ class AcademiaMiembrosViewModel(
                         esDueñoCuentaAcademia = ownerUid != null && row.userId == ownerUid,
                         nombresCategoriasCoach = nombres,
                         categoriaRemoteIds = catIds,
+                        fechaAltaClubMillis = millisDesdeCreatedAtIso(row.createdAt),
                     )
                 }
                 _items.value = ui
@@ -238,4 +242,10 @@ sealed class MiembrosAdminState {
     data object Cargando : MiembrosAdminState()
     data object Listo : MiembrosAdminState()
     data class Error(val mensaje: String) : MiembrosAdminState()
+}
+
+/** ISO 8601 desde PostgREST (`timestamptz`). */
+private fun millisDesdeCreatedAtIso(iso: String?): Long? {
+    val s = iso?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching { Instant.parse(s).toEpochMilli() }.getOrNull()
 }
