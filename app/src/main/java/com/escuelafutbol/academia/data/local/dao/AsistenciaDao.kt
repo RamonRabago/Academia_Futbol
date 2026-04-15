@@ -15,6 +15,12 @@ interface AsistenciaDao {
     @Query("SELECT * FROM asistencias WHERE fechaDia = :fechaDia")
     fun observeForDay(fechaDia: Long): Flow<List<Asistencia>>
 
+    @Query(
+        "SELECT * FROM asistencias WHERE fechaDia >= :desdeMillis AND fechaDia <= :hastaMillis " +
+            "ORDER BY fechaDia ASC, jugadorId ASC",
+    )
+    fun observeBetween(desdeMillis: Long, hastaMillis: Long): Flow<List<Asistencia>>
+
     @Query("SELECT * FROM asistencias WHERE fechaDia = :fechaDia")
     suspend fun getForDay(fechaDia: Long): List<Asistencia>
 

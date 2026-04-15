@@ -21,7 +21,7 @@ fun rutaPrincipalVisible(
         return config.puedeVerMensualidadEnEsteDispositivo(uidSesionAuth)
     }
     if (config.remoteAcademiaId != null && cloudRol == "parent") {
-        return route == "inicio" || route == "padres" || route == "academia"
+        return route == "inicio" || route == "contenido" || route == "padres" || route == "academia"
     }
     if (route == "padres") {
         return rolDispositivo.puedeVerPestañaPadres()

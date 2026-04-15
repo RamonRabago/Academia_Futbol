@@ -447,12 +447,14 @@ private fun AlumnoCobroRow(
                     )
                 }
                 when {
-                    j.becado -> Text(
-                        stringResource(R.string.finance_line_scholarship),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
                     c != null -> Column(horizontalAlignment = Alignment.End) {
+                        if (j.becado) {
+                            Text(
+                                stringResource(R.string.finance_line_scholarship),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
                         Text(
                             stringResource(
                                 R.string.finance_line_amounts,
@@ -473,6 +475,11 @@ private fun AlumnoCobroRow(
                             Text(stringResource(R.string.player_edit))
                         }
                     }
+                    j.becado -> Text(
+                        stringResource(R.string.finance_line_scholarship),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
                     else -> OutlinedButton(onClick = onRegistrar) {
                         Text(stringResource(R.string.finance_register_month))
                     }

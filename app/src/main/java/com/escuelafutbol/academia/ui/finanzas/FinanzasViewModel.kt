@@ -11,7 +11,7 @@ import com.escuelafutbol.academia.data.local.dao.StaffDao
 import com.escuelafutbol.academia.data.local.entity.CobroMensualAlumno
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.entity.Staff
-import com.escuelafutbol.academia.data.remote.CobroMensualRemoteRepository
+import com.escuelafutbol.academia.data.remote.pushCobroMensualSiNube
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
 import com.escuelafutbol.academia.ui.util.jugadoresActivosSnapshot
 import java.time.YearMonth
@@ -19,13 +19,19 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Alcance de la vista de finanzas: toda la academia o una sola categoría de alumnos. */
 sealed class FinanzasAlcance {
@@ -69,7 +75,7 @@ data class FinanzasUiState(
     val porCategoria: List<FinanzaResumenCategoria>,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class FinanzasViewModel(
     application: Application,
     private val jugadorDao: JugadorDao,
@@ -83,6 +89,9 @@ class FinanzasViewModel(
 
     private val periodoFlow = MutableStateFlow(YearMonth.now())
     private val alcanceFlow = MutableStateFlow<FinanzasAlcance>(FinanzasAlcance.GeneralAcademia)
+
+    /** Evita dos prellenados concurrentes (automático + botón). */
+    private val prellenarMutex = Mutex()
 
     private val jugadoresFlow = combine(alcanceFlow, categoriasPermitidasOperacion) { alcance, permitidas ->
         val filtroCategoria = when (alcance) {
@@ -210,6 +219,23 @@ class FinanzasViewModel(
         ),
     )
 
+    init {
+        viewModelScope.launch {
+            combine(periodoFlow, alcanceFlow, jugadoresFlow) { p, a, js ->
+                Triple(
+                    p,
+                    a,
+                    js.map { j -> "${j.id},${j.becado},${j.mensualidad}" }.sorted().joinToString("|"),
+                )
+            }
+                .distinctUntilChanged()
+                .debounce(AUTO_PRELLENAR_DEBOUNCE_MS)
+                .collectLatest {
+                    rellenarHuecosCobrosDelMesSeleccionado()
+                }
+        }
+    }
+
     fun setAlcanceGeneral() {
         alcanceFlow.value = FinanzasAlcance.GeneralAcademia
     }
@@ -228,7 +254,15 @@ class FinanzasViewModel(
     }
 
     fun prellenarMesConCuotasAlumnos() {
-        viewModelScope.launch {
+        viewModelScope.launch { rellenarHuecosCobrosDelMesSeleccionado() }
+    }
+
+    /**
+     * Crea filas de cobro del mes en pantalla para alumnos activos con cuota en ficha que aún no tengan registro.
+     * Misma regla que el botón manual; se invoca también al cambiar mes, alcance o datos relevantes de jugadores.
+     */
+    private suspend fun rellenarHuecosCobrosDelMesSeleccionado() {
+        prellenarMutex.withLock {
             val periodoStr = periodoFlow.value.format(PERIODO_FMT)
             val filtro = when (val a = alcanceFlow.value) {
                 FinanzasAlcance.GeneralAcademia -> null
@@ -297,25 +331,11 @@ class FinanzasViewModel(
     }
 
     private suspend fun pushCobroSiNube(c: CobroMensualAlumno) {
-        val client = app.supabaseClient ?: return
-        val cfg = academiaConfigDao.getActual() ?: return
-        val academiaId = cfg.remoteAcademiaId ?: return
-        val j = jugadorDao.getById(c.jugadorId) ?: return
-        val jr = j.remoteId ?: return
-        val repo = CobroMensualRemoteRepository(client)
-        runCatching {
-            if (c.remoteId == null) {
-                val rid = repo.insertar(academiaId, jr, c)
-                val local = cobroMensualDao.getByJugadorYPeriodo(c.jugadorId, c.periodoYyyyMm) ?: return
-                cobroMensualDao.update(local.copy(remoteId = rid, needsCloudPush = false))
-            } else {
-                repo.actualizar(c.remoteId, c.copy(needsCloudPush = false))
-                cobroMensualDao.update(c.copy(needsCloudPush = false))
-            }
-        }
+        pushCobroMensualSiNube(app, academiaConfigDao, jugadorDao, cobroMensualDao, c)
     }
 
     companion object {
         private val PERIODO_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
+        private const val AUTO_PRELLENAR_DEBOUNCE_MS = 400L
     }
 }

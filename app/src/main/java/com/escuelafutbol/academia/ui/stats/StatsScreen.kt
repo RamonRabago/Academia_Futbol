@@ -76,6 +76,13 @@ fun StatsScreen(
                 title = stringResource(R.string.days_with_records),
                 value = stats.diasConRegistro.toString(),
             )
+            if (stats.hayMarcasSinDiaEntreno) {
+                Text(
+                    stringResource(R.string.stats_training_day_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
 
             if (puedeCuotas) {
                 val c = stats.cuotasResumen

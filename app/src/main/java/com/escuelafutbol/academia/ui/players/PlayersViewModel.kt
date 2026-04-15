@@ -5,10 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
+import com.escuelafutbol.academia.data.local.dao.CobroMensualDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.remote.AcademiaMiembrosRepository
 import com.escuelafutbol.academia.data.remote.JugadorRemoteRepository
+import com.escuelafutbol.academia.data.remote.pushCobroMensualSiNube
 import com.escuelafutbol.academia.ui.util.etiquetaVisibleDesdeAuthMetadata
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
 import com.escuelafutbol.academia.util.anioDesdeMillisUtcDia
@@ -38,6 +40,7 @@ sealed class FormularioJugadorUi {
 class PlayersViewModel(
     application: Application,
     private val jugadorDao: JugadorDao,
+    private val cobroMensualDao: CobroMensualDao,
     private val academiaConfigDao: AcademiaConfigDao,
     private val filtroCategoria: StateFlow<String?>,
     categoriasPermitidasOperacion: StateFlow<Set<String>?>,
@@ -243,8 +246,30 @@ class PlayersViewModel(
                         JugadorRemoteRepository(client).actualizarCamposJugador(rid, updated)
                     }
                 }
+                if (becadoFinal && !current.becado) {
+                    liquidarPendientesCobrosAlMarcarBecado(updated.id)
+                }
             }
             cerrarFormularioJugador()
+        }
+    }
+
+    /**
+     * Al pasar a becado, el esperado de cada mes no puede quedar por encima de lo ya cobrado:
+     * se iguala [CobroMensualAlumno.importeEsperado] a [importePagado] para anular pendientes
+     * (becado no debe dejar deuda mensual registrada).
+     */
+    private suspend fun liquidarPendientesCobrosAlMarcarBecado(jugadorId: Long) {
+        val app = getApplication<AcademiaApplication>()
+        val cobros = cobroMensualDao.getByJugadorId(jugadorId)
+        for (cob in cobros) {
+            if (cob.importeEsperado <= cob.importePagado) continue
+            val ajustado = cob.copy(
+                importeEsperado = cob.importePagado,
+                needsCloudPush = true,
+            )
+            cobroMensualDao.update(ajustado)
+            pushCobroMensualSiNube(app, academiaConfigDao, jugadorDao, cobroMensualDao, ajustado)
         }
     }
 

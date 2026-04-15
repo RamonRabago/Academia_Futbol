@@ -12,6 +12,7 @@ import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
 import com.escuelafutbol.academia.ui.auth.AcademiaBindingViewModel
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
+import com.escuelafutbol.academia.ui.contenido.ContenidoViewModel
 import com.escuelafutbol.academia.ui.finanzas.FinanzasViewModel
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
 import com.escuelafutbol.academia.ui.players.PlayersViewModel
@@ -68,6 +69,7 @@ class AcademiaViewModelFactory(
                 PlayersViewModel(
                     application,
                     database.jugadorDao(),
+                    database.cobroMensualDao(),
                     database.academiaConfigDao(),
                     s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
@@ -76,6 +78,7 @@ class AcademiaViewModelFactory(
                 AttendanceViewModel(
                     database.jugadorDao(),
                     database.asistenciaDao(),
+                    database.diaEntrenamientoDao(),
                     s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
                 ) as T
@@ -83,6 +86,14 @@ class AcademiaViewModelFactory(
                 StatsViewModel(
                     database.jugadorDao(),
                     database.asistenciaDao(),
+                    database.diaEntrenamientoDao(),
+                    s.filtroCategoria,
+                    s.categoriasPermitidasOperacion,
+                ) as T
+            modelClass.isAssignableFrom(ContenidoViewModel::class.java) ->
+                ContenidoViewModel(
+                    application,
+                    database,
                     s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
                 ) as T

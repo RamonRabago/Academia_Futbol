@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
@@ -92,6 +93,8 @@ import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
 import com.escuelafutbol.academia.ui.finanzas.FinanzasScreen
 import com.escuelafutbol.academia.ui.finanzas.FinanzasViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaSelectionScreen
+import com.escuelafutbol.academia.ui.contenido.ContenidoScreen
+import com.escuelafutbol.academia.ui.contenido.ContenidoViewModel
 import com.escuelafutbol.academia.ui.parents.ParentsScreen
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
 import com.escuelafutbol.academia.ui.players.PlayersScreen
@@ -129,12 +132,22 @@ private sealed class Tab(
     data object Jugadores : Tab("jugadores", R.string.tab_players)
     data object Asistencia : Tab("asistencia", R.string.tab_attendance)
     data object Estadisticas : Tab("estadisticas", R.string.tab_stats)
+    data object Recursos : Tab("contenido", R.string.tab_resources)
     data object Finanzas : Tab("finanzas", R.string.tab_finances)
     data object Padres : Tab("padres", R.string.tab_parents)
     data object Academia : Tab("academia", R.string.tab_academy)
 
     companion object {
-        val entries = listOf(Inicio, Jugadores, Asistencia, Estadisticas, Finanzas, Padres, Academia)
+        val entries = listOf(
+            Inicio,
+            Jugadores,
+            Asistencia,
+            Estadisticas,
+            Recursos,
+            Finanzas,
+            Padres,
+            Academia,
+        )
     }
 }
 
@@ -503,6 +516,7 @@ private fun AcademiaMainScaffold(
                                         Tab.Jugadores -> Icons.Default.Group
                                         Tab.Asistencia -> Icons.Default.TaskAlt
                                         Tab.Estadisticas -> Icons.Default.Assessment
+                                        Tab.Recursos -> Icons.Default.MenuBook
                                         Tab.Finanzas -> Icons.Default.Payments
                                         Tab.Padres -> Icons.Default.MailOutline
                                         Tab.Academia -> Icons.Default.Settings
@@ -610,6 +624,14 @@ private fun AcademiaMainScaffold(
                     viewModel = vm,
                     configAcademia = config,
                     sessionAuthUserId = sessionAuthUserId,
+                )
+            }
+            composable(Tab.Recursos.route) {
+                val vm: ContenidoViewModel = viewModel(factory = childFactory)
+                ContenidoScreen(
+                    viewModel = vm,
+                    config = config,
+                    categoriaFiltro = filtroCategoria,
                 )
             }
             composable(Tab.Finanzas.route) {

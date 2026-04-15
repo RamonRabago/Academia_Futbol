@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.SessionCategoriaRecienteDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
+import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.dao.CobroMensualDao
@@ -17,6 +18,7 @@ import com.escuelafutbol.academia.data.local.dao.StaffDao
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.SessionCategoriaReciente
 import com.escuelafutbol.academia.data.local.entity.Asistencia
+import com.escuelafutbol.academia.data.local.entity.DiaEntrenamiento
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
@@ -29,6 +31,7 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         Jugador::class,
         JugadorHistorial::class,
         Asistencia::class,
+        DiaEntrenamiento::class,
         Categoria::class,
         AcademiaConfig::class,
         SessionCategoriaReciente::class,
@@ -36,12 +39,14 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         StaffCategoria::class,
         CobroMensualAlumno::class,
     ],
-    version = 29,
+    version = 30,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
     abstract fun jugadorDao(): JugadorDao
     abstract fun asistenciaDao(): AsistenciaDao
+
+    abstract fun diaEntrenamientoDao(): DiaEntrenamientoDao
     abstract fun categoriaDao(): CategoriaDao
     abstract fun academiaConfigDao(): AcademiaConfigDao
     abstract fun sessionCategoriaRecienteDao(): SessionCategoriaRecienteDao
@@ -359,6 +364,25 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_29_30 =
+            object : Migration(29, 30) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `dias_entrenamiento` (
+                          `fechaDia` INTEGER NOT NULL,
+                          `scopeKey` TEXT NOT NULL,
+                          PRIMARY KEY(`fechaDia`, `scopeKey`)
+                        )
+                        """.trimIndent().replace("\n", " "),
+                    )
+                    db.execSQL(
+                        "INSERT OR IGNORE INTO `dias_entrenamiento` (`fechaDia`, `scopeKey`) " +
+                            "SELECT DISTINCT `fechaDia`, '' FROM `asistencias`",
+                    )
+                }
+            }
+
         private val MIGRATION_19_20 =
             object : Migration(19, 20) {
                 override fun migrate(db: SupportSQLiteDatabase) {
@@ -426,6 +450,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_26_27,
                     MIGRATION_27_28,
                     MIGRATION_28_29,
+                    MIGRATION_29_30,
                 )
                 .build()
     }

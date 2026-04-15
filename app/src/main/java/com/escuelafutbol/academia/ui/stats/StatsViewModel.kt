@@ -3,8 +3,11 @@ package com.escuelafutbol.academia.ui.stats
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
+import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Jugador
+import com.escuelafutbol.academia.ui.attendance.diaMarcadoComoEntrenamiento
+import com.escuelafutbol.academia.ui.attendance.scopeKeyAsistencia
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,6 +46,8 @@ data class StatsUi(
     val totalJugadores: Int,
     val porcentajeAsistenciaGlobal: Double?,
     val diasConRegistro: Int,
+    /** Hay marcas guardadas pero ninguna en un día marcado como entrenamiento (mismo criterio que Asistencia). */
+    val hayMarcasSinDiaEntreno: Boolean,
     val cuotasResumen: CuotasResumenUi,
 )
 
@@ -81,6 +86,7 @@ private fun construirCuotasResumen(jugadores: List<Jugador>): CuotasResumenUi {
 class StatsViewModel(
     private val jugadorDao: JugadorDao,
     private val asistenciaDao: AsistenciaDao,
+    private val diaEntrenoDao: DiaEntrenamientoDao,
     private val filtroCategoria: StateFlow<String?>,
     categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : ViewModel() {
@@ -96,9 +102,15 @@ class StatsViewModel(
     val stats = combine(
         jugadoresFiltrados,
         asistenciaDao.observeAll(),
-    ) { jugadores, todasAsistencias ->
+        diaEntrenoDao.observeAll(),
+        filtroCategoria,
+    ) { jugadores, todasAsistencias, marcasEntreno, cat ->
         val ids = jugadores.map { it.id }.toSet()
-        val asistencias = todasAsistencias.filter { it.jugadorId in ids }
+        val scope = scopeKeyAsistencia(cat)
+        val crudas = todasAsistencias.filter { it.jugadorId in ids }
+        val asistencias = crudas.filter {
+            diaMarcadoComoEntrenamiento(it.fechaDia, scope, marcasEntreno)
+        }
         val totalFilas = asistencias.size
         val presentes = asistencias.count { it.presente }
         val porcentaje = if (totalFilas == 0) null else presentes * 100.0 / totalFilas
@@ -107,6 +119,7 @@ class StatsViewModel(
             totalJugadores = jugadores.size,
             porcentajeAsistenciaGlobal = porcentaje,
             diasConRegistro = dias,
+            hayMarcasSinDiaEntreno = crudas.isNotEmpty() && asistencias.isEmpty(),
             cuotasResumen = construirCuotasResumen(jugadores),
         )
     }.stateIn(
@@ -116,6 +129,7 @@ class StatsViewModel(
             totalJugadores = 0,
             porcentajeAsistenciaGlobal = null,
             diasConRegistro = 0,
+            hayMarcasSinDiaEntreno = false,
             cuotasResumen = construirCuotasResumen(emptyList()),
         ),
     )

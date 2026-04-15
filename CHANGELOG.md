@@ -4,7 +4,52 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Recursos — publicar en todas y moderación:** selector **«Todas las categorías»** (varias categorías → varios inserts), **filtros por estado** (visible / pendiente / rechazado) para staff, interruptor **visible ya para familias** (dueño de cuenta, rol owner o admin en nube) y acciones **Aprobar / Rechazar** (menú de tarjeta, detalle y snackbars). Columna y RLS en migración **`20260515160000_contenido_estado_aprobacion.sql`** (`ContenidoViewModel`, `ContenidoScreen`, `strings.xml`).
+
+- **Recursos — foto a pantalla completa:** al tocar una imagen del **carrusel** (lista o detalle) se abre **`FullscreenImageViewerDialog`** con el título de la publicación (`ContenidoScreen`).
+
+- **Recursos — feed tipo red social:** tarjetas **OutlinedCard** con cabecera (categoría, tema, tiempo relativo), **carrusel** de fotos (portada + galería), texto corto y barra de **reacciones** (❤️ 👏 🙏 💪); publicación con un solo campo de mensaje (**500** caracteres) y título derivado automáticamente. Tabla Supabase **`academia_contenido_reaccion`** (una reacción por usuario y post, RLS alineado a la visibilidad del contenido), repositorio `AcademiaContenidoReaccionRepository`, `ContenidoViewModel` (`alternarReaccionDesdeUi`), migración `20260515140000_academia_contenido_reaccion.sql`.
+
+- **Recursos — fotos dentro del artículo:** hasta **12** imágenes adicionales al texto (misma subida pública a `academia-media`, ruta `…/contenido/cuerpo/…`); columna **`cuerpo_imagenes_urls`** (JSON array en texto); miniaturas en tarjeta y galería al leer el detalle (`ContenidoScreen`, `ContenidoViewModel`, `encodeContenidoCuerpoImagenesUrls`, migración `20260515130000_academia_contenido_cuerpo_imgs_rls_autor.sql`).
+
+- **Recursos — imágenes tipo blog:** foto de **portada opcional** al publicar (galería → subida a Storage `academia-media` con ruta `{uid}/{academiaId}/contenido/…`), columna **`imagen_url`** en Supabase; tarjetas y detalle con vista tipo **artículo** (`ContenidoScreen`, `ContenidoViewModel`, migración `20260502120000_academia_contenido_imagen_url.sql`).
+
+- **Recursos por categoría:** pestaña **Recursos** (contenido educativo: noticias, entreno, nutrición, ejercicio, bienestar, otros), filtros por **tema**, publicación con categoría destino y **quitar del listado** (archivo en nube). Tabla Supabase **`academia_contenido_categoria`**, RLS alineado con avisos a padres (`AcademiaContenidoCategoriaRepository`, `ContenidoScreen`, `AcademiaRoot`). Documento de seguimiento **`docs/APP_CONSTRUCCION.md`**.
+
+- **Asistencia — resumen visual del período:** modo **Mes** / **Año** con botones **relleno + contorno** (queda claro cuál está activo), texto que explica el alcance (mes del día de la cabecera vs año natural), **días distintos con lista**, porcentaje grande y **barra de progreso lineal** Material; año en franja con flechas (`AsistenciaResumenUi.diasConRegistro`, `AttendanceSummaryCard`).
+- **Asistencia — resumen por alumno:** lista desplegable **«Ver resumen de»** (todo el equipo o un jugador); el mismo resumen mes/año se filtra a sus marcas (`AttendanceAlumnoResumenPicker`, `focoResumenJugadorId`, `AsistenciaResumenUi.nombreAlumnoFoco`).
+
+- **Asistencia — foto y calendario:** al elegir alumno para el resumen se muestra su **foto** (local o Supabase vía `coilFotoModel`); la **etiqueta del campo** va fuera del `OutlinedTextField` para evitar solapamiento. **Tocar la fecha** abre el **DatePicker** Material (`seleccionarFechaCalendario`, `AttendanceScreen`).
+
+- **Asistencia — lista del día:** cada fila de **Tomar asistencia** muestra **foto circular** del alumno (misma carga que el resumen) además de nombre y categoría (`AttendanceListaDiaFila`, `AttendanceScreen`).
+
+- **Asistencia — día de entrenamiento:** interruptor bajo la fecha para **marcar o quitar** si ese día cuenta como sesión; el resumen mes/año y **Estadísticas** solo usan marcas en días marcados (ámbito = filtro de categoría actual: «todas» o una categoría). Tabla Room **`dias_entrenamiento`** (BD v**30**); al migrar se **prellenan** días que ya tenían asistencias con marca global para no perder el histórico.
+
+### Cambiado
+
+- **Recursos — visibilidad:** las publicaciones nuevas de coordinador/entrenador pasan por **pendiente de aprobación** salvo que dueño/admin elijan publicación directa a familias; en lista y detalle las **reacciones** solo aparecen si el post está **publicado** (`ContenidoScreen`, RLS en migración citada arriba).
+
+- **Visor de imagen a pantalla completa:** **pellizco** para acercar/alejar (1×–5×), **arrastre** para mover la foto ampliada y **doble toque** para restablecer zoom; el fondo oscuro cierra al tocar fuera del contenido central sin bloquear los gestos sobre la imagen (`FullscreenImageViewerDialog`).
+
+- **Icono del launcher:** primer plano del icono adaptativo con el **arte tipo clipboard / deportes** aportado (PNG en `drawable-nodpi/ic_launcher_foreground.png`); fondo **azul oscuro** (`ic_launcher_background`); se elimina el vector genérico anterior.
+
+- **Asistencia y estadísticas — conteo de sesiones:** textos de **días con lista** / **días de entreno** y **asistencia media** aclaran que el criterio son los días marcados como entrenamiento (`strings.xml`, `AttendanceSummaryCard`, `StatsScreen`).
+
+- **Finanzas — prellenado de cobros:** el mes visible se **rellena solo** con las cuotas de ficha (misma regla que el botón) al cambiar **mes**, **alcance** (toda la academia / categoría) o **ficha de jugadores** (alta, becado, mensualidad, etc.); el botón sigue sirviendo para **forzar** una pasada manual (`FinanzasViewModel`).
+
 ### Corregido
+
+- **Recursos — «Quitar del listado»:** RPC **`archivar_academia_contenido_categoria(p_id, p_academia_id)`** (`SECURITY DEFINER`, permisos = autor, dueño, admin/coord, coach de categoría); la app **usa primero la RPC** y **fallback al UPDATE** si la función no está desplegada. Snackbar de error con **detalle del mensaje** de la API. Complemento histórico: RLS UPDATE con autor en **`20260515130000_academia_contenido_cuerpo_imgs_rls_autor.sql`** (`20260515150000_archivar_academia_contenido_rpc.sql`, `AcademiaContenidoCategoriaRepository`, `ContenidoScreen`).
+
+- **Asistencia — día de entrenamiento:** al desactivar el interruptor con **filtro de categoría** activo no se borraba la marca migrada con `scopeKey` vacío, el estado seguía «activo»; al apagar se eliminan **todas** las marcas de ese día (`deleteAllForDay`).
+
+- **Asistencia — resumen:** el porcentaje usaba `displaySmall` pegado a la barra de progreso y se veía **empalmado**; ahora `headlineLarge`, columna sin `Alignment.Bottom` y **espaciadores** antes/después del `LinearProgressIndicator` (`AttendanceSummaryCard`).
+
+- **Asistencia — lista del día:** la pantalla volvía a un `Column` + `LazyColumn` con `weight(1f)`; con el resumen alto la lista podía quedar **sin altura útil** y parecía que no se podía marcar asistencia. Todo el contenido va en un **`LazyColumn`** (fecha, resumen, botón y tarjetas con interruptor) para **desplazar** y tomar lista del día (`attendance_day_list_title`, `AttendanceScreen`).
+
+- **Jugador → becado y finanzas:** al marcar **becado** en la ficha, los cobros mensuales con saldo pendiente pasan a **esperado = cobrado** en ese mes (sin deuda), con **sync** a Supabase si aplica; en **Finanzas → Alumnos** se sigue viendo importe y **Editar** si hay registro de mes aunque el alumno sea becado (`PlayersViewModel`, `CobroMensualDao.getByJugadorId`, `CobroMensualPushHelper` compartido con `FinanzasViewModel`).
 
 - **Gestionar miembros — botón «Ficha técnica»:** en tarjeta de entrenador, el `Row` de acciones comprimía el texto a un ancho mínimo y **«Ficha técnica»** se veía letra a letra en vertical; las acciones van en **`FlowRow`** con ancho completo para que pasen de línea con normalidad (`AcademiaMiembrosAdminScreen`).
 

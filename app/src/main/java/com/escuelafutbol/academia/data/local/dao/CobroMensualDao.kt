@@ -43,6 +43,9 @@ interface CobroMensualDao {
     )
     suspend fun getByJugadorYPeriodo(jugadorId: Long, periodo: String): CobroMensualAlumno?
 
+    @Query("SELECT * FROM cobros_mensuales_alumno WHERE jugadorId = :jugadorId ORDER BY periodoYyyyMm ASC")
+    suspend fun getByJugadorId(jugadorId: Long): List<CobroMensualAlumno>
+
     @Query("SELECT * FROM cobros_mensuales_alumno WHERE remoteId = :remoteId LIMIT 1")
     suspend fun getPorRemoteId(remoteId: String): CobroMensualAlumno?
 
