@@ -4,6 +4,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ## [Sin publicar]
 
+### Cambiado
+
+- **Cabecera:** **Cambiar categoría** pasa al menú ☰ (primera opción, icono categoría); se quita el botón de la barra superior para ganar espacio (`AcademiaRoot`, `strings.xml` descripción del menú).
+
+- **Navegación:** barra inferior solo **Inicio**, **Padres** (si aplica) y **Academia**; el resto (jugadores, asistencia, estadísticas, recursos, finanzas o solo recursos para padre en nube) va a un **menú ☰** arriba a la izquierda con **scroll** si no cabe (altura máx. ~55 % pantalla). Sigue existiendo la ruta `equipo_hub` / `EquipoHubScreen` por si se enlaza desde otro sitio (`AcademiaRoot`, `strings.xml`, `AcademiaNavPolicy`).
+
 ### Añadido
 
 - **Recursos — publicar en todas y moderación:** selector **«Todas las categorías»** (varias categorías → varios inserts), **filtros por estado** (visible / pendiente / rechazado) para staff, interruptor **visible ya para familias** (dueño de cuenta, rol owner o admin en nube) y acciones **Aprobar / Rechazar** (menú de tarjeta, detalle y snackbars). Columna y RLS en migración **`20260515160000_contenido_estado_aprobacion.sql`** (`ContenidoViewModel`, `ContenidoScreen`, `strings.xml`).
@@ -40,6 +46,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Finanzas — prellenado de cobros:** el mes visible se **rellena solo** con las cuotas de ficha (misma regla que el botón) al cambiar **mes**, **alcance** (toda la academia / categoría) o **ficha de jugadores** (alta, becado, mensualidad, etc.); el botón sigue sirviendo para **forzar** una pasada manual (`FinanzasViewModel`).
 
 ### Corregido
+
+- **Selector de categoría:** la cabecera (menú ☰) y la **barra inferior** siguen visibles al elegir categoría; al tocar una pestaña o una ruta del menú se cierra el selector con `cerrarSelectorCategoria()` (`AcademiaRoot`). «Cambiar categoría» en el menú queda deshabilitado mientras el selector está abierto.
+
+- **Menú ☰ cabecera:** al abrirlo la app podía cerrarse por un `Column` con `verticalScroll` dentro de `DropdownMenu` (altura máxima infinita). Se elimina ese contenedor y se confía el scroll al `DropdownMenu` de Material3; icono de «Cambiar categoría» → `SwapHoriz` (`AcademiaRoot`).
+
+- **Inicio — icono Recursos:** sustitución de `Icons.Filled.MenuBook` por `Icons.AutoMirrored.Filled.MenuBook` en acceso rápido (quita deprecación en `compileDebugKotlin`).
 
 - **Recursos — «Quitar del listado»:** RPC **`archivar_academia_contenido_categoria(p_id, p_academia_id)`** (`SECURITY DEFINER`, permisos = autor, dueño, admin/coord, coach de categoría); la app **usa primero la RPC** y **fallback al UPDATE** si la función no está desplegada. Snackbar de error con **detalle del mensaje** de la API. Complemento histórico: RLS UPDATE con autor en **`20260515130000_academia_contenido_cuerpo_imgs_rls_autor.sql`** (`20260515150000_archivar_academia_contenido_rpc.sql`, `AcademiaContenidoCategoriaRepository`, `ContenidoScreen`).
 

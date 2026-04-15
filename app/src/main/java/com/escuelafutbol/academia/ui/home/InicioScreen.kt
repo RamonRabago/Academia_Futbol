@@ -21,7 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
@@ -287,7 +287,7 @@ private val ACCESOS_RAPIDOS_INICIO = listOf(
     AccesoRapidoDef("jugadores", R.string.tab_players, Icons.Default.Group),
     AccesoRapidoDef("asistencia", R.string.tab_attendance, Icons.Default.TaskAlt),
     AccesoRapidoDef("estadisticas", R.string.tab_stats, Icons.Default.Assessment),
-    AccesoRapidoDef("contenido", R.string.tab_resources, Icons.Default.MenuBook),
+    AccesoRapidoDef("contenido", R.string.tab_resources, Icons.AutoMirrored.Filled.MenuBook),
     AccesoRapidoDef("finanzas", R.string.tab_finances, Icons.Default.Payments),
     AccesoRapidoDef("padres", R.string.tab_parents, Icons.Default.MailOutline),
     AccesoRapidoDef("academia", R.string.tab_academy, Icons.Default.Settings),

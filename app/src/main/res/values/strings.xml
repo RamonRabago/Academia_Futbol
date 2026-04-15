@@ -189,7 +189,11 @@
     <string name="add_category">Añadir categoría</string>
     <string name="add_category_title">Nueva categoría</string>
     <string name="add_category_hint">Ej: Prebenjamín, Alevín, Infantil…</string>
+    <string name="nav_main_menu_cd">Menú: cambiar categoría, jugadores, asistencia y más</string>
     <string name="tab_home">Inicio</string>
+    <string name="tab_team_hub">Equipo</string>
+    <string name="team_hub_title">Tu equipo</string>
+    <string name="team_hub_subtitle">Elige una sección (mismas rutas que los accesos rápidos de Inicio).</string>
     <string name="tab_academy">Academia</string>
     <string name="home_quick_actions_hint">Accesos rápidos</string>
     <string name="home_welcome_user">Hola, %1$s</string>

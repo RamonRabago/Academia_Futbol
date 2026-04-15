@@ -39,4 +39,4 @@ Documento vivo para alinear **equipo**, **dueños de academias** y **desarrollo*
 
 - Registro de versiones: `CHANGELOG.md`
 - Contratos SQL recientes: `supabase/migrations/`
-- Navegación y visibilidad por rol: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt`
+- Navegación y visibilidad por rol: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt` (barra inferior: Inicio / Padres / Academia; menú ☰ arriba izquierda con el resto de rutas visibles).

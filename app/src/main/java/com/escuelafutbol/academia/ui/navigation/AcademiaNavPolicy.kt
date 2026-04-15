@@ -7,7 +7,7 @@ import java.util.Locale
 
 /**
  * Rutas del `NavHost` principal (`inicio`, `jugadores`, …).
- * Mismo criterio que las pestañas inferiores y los atajos de Inicio (`AcademiaRoot` + `InicioScreen.accesoRapidoVisible`).
+ * Mismo criterio que la barra inferior (solo Inicio / Padres / Academia) y el menú superior (`tabsMenuDesplegable`), más atajos de Inicio (`AcademiaRoot` + `InicioScreen.accesoRapidoVisible`).
  */
 fun rutaPrincipalVisible(
     route: String,
@@ -19,6 +19,13 @@ fun rutaPrincipalVisible(
     if (route == "finanzas") {
         if (config.remoteAcademiaId != null && cloudRol == "parent") return false
         return config.puedeVerMensualidadEnEsteDispositivo(uidSesionAuth)
+    }
+    /** Hub «Equipo»: agrupa jugadores / asistencia / estadísticas / recursos (solo staff en nube). */
+    if (route == "equipo_hub") {
+        if (config.remoteAcademiaId != null && cloudRol == "parent") return false
+        return listOf("jugadores", "asistencia", "estadisticas", "contenido").any { sub ->
+            rutaPrincipalVisible(sub, config, uidSesionAuth)
+        }
     }
     if (config.remoteAcademiaId != null && cloudRol == "parent") {
         return route == "inicio" || route == "contenido" || route == "padres" || route == "academia"

@@ -9,11 +9,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,20 +23,25 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TaskAlt
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -83,6 +86,7 @@ import coil.compose.AsyncImage
 import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.ui.academia.AcademiaConfigViewModel
 import com.escuelafutbol.academia.ui.academia.AcademiaScreen
 import com.escuelafutbol.academia.ui.academia.StaffViewModel
@@ -123,12 +127,15 @@ import com.escuelafutbol.academia.ui.theme.AcademiaFutbolTheme
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.combine
+import androidx.compose.ui.graphics.vector.ImageVector
 
 private sealed class Tab(
     val route: String,
     val labelRes: Int,
 ) {
     data object Inicio : Tab("inicio", R.string.tab_home)
+    /** Pantalla intermedia: jugadores, asistencia, estadísticas, recursos (no aplica a padre en nube). */
+    data object Equipo : Tab("equipo_hub", R.string.tab_team_hub)
     data object Jugadores : Tab("jugadores", R.string.tab_players)
     data object Asistencia : Tab("asistencia", R.string.tab_attendance)
     data object Estadisticas : Tab("estadisticas", R.string.tab_stats)
@@ -140,6 +147,7 @@ private sealed class Tab(
     companion object {
         val entries = listOf(
             Inicio,
+            Equipo,
             Jugadores,
             Asistencia,
             Estadisticas,
@@ -148,7 +156,44 @@ private sealed class Tab(
             Padres,
             Academia,
         )
+
+        /** Solo Inicio, Padres y Academia; el resto va al menú superior izquierdo. */
+        fun barraInferior(config: AcademiaConfig, uid: String?): List<Tab> = buildList {
+            add(Inicio)
+            if (rutaPrincipalVisible(Padres.route, config, uid)) add(Padres)
+            if (rutaPrincipalVisible(Academia.route, config, uid)) add(Academia)
+        }
+
+        /** Rutas del menú desplegable (scroll si hay muchas). */
+        fun tabsMenuDesplegable(config: AcademiaConfig, uid: String?): List<Tab> {
+            val padreNube =
+                config.remoteAcademiaId != null &&
+                    config.cloudMembresiaRol?.equals("parent", ignoreCase = true) == true
+            return buildList {
+                if (!padreNube) {
+                    if (rutaPrincipalVisible(Jugadores.route, config, uid)) add(Jugadores)
+                    if (rutaPrincipalVisible(Asistencia.route, config, uid)) add(Asistencia)
+                    if (rutaPrincipalVisible(Estadisticas.route, config, uid)) add(Estadisticas)
+                    if (rutaPrincipalVisible(Recursos.route, config, uid)) add(Recursos)
+                    if (rutaPrincipalVisible(Finanzas.route, config, uid)) add(Finanzas)
+                } else if (rutaPrincipalVisible(Recursos.route, config, uid)) {
+                    add(Recursos)
+                }
+            }
+        }
     }
+}
+
+private fun iconoVectorTab(tab: Tab): ImageVector = when (tab) {
+    Tab.Inicio -> Icons.Default.Home
+    Tab.Equipo -> Icons.Default.Dashboard
+    Tab.Jugadores -> Icons.Default.Group
+    Tab.Asistencia -> Icons.Default.TaskAlt
+    Tab.Estadisticas -> Icons.Default.Assessment
+    Tab.Recursos -> Icons.AutoMirrored.Filled.MenuBook
+    Tab.Finanzas -> Icons.Default.Payments
+    Tab.Padres -> Icons.Default.MailOutline
+    Tab.Academia -> Icons.Default.Settings
 }
 
 @Composable
@@ -309,7 +354,7 @@ private fun AcademiaRootAuthenticatedContent(
 @Composable
 private fun AcademiaMainScaffold(
     sessionVm: SessionViewModel,
-    config: com.escuelafutbol.academia.data.local.entity.AcademiaConfig,
+    config: AcademiaConfig,
     context: android.content.Context,
     factory: ViewModelProvider.Factory,
     childFactory: ViewModelProvider.Factory,
@@ -359,8 +404,13 @@ private fun AcademiaMainScaffold(
 
     val uidSesionRol = sessionAuthUserId.takeIf { it.isNotBlank() }
     val tabsVisibles = remember(config, uidSesionRol) {
-        Tab.entries.filter { tab -> rutaPrincipalVisible(tab.route, config, uidSesionRol) }
+        Tab.barraInferior(config, uidSesionRol)
     }
+    val opcionesMenuNavegacion = remember(config, uidSesionRol) {
+        Tab.tabsMenuDesplegable(config, uidSesionRol)
+    }
+    var menuNavegacionExpanded by remember { mutableStateOf(false) }
+    val menuNavCd = stringResource(R.string.nav_main_menu_cd)
 
     LaunchedEffect(navController, config, uidSesionRol) {
         appNav.pendingNavigationRoute.collect { route ->
@@ -406,23 +456,72 @@ private fun AcademiaMainScaffold(
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            if (!mostrandoSelectorCategoria) {
-                Surface(
-                    tonalElevation = 1.dp,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ) {
+            Surface(
+                tonalElevation = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .windowInsetsPadding(WindowInsets.statusBars)
                             .padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
+                            Box {
+                                IconButton(
+                                    onClick = { menuNavegacionExpanded = true },
+                                    modifier = Modifier.semantics { contentDescription = menuNavCd },
+                                ) {
+                                    Icon(Icons.Default.Menu, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = menuNavegacionExpanded,
+                                    onDismissRequest = { menuNavegacionExpanded = false },
+                                ) {
+                                    // No usar Column+verticalScroll aquí: con altura sin acotar provoca crash
+                                    // ("scrollable with infinity max height"). Material3 ya limita y desplaza el menú.
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.change_category)) },
+                                        enabled = !impideCambiarCategoria && !mostrandoSelectorCategoria,
+                                        onClick = {
+                                            menuNavegacionExpanded = false
+                                            sessionVm.volverASeleccionCategoria()
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.SwapHoriz, contentDescription = null)
+                                        },
+                                    )
+                                    if (opcionesMenuNavegacion.isNotEmpty()) {
+                                        HorizontalDivider()
+                                        opcionesMenuNavegacion.forEach { tab ->
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(tab.labelRes)) },
+                                                onClick = {
+                                                    menuNavegacionExpanded = false
+                                                    if (mostrandoSelectorCategoria) {
+                                                        sessionVm.cerrarSelectorCategoria()
+                                                    }
+                                                    navController.navigate(tab.route) {
+                                                        popUpTo(navController.graph.findStartDestination().id) {
+                                                            saveState = true
+                                                        }
+                                                        launchSingleTop = true
+                                                        restoreState = true
+                                                    }
+                                                },
+                                                leadingIcon = {
+                                                    Icon(iconoVectorTab(tab), contentDescription = null)
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                             val logoModel = config.coilLogoModel(context)
                             if (logoModel != null) {
                                 AsyncImage(
@@ -436,7 +535,7 @@ private fun AcademiaMainScaffold(
                                 )
                             }
                             Column(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f, fill = true),
                             ) {
                                 Text(
                                     config.nombreAcademia,
@@ -467,40 +566,20 @@ private fun AcademiaMainScaffold(
                                 }
                             }
                         }
-                        OutlinedButton(
-                            onClick = { sessionVm.volverASeleccionCategoria() },
-                            enabled = !impideCambiarCategoria,
-                            modifier = Modifier.padding(start = 4.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                            ),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        ) {
-                            Text(
-                                stringResource(R.string.change_category),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
                     }
                 }
-            }
         },
         bottomBar = {
-            // Con el selector a pantalla completa, la barra inferior seguía visible: un toque en «Academia»
-            // cerraba el selector y navegaba a esa pestaña, como si el tap en la lista hubiera fallado.
-            if (!mostrandoSelectorCategoria) {
-                NavigationBar {
+            NavigationBar {
                     tabsVisibles.forEach { tab ->
                         val selected =
                             currentDestination?.hierarchy?.any { it.route == tab.route } == true
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
+                                if (mostrandoSelectorCategoria) {
+                                    sessionVm.cerrarSelectorCategoria()
+                                }
                                 navController.navigate(tab.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -511,24 +590,21 @@ private fun AcademiaMainScaffold(
                             },
                             icon = {
                                 Icon(
-                                    imageVector = when (tab) {
-                                        Tab.Inicio -> Icons.Default.Home
-                                        Tab.Jugadores -> Icons.Default.Group
-                                        Tab.Asistencia -> Icons.Default.TaskAlt
-                                        Tab.Estadisticas -> Icons.Default.Assessment
-                                        Tab.Recursos -> Icons.Default.MenuBook
-                                        Tab.Finanzas -> Icons.Default.Payments
-                                        Tab.Padres -> Icons.Default.MailOutline
-                                        Tab.Academia -> Icons.Default.Settings
-                                    },
+                                    imageVector = iconoVectorTab(tab),
                                     contentDescription = null,
                                 )
                             },
-                            label = { Text(stringResource(tab.labelRes)) },
+                            label = {
+                                Text(
+                                    stringResource(tab.labelRes),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            alwaysShowLabel = true,
                         )
                     }
                 }
-            }
         },
     ) { innerPadding ->
         val syncing by syncVm.syncing.collectAsState()
@@ -568,6 +644,19 @@ private fun AcademiaMainScaffold(
                     startDestination = Tab.Inicio.route,
                     modifier = Modifier.fillMaxSize(),
                 ) {
+            composable(Tab.Equipo.route) {
+                EquipoHubScreen(
+                    config = config,
+                    uidSesion = uidSesionRol,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
             composable(Tab.Inicio.route) {
                 val appInicio = context.applicationContext as AcademiaApplication
                 val categoriaInicio by produceState<Categoria?>(null, filtroCategoria) {
