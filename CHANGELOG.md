@@ -6,11 +6,26 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Recursos — cabecera con menú al desplazar:** en la pestaña **Recursos**, la barra superior de la app (☰, logo, academia y categoría) usa **`TopAppBar` + `enterAlwaysScrollBehavior`** enlazada al `nestedScroll` del `Scaffold` principal, de modo que **se oculta al bajar** el listado y **vuelve al subir** (`AcademiaMainScaffold` en `AcademiaRoot`).
+
+- **Recursos — barra inferior al desplazar:** en **Recursos**, la **NavigationBar** (Inicio / Padres / Academia) se **oculta al bajar** el feed y **vuelve al subir**, enlazada al mismo **`collapsedFraction`** de la cabecera principal (`AnimatedVisibility`, `AcademiaPrincipalNavigationBar` en `AcademiaRoot`).
+
+- **Recursos — separación entre publicaciones:** franja **`surfaceVariant`** detrás del listado y **`HorizontalDivider`** gris entre cada post para marcar bien el corte entre publicaciones (`ContenidoScreen`).
+
+- **Recursos — sin hueco superior al desplazar:** se quita la **segunda** `TopAppBar` de la pantalla de recursos (solo queda la del `AcademiaRoot`); título **Recursos** y **filtros** pasan a la **primera fila del `LazyColumn`** (scroll con el feed) y el `Scaffold` interno usa **`contentWindowInsets` vacíos** para no duplicar insets con el padre (`ContenidoScreen`).
+
+- **Recursos — feed a ancho de pantalla:** las publicaciones van **edge-to-edge** (sin margen lateral en la lista), tarjetas con esquinas rectas, carrusel de fotos a **ancho completo** y **menos hueco** entre ítems (`ContenidoScreen`).
+
+- **Recursos — pantalla más limpia:** el texto largo de ayuda pasa a **una línea** (distinta para padre en nube vs staff); los filtros por **tema** y **estado** van a un **panel inferior** (icono embudo en la barra superior) con chips en `FlowRow` y botón **Listo**; más altura útil para el feed (`ContenidoScreen`, `strings.xml`).
+- **Recursos — scroll tipo feed:** la intro, cabecera «Publicaciones / Actualizar» y errores van **dentro del `LazyColumn`** (se ocultan al bajar); la **TopAppBar** usa `enterAlwaysScrollBehavior` para ocultarse al desplazar hacia abajo y **volver al subir** (`nestedScroll`, `ContenidoScreen`).
+
 - **Cabecera:** **Cambiar categoría** pasa al menú ☰ (primera opción, icono categoría); se quita el botón de la barra superior para ganar espacio (`AcademiaRoot`, `strings.xml` descripción del menú).
 
 - **Navegación:** barra inferior solo **Inicio**, **Padres** (si aplica) y **Academia**; el resto (jugadores, asistencia, estadísticas, recursos, finanzas o solo recursos para padre en nube) va a un **menú ☰** arriba a la izquierda con **scroll** si no cabe (altura máx. ~55 % pantalla). Sigue existiendo la ruta `equipo_hub` / `EquipoHubScreen` por si se enlaza desde otro sitio (`AcademiaRoot`, `strings.xml`, `AcademiaNavPolicy`).
 
 ### Añadido
+
+- **Recursos — badge de no leídos (sin push):** contador local con `recursosUltimaVistaAtMillis` en Room; al volver a la app se refresca el listado y se muestra un **numerito** (máx. 9+) en la pestaña o en el ítem **Recursos** del menú ☰; al abrir Recursos se marca como visto (`ContenidoViewModel`, `AcademiaRoot`, `ContenidoScreen`, `AcademiaConfig`, BD v**31**).
 
 - **Recursos — publicar en todas y moderación:** selector **«Todas las categorías»** (varias categorías → varios inserts), **filtros por estado** (visible / pendiente / rechazado) para staff, interruptor **visible ya para familias** (dueño de cuenta, rol owner o admin en nube) y acciones **Aprobar / Rechazar** (menú de tarjeta, detalle y snackbars). Columna y RLS en migración **`20260515160000_contenido_estado_aprobacion.sql`** (`ContenidoViewModel`, `ContenidoScreen`, `strings.xml`).
 
@@ -46,6 +61,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Finanzas — prellenado de cobros:** el mes visible se **rellena solo** con las cuotas de ficha (misma regla que el botón) al cambiar **mes**, **alcance** (toda la academia / categoría) o **ficha de jugadores** (alta, becado, mensualidad, etc.); el botón sigue sirviendo para **forzar** una pasada manual (`FinanzasViewModel`).
 
 ### Corregido
+
+- **Recursos — publicar como entrenador o coordinador:** las publicaciones pasaban a **pendiente de aprobación** para el dueño porque la app solo enviaba `published` con el interruptor exclusivo de dueño/admin y el INSERT en Supabase solo aceptaba `published` para esos roles. Ahora **coach** (en sus categorías asignadas) y **coordinador** insertan en **publicado** de forma directa; migración **`20260516130000_contenido_insert_published_coach_coordinator.sql`** y `ContenidoViewModel.resolverEstadoInicialPublicacion`.
+
+- **Entrenador — portadas en «Cambiar categoría»:** las miniaturas salen de Room tras `pullCategorias`; si el coach no recibía filas de `categorias` por RLS, solo veía nombres sin foto (mientras **Recursos** sí filtraba por categoría con otra política). Añadidos **SELECT** por categorías asignadas (`categorias_coach_assigned_read`) y RPC **`list_my_coach_categorias_portadas`**; la app fusiona ese resultado en Room y **pull de academia** va antes del pull de categorías (`20260516120000_coach_categorias_portadas_rpc_rls.sql`, `AcademiaCloudSync`).
 
 - **Selector de categoría:** la cabecera (menú ☰) y la **barra inferior** siguen visibles al elegir categoría; al tocar una pestaña o una ruta del menú se cierra el selector con `cerrarSelectorCategoria()` (`AcademiaRoot`). «Cambiar categoría» en el menú queda deshabilitado mientras el selector está abierto.
 

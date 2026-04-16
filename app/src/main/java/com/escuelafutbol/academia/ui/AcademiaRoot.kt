@@ -9,17 +9,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
@@ -33,6 +39,8 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -47,8 +55,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -58,6 +68,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +92,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.AcademiaApplication
@@ -180,6 +193,75 @@ private sealed class Tab(
                     add(Recursos)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AcademiaPrincipalNavigationBar(
+    tabsVisibles: List<Tab>,
+    currentDestination: NavDestination?,
+    mostrandoSelectorCategoria: Boolean,
+    recursosNoLeidos: Int,
+    navController: NavHostController,
+    sessionVm: SessionViewModel,
+) {
+    NavigationBar {
+        tabsVisibles.forEach { tab ->
+            val selected =
+                currentDestination?.hierarchy?.any { it.route == tab.route } == true
+            NavigationBarItem(
+                selected = selected,
+                onClick = {
+                    if (mostrandoSelectorCategoria) {
+                        sessionVm.cerrarSelectorCategoria()
+                    }
+                    navController.navigate(tab.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                icon = {
+                    if (tab == Tab.Recursos && recursosNoLeidos > 0) {
+                        val cd = stringResource(
+                            R.string.resources_unread_badge_a11y,
+                            recursosNoLeidos,
+                        )
+                        BadgedBox(
+                            badge = {
+                                Badge {
+                                    Text(
+                                        if (recursosNoLeidos > 9) "9+" else recursosNoLeidos.toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            },
+                            modifier = Modifier.semantics { contentDescription = cd },
+                        ) {
+                            Icon(
+                                imageVector = iconoVectorTab(tab),
+                                contentDescription = null,
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = iconoVectorTab(tab),
+                            contentDescription = null,
+                        )
+                    }
+                },
+                label = {
+                    Text(
+                        stringResource(tab.labelRes),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                alwaysShowLabel = true,
+            )
         }
     }
 }
@@ -429,6 +511,23 @@ private fun AcademiaMainScaffold(
     val syncVm: CloudSyncViewModel = viewModel(factory = factory)
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val activityForContenido = LocalContext.current as ComponentActivity
+    val contenidoVmGlobal: ContenidoViewModel = viewModel(
+        viewModelStoreOwner = activityForContenido,
+        key = "contenido_global_$sessionAuthUserId",
+        factory = childFactory,
+    )
+    val recursosNoLeidos by contenidoVmGlobal.recursosNoLeidosCount.collectAsState()
+
+    val enRecursos = currentDestination?.hierarchy?.any { it.route == Tab.Recursos.route } == true
+    val cabeceraPrincipalScrollState = rememberTopAppBarState()
+    val cabeceraPrincipalScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(cabeceraPrincipalScrollState)
+
+    LaunchedEffect(enRecursos) {
+        if (!enRecursos) {
+            cabeceraPrincipalScrollState.heightOffset = 0f
+        }
+    }
 
     LaunchedEffect(Unit) {
         syncVm.scheduleInitialDelayedSync()
@@ -447,6 +546,7 @@ private fun AcademiaMainScaffold(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 syncVm.onLifecycleResume()
+                contenidoVmGlobal.refrescar()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -454,157 +554,177 @@ private fun AcademiaMainScaffold(
     }
 
     Scaffold(
+        modifier = if (enRecursos) {
+            Modifier.nestedScroll(cabeceraPrincipalScrollBehavior.nestedScrollConnection)
+        } else {
+            Modifier
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            Surface(
-                tonalElevation = 1.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            TopAppBar(
+                scrollBehavior = if (enRecursos) cabeceraPrincipalScrollBehavior else null,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+                navigationIcon = {
+                    Box {
+                        IconButton(
+                            onClick = { menuNavegacionExpanded = true },
+                            modifier = Modifier.semantics { contentDescription = menuNavCd },
                         ) {
-                            Box {
-                                IconButton(
-                                    onClick = { menuNavegacionExpanded = true },
-                                    modifier = Modifier.semantics { contentDescription = menuNavCd },
-                                ) {
-                                    Icon(Icons.Default.Menu, contentDescription = null)
-                                }
-                                DropdownMenu(
-                                    expanded = menuNavegacionExpanded,
-                                    onDismissRequest = { menuNavegacionExpanded = false },
-                                ) {
-                                    // No usar Column+verticalScroll aquí: con altura sin acotar provoca crash
-                                    // ("scrollable with infinity max height"). Material3 ya limita y desplaza el menú.
+                            Icon(Icons.Default.Menu, contentDescription = null)
+                        }
+                        DropdownMenu(
+                            expanded = menuNavegacionExpanded,
+                            onDismissRequest = { menuNavegacionExpanded = false },
+                        ) {
+                            // No usar Column+verticalScroll aquí: con altura sin acotar provoca crash
+                            // ("scrollable with infinity max height"). Material3 ya limita y desplaza el menú.
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.change_category)) },
+                                enabled = !impideCambiarCategoria && !mostrandoSelectorCategoria,
+                                onClick = {
+                                    menuNavegacionExpanded = false
+                                    sessionVm.volverASeleccionCategoria()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.SwapHoriz, contentDescription = null)
+                                },
+                            )
+                            if (opcionesMenuNavegacion.isNotEmpty()) {
+                                HorizontalDivider()
+                                opcionesMenuNavegacion.forEach { tab ->
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.change_category)) },
-                                        enabled = !impideCambiarCategoria && !mostrandoSelectorCategoria,
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(stringResource(tab.labelRes))
+                                                if (tab == Tab.Recursos && recursosNoLeidos > 0) {
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Badge {
+                                                        Text(
+                                                            if (recursosNoLeidos > 9) {
+                                                                "9+"
+                                                            } else {
+                                                                recursosNoLeidos.toString()
+                                                            },
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
                                         onClick = {
                                             menuNavegacionExpanded = false
-                                            sessionVm.volverASeleccionCategoria()
+                                            if (mostrandoSelectorCategoria) {
+                                                sessionVm.cerrarSelectorCategoria()
+                                            }
+                                            navController.navigate(tab.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
                                         },
                                         leadingIcon = {
-                                            Icon(Icons.Default.SwapHoriz, contentDescription = null)
-                                        },
-                                    )
-                                    if (opcionesMenuNavegacion.isNotEmpty()) {
-                                        HorizontalDivider()
-                                        opcionesMenuNavegacion.forEach { tab ->
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(tab.labelRes)) },
-                                                onClick = {
-                                                    menuNavegacionExpanded = false
-                                                    if (mostrandoSelectorCategoria) {
-                                                        sessionVm.cerrarSelectorCategoria()
-                                                    }
-                                                    navController.navigate(tab.route) {
-                                                        popUpTo(navController.graph.findStartDestination().id) {
-                                                            saveState = true
-                                                        }
-                                                        launchSingleTop = true
-                                                        restoreState = true
-                                                    }
-                                                },
-                                                leadingIcon = {
-                                                    Icon(iconoVectorTab(tab), contentDescription = null)
-                                                },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            val logoModel = config.coilLogoModel(context)
-                            if (logoModel != null) {
-                                AsyncImage(
-                                    model = logoModel,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .padding(end = 8.dp)
-                                        .size(40.dp)
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop,
-                                )
-                            }
-                            Column(
-                                modifier = Modifier.weight(1f, fill = true),
-                            ) {
-                                Text(
-                                    config.nombreAcademia,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    stringResource(R.string.working_in, etiquetaCategoria),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                if (!etiquetaCuentaSesion.isNullOrBlank()) {
-                                    Text(
-                                        etiquetaCuentaSesion,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.semantics {
-                                            contentDescription =
-                                                "$sessionBarAccountLabel: $etiquetaCuentaSesion"
+                                            Icon(iconoVectorTab(tab), contentDescription = null)
                                         },
                                     )
                                 }
                             }
                         }
                     }
-                }
-        },
-        bottomBar = {
-            NavigationBar {
-                    tabsVisibles.forEach { tab ->
-                        val selected =
-                            currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                if (mostrandoSelectorCategoria) {
-                                    sessionVm.cerrarSelectorCategoria()
-                                }
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = iconoVectorTab(tab),
-                                    contentDescription = null,
-                                )
-                            },
-                            label = {
+                },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        val logoModel = config.coilLogoModel(context)
+                        if (logoModel != null) {
+                            AsyncImage(
+                                model = logoModel,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(40.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f, fill = true),
+                        ) {
+                            Text(
+                                config.nombreAcademia,
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                stringResource(R.string.working_in, etiquetaCategoria),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (!etiquetaCuentaSesion.isNullOrBlank()) {
                                 Text(
-                                    stringResource(tab.labelRes),
+                                    etiquetaCuentaSesion,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.semantics {
+                                        contentDescription =
+                                            "$sessionBarAccountLabel: $etiquetaCuentaSesion"
+                                    },
                                 )
-                            },
-                            alwaysShowLabel = true,
-                        )
+                            }
+                        }
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            if (enRecursos) {
+                val mostrarBarraInferior by remember {
+                    derivedStateOf {
+                        cabeceraPrincipalScrollState.collapsedFraction < 0.88f
                     }
                 }
+                AnimatedVisibility(
+                    visible = mostrarBarraInferior,
+                    enter = slideInVertically(
+                        animationSpec = tween(220),
+                        initialOffsetY = { it },
+                    ) + fadeIn(animationSpec = tween(220)),
+                    exit = slideOutVertically(
+                        animationSpec = tween(220),
+                        targetOffsetY = { it },
+                    ) + fadeOut(animationSpec = tween(220)),
+                ) {
+                    AcademiaPrincipalNavigationBar(
+                        tabsVisibles = tabsVisibles,
+                        currentDestination = currentDestination,
+                        mostrandoSelectorCategoria = mostrandoSelectorCategoria,
+                        recursosNoLeidos = recursosNoLeidos,
+                        navController = navController,
+                        sessionVm = sessionVm,
+                    )
+                }
+            } else {
+                AcademiaPrincipalNavigationBar(
+                    tabsVisibles = tabsVisibles,
+                    currentDestination = currentDestination,
+                    mostrandoSelectorCategoria = mostrandoSelectorCategoria,
+                    recursosNoLeidos = recursosNoLeidos,
+                    navController = navController,
+                    sessionVm = sessionVm,
+                )
+            }
         },
     ) { innerPadding ->
         val syncing by syncVm.syncing.collectAsState()
@@ -716,9 +836,8 @@ private fun AcademiaMainScaffold(
                 )
             }
             composable(Tab.Recursos.route) {
-                val vm: ContenidoViewModel = viewModel(factory = childFactory)
                 ContenidoScreen(
-                    viewModel = vm,
+                    viewModel = contenidoVmGlobal,
                     config = config,
                     categoriaFiltro = filtroCategoria,
                 )

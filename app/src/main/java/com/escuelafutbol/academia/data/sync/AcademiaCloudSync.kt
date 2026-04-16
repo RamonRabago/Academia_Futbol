@@ -7,6 +7,7 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
+import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.rolDispositivoSugeridoDesdeRolNube
 import com.escuelafutbol.academia.data.remote.dto.AcademiaColoresPatch
@@ -17,6 +18,7 @@ import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroCategoriaLinkRo
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroListRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPadresAlumnoInsert
 import com.escuelafutbol.academia.data.remote.dto.CoachCategoryNombreRow
+import com.escuelafutbol.academia.data.remote.dto.CoachCategoriaPortadaRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMiembroRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaNombrePatch
 import com.escuelafutbol.academia.data.remote.dto.AcademiaPortadaUrlPatch
@@ -101,6 +103,8 @@ class AcademiaCloudSync(
                 pushStaffCategorias(academiaId)
             }
 
+            // Membresía (coach / parent / …) antes de categorías: el pull de categorías y la RPC de portadas coach usan Room actualizado.
+            pullAcademiaConfig(academiaId)
             pullCategorias(academiaId)
             val jugadoresPulledIds = pullJugadores(academiaId)
             if (esPadreNube) {
@@ -112,7 +116,6 @@ class AcademiaCloudSync(
             pullCobrosMensuales(academiaId, jugadorMap)
             pullStaff(academiaId)
             pullStaffCategorias(academiaId)
-            pullAcademiaConfig(academiaId)
         }
     }
 
@@ -768,32 +771,59 @@ class AcademiaCloudSync(
         }
     }
 
+    private suspend fun mergeCategoriaDesdeNube(
+        dao: CategoriaDao,
+        nombreRaw: String,
+        remoteId: String?,
+        portadaUrl: String?,
+    ) {
+        val nombre = nombreRaw.trim()
+        if (nombre.isEmpty()) return
+        val local = dao.getByNombre(nombre)
+        val url = portadaUrl?.takeIf { it.isNotBlank() }
+        val rid = remoteId?.trim()?.takeIf { it.isNotEmpty() }
+        if (local != null) {
+            dao.update(
+                local.copy(
+                    remoteId = rid ?: local.remoteId,
+                    portadaUrlSupabase = url ?: local.portadaUrlSupabase,
+                ),
+            )
+        } else {
+            dao.insert(
+                Categoria(
+                    nombre = nombre,
+                    remoteId = rid,
+                    portadaUrlSupabase = url,
+                ),
+            )
+        }
+    }
+
     private suspend fun pullCategorias(academiaId: String) {
         val dao = db.categoriaDao()
         val rows = client.from("categorias").select {
             filter { eq("academia_id", academiaId) }
         }.decodeList<CategoriaRow>()
         for (row in rows) {
-            val nombre = row.nombre.trim()
-            if (nombre.isEmpty()) continue
-            val local = dao.getByNombre(nombre)
-            val url = row.portadaUrl?.takeIf { it.isNotBlank() }
-            if (local != null) {
-                dao.update(
-                    local.copy(
-                        remoteId = row.id,
-                        portadaUrlSupabase = url ?: local.portadaUrlSupabase,
-                    ),
-                )
-            } else {
-                dao.insert(
-                    Categoria(
-                        nombre = nombre,
-                        remoteId = row.id,
-                        portadaUrlSupabase = url,
-                    ),
-                )
-            }
+            mergeCategoriaDesdeNube(dao, row.nombre, row.id, row.portadaUrl)
+        }
+        pullCategoriasCoachPortadasRpc(academiaId, dao)
+    }
+
+    /**
+     * Refuerzo para entrenador: si el SELECT a [categorias] devolvió poco o nada (RLS / desfase),
+     * la RPC definer trae las categorías asignadas con [portada_url] para Room (miniaturas en «Cambiar categoría»).
+     */
+    private suspend fun pullCategoriasCoachPortadasRpc(academiaId: String, dao: CategoriaDao) {
+        val rpcRows = runCatching {
+            val params = buildJsonObject { put("p_academia_id", academiaId) }
+            client.postgrest.rpc("list_my_coach_categorias_portadas", params)
+                .decodeList<CoachCategoriaPortadaRow>()
+        }.getOrNull().orEmpty()
+        if (rpcRows.isEmpty()) return
+        for (row in rpcRows) {
+            mergeCategoriaDesdeNube(dao, row.nombre, row.categoriaId, row.portadaUrl)
         }
     }
 

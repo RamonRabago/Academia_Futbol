@@ -28,9 +28,17 @@
     <string name="tab_stats">Estadísticas</string>
     <string name="tab_finances">Finanzas</string>
     <string name="tab_resources">Recursos</string>
+    <string name="resources_unread_badge_a11y">Publicaciones sin leer en Recursos: %1$d</string>
     <string name="tab_parents">Padres</string>
     <string name="resources_title">Recursos para la categoría</string>
     <string name="resources_intro_hint">Publicaciones cortas tipo red social: texto breve y fotos; reacciona con el corazón o los iconos. Lo publica el club; usa el mismo filtro de categoría que arriba.</string>
+    <string name="resources_intro_compact_parent">Avisos y fotos del club. Toca el icono de filtro para buscar por tema.</string>
+    <string name="resources_intro_compact_staff">Avisos y fotos del club. Toca el icono de filtro para tema o estado de publicación.</string>
+    <string name="resources_filter_sheet_title">Filtros</string>
+    <string name="resources_filter_sheet_section_theme">Tema</string>
+    <string name="resources_filter_sheet_section_state">Estado</string>
+    <string name="resources_filter_sheet_done">Listo</string>
+    <string name="resources_filter_open_cd">Filtros por tema y estado</string>
     <string name="resources_no_cloud">Vincula la academia a la nube en Academia para ver y publicar recursos.</string>
     <string name="resources_filter_all_themes">Todos los temas</string>
     <string name="resources_list_heading">Publicaciones</string>

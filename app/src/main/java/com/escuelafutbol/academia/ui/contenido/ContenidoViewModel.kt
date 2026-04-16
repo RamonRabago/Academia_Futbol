@@ -50,6 +50,8 @@ data class ContenidoItemUi(
     val tema: String,
     val titulo: String,
     val cuerpo: String,
+    /** UUID Auth del autor (Supabase). */
+    val authorUserId: String = "",
     /** URL pública en Storage; null = sin portada. */
     val imagenUrl: String? = null,
     /** Fotos dentro del artículo (orden de inserción). */
@@ -94,6 +96,7 @@ class ContenidoViewModel(
     private val app: AcademiaApplication get() = getApplication()
 
     private val _rawItems = MutableStateFlow<List<ContenidoItemUi>>(emptyList())
+    private val _uidSesion = MutableStateFlow<String?>(null)
     private val _reaccionesPorContenido = MutableStateFlow<Map<String, ContenidoReaccionesUi>>(emptyMap())
     private val filtroTema = MutableStateFlow<String?>(null)
     /** null = todos; [ContenidoEstadoPublicacion.PENDING], [PUBLISHED]. */
@@ -113,6 +116,25 @@ class ContenidoViewModel(
         val p = permitidas?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()
         if (p == null) nombres else nombres.filter { n -> p.any { it.equals(n, ignoreCase = true) } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Publicaciones con `created_at` posterior a la última visita a Recursos, excluyendo las del propio usuario.
+     * Se usa para el badge en la barra / menú (sin push).
+     */
+    val recursosNoLeidosCount: StateFlow<Int> = combine(
+        _rawItems,
+        database.academiaConfigDao().observe(),
+        _uidSesion,
+    ) { items, cfg, uid ->
+        val c = cfg ?: return@combine 0
+        if (c.remoteAcademiaId.isNullOrBlank()) return@combine 0
+        val last = c.recursosUltimaVistaAtMillis
+        val u = uid?.trim()?.takeIf { it.isNotEmpty() }
+        items.count { item ->
+            item.createdAtMillis > last &&
+                (u == null || !item.authorUserId.trim().equals(u, ignoreCase = true))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val itemsPresentados: StateFlow<List<ContenidoItemUi>> = combine(
         _rawItems,
@@ -154,6 +176,8 @@ class ContenidoViewModel(
     private suspend fun refrescarSuspend() {
         val client = app.supabaseClient
         val cfg = database.academiaConfigDao().getActual()
+        val uid = client?.auth?.currentUserOrNull()?.id?.toString()
+        _uidSesion.value = uid
         val aid = cfg?.remoteAcademiaId?.takeIf { it.isNotBlank() }
         if (client == null || aid == null) {
             _rawItems.value = emptyList()
@@ -164,18 +188,33 @@ class ContenidoViewModel(
         _ui.update { it.copy(cargando = true, error = null) }
         val result = runCatching {
             val list = AcademiaContenidoCategoriaRepository(client).listar(aid).map { it.toUi() }
-            val uid = client.auth.currentUserOrNull()?.id?.toString()
             val reaccRows = AcademiaContenidoReaccionRepository(client).listarPorAcademia(aid)
             Triple(list, reaccRows, uid)
         }
-        result.onSuccess { (list, reaccRows, uid) ->
+        result.onSuccess { (list, reaccRows, uidOk) ->
             _rawItems.value = list
-            _reaccionesPorContenido.value = agregarReaccionesMap(reaccRows, uid)
+            _reaccionesPorContenido.value = agregarReaccionesMap(reaccRows, uidOk)
             _ui.value = ContenidoUiState(cargando = false, error = null)
+            val c = database.academiaConfigDao().getActual()
+            if (c != null && c.recursosUltimaVistaAtMillis == 0L) {
+                database.academiaConfigDao().upsert(
+                    c.copy(recursosUltimaVistaAtMillis = System.currentTimeMillis()),
+                )
+            }
         }.onFailure { e ->
             _rawItems.value = emptyList()
             _reaccionesPorContenido.value = emptyMap()
             _ui.value = ContenidoUiState(cargando = false, error = e.message)
+        }
+    }
+
+    /** Marca Recursos como visitado (reinicia el contador de no leídos en barra/menú). */
+    fun marcarRecursosVistos() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val c = database.academiaConfigDao().getActual() ?: return@launch
+            database.academiaConfigDao().upsert(
+                c.copy(recursosUltimaVistaAtMillis = System.currentTimeMillis()),
+            )
         }
     }
 
@@ -288,6 +327,11 @@ class ContenidoViewModel(
         visibleYaParaFamilias: Boolean,
     ): String {
         if (puedePublicarVisibleDirectoInterno(config, uidSesion) && visibleYaParaFamilias) {
+            return ContenidoEstadoPublicacion.PUBLISHED
+        }
+        // Entrenador (categorías asignadas) y coordinador publican ya visibles para familias; sin cola de aprobación del dueño.
+        val r = config.cloudMembresiaRol?.lowercase()
+        if (r == "coach" || r == "coordinator") {
             return ContenidoEstadoPublicacion.PUBLISHED
         }
         return ContenidoEstadoPublicacion.PENDING
@@ -500,6 +544,7 @@ private fun AcademiaContenidoCategoriaRow.toUi(): ContenidoItemUi =
         tema = tema,
         titulo = titulo,
         cuerpo = cuerpo,
+        authorUserId = authorUserId.trim(),
         imagenUrl = imagenUrl?.trim()?.takeIf { it.isNotEmpty() },
         cuerpoImagenesUrls = decodeContenidoCuerpoImagenesUrls(cuerpoImagenesUrlsJson),
         createdAtMillis = parseInstantMs(createdAt),

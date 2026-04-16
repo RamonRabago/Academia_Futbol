@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@file:OptIn(
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+)
 package com.escuelafutbol.academia.ui.contenido
 
 import android.content.Context
@@ -8,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +21,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,15 +35,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -44,6 +54,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
@@ -54,7 +66,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +77,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
@@ -116,17 +128,24 @@ fun ContenidoScreen(
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
 
+    LaunchedEffect(Unit) {
+        viewModel.marcarRecursosVistos()
+    }
+    LaunchedEffect(esPadreNube) {
+        if (esPadreNube) viewModel.setFiltroEstadoPublicacion(null)
+    }
+
     val puedePublicarAlguna = remember(config, categoriasPub) {
         categoriasPub.any { viewModel.puedePublicar(config, it) }
     }
+    var filtrosSheetAbierto by remember { mutableStateOf(false) }
+    val hayFiltrosActivos = filtroTema != null || (!esPadreNube && filtroEstadoPub != null)
+    val filtroSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val listState = rememberLazyListState()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         snackbarHost = { SnackbarHost(snack) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.resources_title)) },
-            )
-        },
         floatingActionButton = {
             if (puedePublicarAlguna && config.remoteAcademiaId != null) {
                 FloatingActionButton(
@@ -137,144 +156,130 @@ fun ContenidoScreen(
             }
         },
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
+                .padding(padding),
         ) {
-            Text(
-                stringResource(R.string.resources_intro_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            if (config.remoteAcademiaId == null) {
-                Text(
-                    stringResource(R.string.resources_no_cloud),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
-            Row(
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
             ) {
-                FilterChip(
-                    selected = filtroTema == null,
-                    onClick = { viewModel.setFiltroTema(null) },
-                    label = { Text(stringResource(R.string.resources_filter_all_themes)) },
-                )
-                ContenidoTema.todosWire.forEach { wire ->
-                    FilterChip(
-                        selected = filtroTema == wire,
-                        onClick = {
-                            viewModel.setFiltroTema(if (filtroTema == wire) null else wire)
-                        },
-                        label = { Text(temaLabel(wire)) },
-                    )
-                }
-            }
-            if (!esPadreNube) {
-                Spacer(Modifier.padding(2.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = filtroEstadoPub == null,
-                        onClick = { viewModel.setFiltroEstadoPublicacion(null) },
-                        label = { Text(stringResource(R.string.resources_filter_all_states)) },
-                    )
-                    FilterChip(
-                        selected = filtroEstadoPub == ContenidoEstadoPublicacion.PUBLISHED,
-                        onClick = {
-                            viewModel.setFiltroEstadoPublicacion(
-                                if (filtroEstadoPub == ContenidoEstadoPublicacion.PUBLISHED) {
-                                    null
+                item(key = "resources_screen_header") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.resources_title),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        IconButton(onClick = { filtrosSheetAbierto = true }) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = stringResource(R.string.resources_filter_open_cd),
+                                tint = if (hayFiltrosActivos) {
+                                    MaterialTheme.colorScheme.primary
                                 } else {
-                                    ContenidoEstadoPublicacion.PUBLISHED
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                             )
-                        },
-                        label = { Text(stringResource(R.string.resources_state_visible_families)) },
-                    )
-                    FilterChip(
-                        selected = filtroEstadoPub == ContenidoEstadoPublicacion.PENDING,
-                        onClick = {
-                            viewModel.setFiltroEstadoPublicacion(
-                                if (filtroEstadoPub == ContenidoEstadoPublicacion.PENDING) {
-                                    null
-                                } else {
-                                    ContenidoEstadoPublicacion.PENDING
-                                },
-                            )
-                        },
-                        label = { Text(stringResource(R.string.resources_state_pending)) },
-                    )
-                    FilterChip(
-                        selected = filtroEstadoPub == ContenidoEstadoPublicacion.REJECTED,
-                        onClick = {
-                            viewModel.setFiltroEstadoPublicacion(
-                                if (filtroEstadoPub == ContenidoEstadoPublicacion.REJECTED) {
-                                    null
-                                } else {
-                                    ContenidoEstadoPublicacion.REJECTED
-                                },
-                            )
-                        },
-                        label = { Text(stringResource(R.string.resources_state_rejected)) },
+                        }
+                    }
+                }
+                item(key = "intro") {
+                    Text(
+                        stringResource(
+                            if (esPadreNube) {
+                                R.string.resources_intro_compact_parent
+                            } else {
+                                R.string.resources_intro_compact_staff
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 2.dp),
                     )
                 }
-            }
-            Spacer(Modifier.padding(4.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.resources_list_heading),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                TextButton(onClick = { viewModel.refrescar() }) {
-                    Text(stringResource(R.string.resources_reload))
+                if (config.remoteAcademiaId == null) {
+                    item(key = "no_cloud") {
+                        Text(
+                            stringResource(R.string.resources_no_cloud),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 4.dp),
+                        )
+                    }
                 }
-            }
-            ui.error?.let { err ->
-                Text(
-                    err,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
-            Box(modifier = Modifier.weight(1f)) {
+                item(key = "heading") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.resources_list_heading),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        TextButton(onClick = { viewModel.refrescar() }) {
+                            Text(stringResource(R.string.resources_reload))
+                        }
+                    }
+                }
+                val errorLista = ui.error
+                if (errorLista != null) {
+                    item(key = "list_error") {
+                        Text(
+                            errorLista,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 4.dp),
+                        )
+                    }
+                }
                 if (ui.cargando && items.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                    item(key = "loading_initial") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .heightIn(min = 280.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                } else if (!ui.cargando && items.isEmpty()) {
+                    item(key = "empty") {
+                        Text(
+                            stringResource(R.string.resources_empty),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .padding(vertical = 24.dp),
+                        )
                     }
                 } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        if (!ui.cargando && items.isEmpty()) {
-                            item {
-                                Text(
-                                    stringResource(R.string.resources_empty),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 24.dp),
-                                )
-                            }
-                        }
-                        items(items, key = { it.id }) { item ->
+                    itemsIndexed(
+                        items,
+                        key = { _, item -> item.id },
+                    ) { index, item ->
+                        Column(Modifier.fillMaxWidth()) {
                             TarjetaContenidoFeed(
                                 item = item,
                                 mostrarCategoria = categoriaFiltro == null,
@@ -318,23 +323,46 @@ fun ContenidoScreen(
                                     visorImagenContenido = url to item.titulo
                                 },
                             )
-                        }
-                        if (ui.cargando && items.isNotEmpty()) {
-                            item {
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(8.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.heightIn(max = 24.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-                                }
+                            if (index < items.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    thickness = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
+                                )
                             }
                         }
                     }
+                }
+                if (ui.cargando && items.isNotEmpty()) {
+                    item(key = "loading_more") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.heightIn(max = 24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    }
+                }
+            }
+            if (filtrosSheetAbierto) {
+                ModalBottomSheet(
+                    onDismissRequest = { filtrosSheetAbierto = false },
+                    sheetState = filtroSheetState,
+                ) {
+                    ContenidoRecursosFiltrosSheetContent(
+                        esPadreNube = esPadreNube,
+                        filtroTema = filtroTema,
+                        filtroEstadoPub = filtroEstadoPub,
+                        onCerrar = { filtrosSheetAbierto = false },
+                        onTema = { viewModel.setFiltroTema(it) },
+                        onEstado = { viewModel.setFiltroEstadoPublicacion(it) },
+                    )
                 }
             }
         }
@@ -837,6 +865,128 @@ private fun DialogoPublicarContenido(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContenidoRecursosFiltrosSheetContent(
+    esPadreNube: Boolean,
+    filtroTema: String?,
+    filtroEstadoPub: String?,
+    onCerrar: () -> Unit,
+    onTema: (String?) -> Unit,
+    onEstado: (String?) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 24.dp),
+    ) {
+        Text(
+            stringResource(R.string.resources_filter_sheet_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.resources_intro_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.resources_filter_sheet_section_theme),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(8.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = filtroTema == null,
+                onClick = { onTema(null) },
+                label = { Text(stringResource(R.string.resources_filter_all_themes)) },
+            )
+            ContenidoTema.todosWire.forEach { wire ->
+                FilterChip(
+                    selected = filtroTema == wire,
+                    onClick = { onTema(if (filtroTema == wire) null else wire) },
+                    label = { Text(temaLabel(wire)) },
+                )
+            }
+        }
+        if (!esPadreNube) {
+            Spacer(Modifier.height(20.dp))
+            Text(
+                stringResource(R.string.resources_filter_sheet_section_state),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(Modifier.height(8.dp))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = filtroEstadoPub == null,
+                    onClick = { onEstado(null) },
+                    label = { Text(stringResource(R.string.resources_filter_all_states)) },
+                )
+                FilterChip(
+                    selected = filtroEstadoPub == ContenidoEstadoPublicacion.PUBLISHED,
+                    onClick = {
+                        onEstado(
+                            if (filtroEstadoPub == ContenidoEstadoPublicacion.PUBLISHED) {
+                                null
+                            } else {
+                                ContenidoEstadoPublicacion.PUBLISHED
+                            },
+                        )
+                    },
+                    label = { Text(stringResource(R.string.resources_state_visible_families)) },
+                )
+                FilterChip(
+                    selected = filtroEstadoPub == ContenidoEstadoPublicacion.PENDING,
+                    onClick = {
+                        onEstado(
+                            if (filtroEstadoPub == ContenidoEstadoPublicacion.PENDING) {
+                                null
+                            } else {
+                                ContenidoEstadoPublicacion.PENDING
+                            },
+                        )
+                    },
+                    label = { Text(stringResource(R.string.resources_state_pending)) },
+                )
+                FilterChip(
+                    selected = filtroEstadoPub == ContenidoEstadoPublicacion.REJECTED,
+                    onClick = {
+                        onEstado(
+                            if (filtroEstadoPub == ContenidoEstadoPublicacion.REJECTED) {
+                                null
+                            } else {
+                                ContenidoEstadoPublicacion.REJECTED
+                            },
+                        )
+                    },
+                    label = { Text(stringResource(R.string.resources_state_rejected)) },
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onCerrar,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.resources_filter_sheet_done))
+        }
+    }
+}
+
 @Composable
 private fun etiquetaCategoriaSeleccionada(sel: String): String =
     if (sel.trim() == ContenidoViewModel.CATEGORIA_TODAS_MAGIC) {
@@ -912,7 +1062,7 @@ private fun CarruselMediaContenido(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(220.dp)
-                .clip(RoundedCornerShape(12.dp)),
+                .clip(RectangleShape),
         ) { page ->
             val url = urls[page]
             AsyncImage(
@@ -1031,13 +1181,13 @@ private fun TarjetaContenidoFeed(
     var menu by remember { mutableStateOf(false) }
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(0.dp),
     ) {
         Column {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1106,14 +1256,14 @@ private fun TarjetaContenidoFeed(
                     onAbrirImagenGrande = onAbrirImagenGrande,
                 )
                 Column(
-                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     TextoPublicacionFeed(item = item, maxLinesCuerpo = 6)
                 }
             }
             if (item.estadoPublicacion == ContenidoEstadoPublicacion.PUBLISHED) {
-                Column(Modifier.padding(start = 8.dp, end = 12.dp, bottom = 10.dp)) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
                     BarraReaccionesContenido(
                         reacciones = item.reacciones,
                         onReaccionar = onReaccionar,

@@ -227,6 +227,7 @@ class AuthViewModel(
                             cloudMembresiaRol = null,
                             cloudCoachCategoriasJson = null,
                             academiaGestionNubePermitida = true,
+                            recursosUltimaVistaAtMillis = 0L,
                         ),
                     )
                 }

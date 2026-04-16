@@ -59,6 +59,11 @@ data class AcademiaConfig(
      * Null = la academia no aplica esta regla.
      */
     val diaLimitePagoMes: Int? = null,
+    /**
+     * Última vez que el usuario abrió la pestaña Recursos (`System.currentTimeMillis()`).
+     * 0 = aún no fijada; la primera carga del listado la inicializa para no marcar todo el histórico como no leído.
+     */
+    val recursosUltimaVistaAtMillis: Long = 0L,
 ) {
     companion object {
         val DEFAULT = AcademiaConfig(
@@ -85,6 +90,7 @@ data class AcademiaConfig(
             cloudMembresiaRol = null,
             cloudCoachCategoriasJson = null,
             diaLimitePagoMes = null,
+            recursosUltimaVistaAtMillis = 0L,
         )
     }
 }
