@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.util.Locale
 
@@ -19,6 +21,13 @@ data class PadresVinculoUi(
     val linkId: String,
     val jugadorRemoteId: String,
     val jugadorNombre: String,
+)
+
+/** Opción para vincular tutor ↔ alumno (gestión de miembros). */
+data class JugadorOpcionVinculoUi(
+    val remoteId: String,
+    val nombre: String,
+    val categoria: String,
 )
 
 data class MiembroAdminUi(
@@ -34,6 +43,8 @@ data class MiembroAdminUi(
     val esDueñoCuentaAcademia: Boolean,
     val nombresCategoriasCoach: List<String>,
     val categoriaRemoteIds: List<String>,
+    /** Categorías de alumnos vinculados (solo rol `parent`), desde Room por `remoteId` del jugador. */
+    val categoriasDesdeHijos: List<String> = emptyList(),
     /** Alta en el club (`academia_miembros.created_at`), millis UTC. */
     val fechaAltaClubMillis: Long? = null,
 )
@@ -71,6 +82,8 @@ class AcademiaMiembrosViewModel(
             runCatching {
                 val ownerUid = r.getAcademiaOwnerUserId(academiaId)
                 val rows = r.listMiembros(academiaId)
+                val dao = database.jugadorDao()
+                val pRepo = padresRepo
                 val ui = rows.map { row ->
                     val catIds = if (row.rol.trim().equals("coach", ignoreCase = true)) {
                         r.getCategoriaIdsForMiembro(row.id)
@@ -94,10 +107,30 @@ class AcademiaMiembrosViewModel(
                         esDueñoCuentaAcademia = ownerUid != null && row.userId == ownerUid,
                         nombresCategoriasCoach = nombres,
                         categoriaRemoteIds = catIds,
+                        categoriasDesdeHijos = emptyList(),
                         fechaAltaClubMillis = millisDesdeCreatedAtIso(row.createdAt),
                     )
                 }
-                _items.value = ui
+                val soloPadres = ui.filter { it.rol == "parent" }
+                val conCategoriasHijos = withContext(Dispatchers.IO) {
+                    soloPadres.map { m ->
+                        val cats = if (pRepo != null) {
+                            runCatching {
+                                val links = pRepo.listVinculos(academiaId, m.userId)
+                                links.flatMap { link ->
+                                    val j = dao.getJugadorPorRemoteId(link.jugadorId)
+                                    listOfNotNull(j?.categoria?.trim()?.takeIf { it.isNotEmpty() })
+                                }
+                                    .distinctBy { it.lowercase(Locale.getDefault()) }
+                                    .sortedBy { it.lowercase(Locale.getDefault()) }
+                            }.getOrElse { emptyList() }
+                        } else {
+                            emptyList()
+                        }
+                        m.copy(categoriasDesdeHijos = cats)
+                    }
+                }
+                _items.value = conCategoriasHijos
                 _uiState.value = MiembrosAdminState.Listo
             }.onFailure { e ->
                 _uiState.value = MiembrosAdminState.Error(e.message ?: e.toString())
@@ -189,13 +222,17 @@ class AcademiaMiembrosViewModel(
         }
     }
 
-    suspend fun jugadoresDisponiblesParaVincular(academiaId: String, parentUserId: String): List<Pair<String, String>> {
+    suspend fun jugadoresDisponiblesParaVincular(academiaId: String, parentUserId: String): List<JugadorOpcionVinculoUi> {
         val p = padresRepo ?: return emptyList()
-        val linked = p.listVinculos(academiaId, parentUserId).map { it.jugadorId }.toSet()
-        return database.jugadorDao().getAll()
-            .filter { it.activo && it.remoteId != null && it.remoteId !in linked }
-            .sortedBy { it.nombre }
-            .map { jug -> jug.remoteId!! to jug.nombre }
+        return p.listJugadoresDisponiblesParaVinculoPadreStaff(academiaId, parentUserId)
+            .sortedWith(compareBy({ it.categoria }, { it.nombre }))
+            .map { row ->
+                JugadorOpcionVinculoUi(
+                    remoteId = row.id,
+                    nombre = row.nombre,
+                    categoria = row.categoria,
+                )
+            }
     }
 
     fun agregarVinculoPadre(

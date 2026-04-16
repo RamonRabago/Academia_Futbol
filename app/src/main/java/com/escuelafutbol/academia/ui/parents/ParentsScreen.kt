@@ -1,7 +1,10 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.escuelafutbol.academia.ui.parents
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,6 +53,7 @@ import com.escuelafutbol.academia.R
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,28 +124,17 @@ fun ParentsScreen(
                 )
             }
             ParentsTabContent.PadreSinHijos -> {
-                Column(
+                PadreSinHijosContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(24.dp),
-                ) {
-                    Text(
-                        stringResource(R.string.parent_my_children_title),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        stringResource(R.string.parent_my_children_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                    Text(
-                        stringResource(R.string.parent_my_children_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                }
+                        .padding(horizontal = 24.dp),
+                    viewModel = viewModel,
+                    remoteAcademiaId = remoteAcademiaId,
+                    snackbar = snackbar,
+                    scope = scope,
+                    context = context,
+                )
             }
             is ParentsTabContent.PadreConHijos -> {
                 PadreConHijosContent(
@@ -160,6 +154,178 @@ fun ParentsScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PadreSinHijosContent(
+    modifier: Modifier,
+    viewModel: ParentsViewModel,
+    remoteAcademiaId: String?,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
+    context: android.content.Context,
+) {
+    val candidatos by viewModel.candidatosVinculo.collectAsState()
+    val cargandoCand by viewModel.candidatosVinculoCargando.collectAsState()
+    val errorCand by viewModel.candidatosVinculoError.collectAsState()
+    var categoriaFiltro by remember { mutableStateOf<String?>(null) }
+    val categoriasCand = remember(candidatos) {
+        candidatos.map { it.categoria }.distinct().sorted()
+    }
+    val candidatosFiltrados = remember(candidatos, categoriaFiltro) {
+        when (val c = categoriaFiltro) {
+            null -> candidatos
+            else -> candidatos.filter { it.categoria == c }
+        }
+    }
+    LaunchedEffect(remoteAcademiaId) {
+        if (!remoteAcademiaId.isNullOrBlank()) {
+            viewModel.cargarCandidatosVinculo()
+        }
+    }
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+    ) {
+        Text(
+            stringResource(R.string.parent_my_children_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            stringResource(R.string.parent_my_children_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            stringResource(R.string.parent_my_children_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 16.dp),
+        )
+        if (!remoteAcademiaId.isNullOrBlank()) {
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+            Text(
+                stringResource(R.string.parent_self_link_section_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                stringResource(R.string.parent_self_link_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            if (cargandoCand) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .size(32.dp),
+                )
+            } else {
+                errorCand?.let { err ->
+                    Text(
+                        err,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    FilledTonalButton(
+                        onClick = { viewModel.cargarCandidatosVinculo() },
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Text(stringResource(R.string.resources_reload))
+                    }
+                }
+                if (errorCand == null) {
+                    if (candidatos.isEmpty()) {
+                        Text(
+                            stringResource(R.string.parent_self_link_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    } else {
+                        Text(
+                            stringResource(R.string.parent_self_link_category_hint),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            FilterChip(
+                                selected = categoriaFiltro == null,
+                                onClick = { categoriaFiltro = null },
+                                label = { Text(stringResource(R.string.category_all)) },
+                            )
+                            categoriasCand.forEach { nombreCat ->
+                                FilterChip(
+                                    selected = categoriaFiltro == nombreCat,
+                                    onClick = {
+                                        categoriaFiltro =
+                                            if (categoriaFiltro == nombreCat) null else nombreCat
+                                    },
+                                    label = { Text(nombreCat) },
+                                )
+                            }
+                        }
+                        if (candidatosFiltrados.isEmpty()) {
+                            Text(
+                                stringResource(R.string.members_parent_links_no_players_in_category),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        } else {
+                            candidatosFiltrados.forEach { c ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(c.nombre, style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            c.categoria,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.vincularMiHijo(c.remoteId) { r ->
+                                                scope.launch {
+                                                    if (r.isSuccess) {
+                                                        snackbar.showSnackbar(
+                                                            context.getString(R.string.parent_self_link_ok),
+                                                        )
+                                                    } else {
+                                                        snackbar.showSnackbar(
+                                                            r.exceptionOrNull()?.message
+                                                                ?: context.getString(R.string.parent_self_link_error),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    ) {
+                                        Text(stringResource(R.string.parent_self_link_vincular))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(32.dp))
     }
 }
 

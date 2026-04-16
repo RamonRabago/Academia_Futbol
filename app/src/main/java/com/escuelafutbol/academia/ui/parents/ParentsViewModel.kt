@@ -11,11 +11,14 @@ import com.escuelafutbol.academia.data.local.entity.CobroMensualAlumno
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.remote.AcademiaMensajesCategoriaRepository
+import com.escuelafutbol.academia.data.remote.PadresAlumnosRepository
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMensajeCategoriaRow
+import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import com.escuelafutbol.academia.ui.util.PagoPlazoUtil
 import io.github.jan.supabase.auth.auth
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class LineaAsistenciaPadreUi(val fechaDia: Long, val presente: Boolean)
 
@@ -64,6 +68,13 @@ data class MensajeCategoriaUi(
     val eventAtMillis: Long?,
 )
 
+/** Alumno candidato a auto-vínculo (correo tutor = correo de la sesión; RLS en Supabase). */
+data class ParentVinculoCandidatoUi(
+    val remoteId: String,
+    val nombre: String,
+    val categoria: String,
+)
+
 object MensajeCategoriaTipo {
     const val PARTIDO_EVENTO = "partido_evento"
     const val CONVIVIO_LOGISTICA = "convivio_logistica"
@@ -91,6 +102,15 @@ class ParentsViewModel(
 
     private val _enviandoMensaje = MutableStateFlow(false)
     val enviandoMensaje: StateFlow<Boolean> = _enviandoMensaje.asStateFlow()
+
+    private val _candidatosVinculo = MutableStateFlow<List<ParentVinculoCandidatoUi>>(emptyList())
+    val candidatosVinculo: StateFlow<List<ParentVinculoCandidatoUi>> = _candidatosVinculo.asStateFlow()
+
+    private val _candidatosVinculoCargando = MutableStateFlow(false)
+    val candidatosVinculoCargando: StateFlow<Boolean> = _candidatosVinculoCargando.asStateFlow()
+
+    private val _candidatosVinculoError = MutableStateFlow<String?>(null)
+    val candidatosVinculoError: StateFlow<String?> = _candidatosVinculoError.asStateFlow()
 
     val categoriasParaMensajesStaff: StateFlow<List<String>> = combine(
         categoriasPermitidasOperacion,
@@ -125,6 +145,52 @@ class ParentsViewModel(
 
     fun refrescarMensajes() {
         viewModelScope.launch { refrescarMensajesSuspend() }
+    }
+
+    /** Carga desde la nube alumnos que el padre puede vincular (mismo criterio que RLS: email tutor). */
+    fun cargarCandidatosVinculo() {
+        viewModelScope.launch {
+            _candidatosVinculoCargando.value = true
+            _candidatosVinculoError.value = null
+            runCatching {
+                val client = app.supabaseClient ?: error("Sin nube")
+                val cfg = database.academiaConfigDao().getActual() ?: error("Sin configuración")
+                val aid = cfg.remoteAcademiaId?.takeIf { it.isNotBlank() } ?: error("Sin academia en la nube")
+                val uid = client.auth.currentUserOrNull()?.id?.toString() ?: error("Sin sesión")
+                val p = PadresAlumnosRepository(client)
+                val vinc = withContext(Dispatchers.IO) { p.listVinculos(aid, uid) }.map { it.jugadorId }.toSet()
+                val rows = withContext(Dispatchers.IO) { p.listJugadoresAcademia(aid) }
+                rows
+                    .filter { it.id !in vinc }
+                    .map { ParentVinculoCandidatoUi(it.id, it.nombre, it.categoria) }
+                    .sortedWith(compareBy({ it.categoria }, { it.nombre }))
+            }.onSuccess { _candidatosVinculo.value = it }
+                .onFailure { e -> _candidatosVinculoError.value = e.message ?: e.toString() }
+            _candidatosVinculoCargando.value = false
+        }
+    }
+
+    fun vincularMiHijo(remotoId: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val client = app.supabaseClient
+            val cfg = database.academiaConfigDao().getActual()
+            val aid = cfg?.remoteAcademiaId?.takeIf { it.isNotBlank() }
+            val uid = client?.auth?.currentUserOrNull()?.id?.toString()
+            if (client == null || aid == null || uid.isNullOrBlank()) {
+                onDone(Result.failure(IllegalStateException("Sin sesión o academia")))
+                return@launch
+            }
+            val res = runCatching {
+                withContext(Dispatchers.IO) {
+                    PadresAlumnosRepository(client).insertVinculo(aid, uid, remotoId)
+                }
+                AcademiaCloudSync(client, database).syncAll(skipPush = true).getOrThrow()
+            }
+            if (res.isSuccess) {
+                cargarCandidatosVinculo()
+            }
+            onDone(res)
+        }
     }
 
     private suspend fun refrescarMensajesSuspend() {

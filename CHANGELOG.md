@@ -6,6 +6,24 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Gestionar miembros (padres y tutores):** la lista muestra **solo** cuentas con rol padre/tutor (sin entrenadores duplicados respecto a Equipo); **chips por categoría** según alumnos vinculados (un tutor con hijos en varias categorías aparece al filtrar cualquiera de ellas); al cambiar vínculos se **recarga** la lista para actualizar categorías (`AcademiaMiembrosViewModel`, `AcademiaMiembrosAdminScreen`, `AcademiaScreen`, `strings.xml`, `members_manage_menu_subtitle`).
+
+- **Gestionar miembros — UI:** tarjetas alineadas al estilo **Equipo técnico** (`StaffCard`): elevación ligera, **avatar con iniciales**, misma jerarquía tipográfica (rol en color primario, categorías en `labelSmall`, contacto), acciones con **iconos** (rol, vínculos, quitar) y **estados vacíos** con icono; bloques de ayuda y filtro en **Surface** con forma grande (`AcademiaMiembrosAdminScreen`, `strings.xml`).
+
+- **Academia (engranaje):** la configuración del club pasa a un **menú de apartados** (invitaciones, identidad, colores, pagos/privacidad, equipo, cuenta); al elegir uno se abre **solo esa sección** con barra superior y **volver atrás**, para reducir la sensación de pantalla amontonada (`AcademiaScreen`, `strings.xml` `academy_settings_hub_intro`, `nav_back_cd`). En el menú inicial también aparece **Gestionar miembros** (academia en nube), con el mismo acceso que desde códigos de invitación (`members_manage_menu_subtitle`).
+
+- **Academia — códigos de invitación:** dentro de ese apartado, **menú en tarjetas** (renovar los tres códigos en una tarjeta, una tarjeta por rol y acceso a miembros); al elegir un rol se abre la **pantalla solo de ese código** (compartir / copiar / correo) y la barra superior muestra el rol con **atrás** al menú de códigos (`InvitacionesSubPantalla`, `academy_invite_hub_intro`, `academy_invite_role_subtitle_code`).
+
+- **Gestionar miembros:** se quita el bloque **«Invitar a nuevas cuentas»** y los códigos por rol de esta pantalla (evita duplicar lo de **Academia → Códigos de invitación**); la lista de miembros queda como contenido principal (`AcademiaMiembrosAdminScreen`, llamada desde `AcademiaScreen`). El texto de ayuda (`members_admin_hint`) indica dónde generar o compartir códigos.
+
+### Añadido
+
+- **Padres — auto-vínculo por correo tutor:** en la pestaña **Padres**, si aún no hay hijos en el dispositivo, el tutor puede **filtrar por categoría** y **vincular** alumnos cuyo `email_tutor` en la nube coincide con su correo de sesión; migración **`20260516180000_padre_auto_vinculo_jugadores_rls.sql`** (RLS `SELECT` candidatos + `INSERT` del vínculo). Tras vincular se ejecuta **sync pull** (`ParentsViewModel`, `PadresAlumnosRepository`, `ParentsScreen`).
+
+### Cambiado
+
+- **Gestionar miembros — vínculo tutor ↔ alumno:** en el diálogo **«Vínculo tutor ↔ alumno»**, chips por **categoría** y candidatos desde la **nube** (no solo Room); la lista usa la RPC **`list_jugadores_para_vinculo_padre_staff`** (migración **`20260516190000_list_jugadores_vinculo_padre_staff_rpc.sql`**) para devolver **todos** los jugadores activos no vinculados, con **fallback** al `SELECT` si la función aún no está en Supabase; el filtro por categoría **normaliza** espacios y mayúsculas y cada fila muestra **nombre — categoría** (`PadresAlumnosRepository`, `AcademiaMiembrosAdminScreen`, `AcademiaMiembrosViewModel`, `strings.xml`). El cuerpo del diálogo pasa a **`BasicAlertDialog`** con **`heightIn` + `verticalScroll`** en orden correcto y altura máx. ~55 % pantalla para poder **desplazar** toda la lista de alumnos.
+
 - **Recursos — cabecera con menú al desplazar:** en la pestaña **Recursos**, la barra superior de la app (☰, logo, academia y categoría) usa **`TopAppBar` + `enterAlwaysScrollBehavior`** enlazada al `nestedScroll` del `Scaffold` principal, de modo que **se oculta al bajar** el listado y **vuelve al subir** (`AcademiaMainScaffold` en `AcademiaRoot`).
 
 - **Recursos — barra inferior al desplazar:** en **Recursos**, la **NavigationBar** (Inicio / Padres / Academia) se **oculta al bajar** el feed y **vuelve al subir**, enlazada al mismo **`collapsedFraction`** de la cabecera principal (`AnimatedVisibility`, `AcademiaPrincipalNavigationBar` en `AcademiaRoot`).

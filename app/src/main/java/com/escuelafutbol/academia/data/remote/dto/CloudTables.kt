@@ -237,6 +237,14 @@ data class JugadorRow(
 
 )
 
+/** Respuesta de RPC [list_jugadores_para_vinculo_padre_staff] (gestión miembros). */
+@Serializable
+data class JugadorListaVinculoStaffRow(
+    val id: String,
+    val nombre: String,
+    val categoria: String,
+)
+
 
 
 @Serializable
