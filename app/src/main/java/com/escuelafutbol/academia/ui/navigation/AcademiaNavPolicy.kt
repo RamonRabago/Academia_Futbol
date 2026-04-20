@@ -7,7 +7,7 @@ import java.util.Locale
 
 /**
  * Rutas del `NavHost` principal (`inicio`, `jugadores`, …).
- * Mismo criterio que la barra inferior (solo Inicio / Padres / Academia) y el menú superior (`tabsMenuDesplegable`), más atajos de Inicio (`AcademiaRoot` + `InicioScreen.accesoRapidoVisible`). La ruta `competencias` exige academia en nube y oculta a padres en nube.
+ * Mismo criterio que la barra inferior (solo Inicio / Padres / Academia) y el menú superior (`tabsMenuDesplegable`), más atajos de Inicio (`AcademiaRoot` + `InicioScreen.accesoRapidoVisible`). La ruta `competencias` exige academia en nube; **padre en nube** la ve en **solo lectura** (Fase 3).
  */
 fun rutaPrincipalVisible(
     route: String,
@@ -27,11 +27,9 @@ fun rutaPrincipalVisible(
             rutaPrincipalVisible(sub, config, uidSesionAuth)
         }
     }
-    /** Competencias y partidos: solo academia vinculada a la nube; padres en nube quedan fuera hasta fase de solo lectura. */
+    /** Competencias: academia en nube; padre en nube accede en solo lectura (sin alta ni edición en UI). */
     if (route == "competencias") {
-        if (config.remoteAcademiaId.isNullOrBlank()) return false
-        if (cloudRol == "parent") return false
-        return true
+        return !config.remoteAcademiaId.isNullOrBlank()
     }
     if (config.remoteAcademiaId != null && cloudRol == "parent") {
         return route == "inicio" || route == "contenido" || route == "padres" || route == "academia"

@@ -8,7 +8,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 - **Competencias — resultado del partido:** registro de **anotadores** (jugador de la categoría o nombre libre + cantidad) guardado en **`detalle_marcador_json`** con modelo `DetalleMarcadorPayload` / `AnotadorMarcadorLinea` (`DetalleMarcadorMarcadorJson.kt`); resumen en la tarjeta del listado para padres; aviso si la suma de anotaciones no coincide con el marcador propio; **fecha del encuentro** editable con calendario en la pantalla de resultado (`CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
 
+- **Competencias — Fase 3 (padre en nube):** acceso **solo lectura** a la misma pantalla de competencias (menú ☰ junto a Recursos, atajo Inicio si aplica); textos de contexto y franja «solo lectura» en detalle; sin crear competencia, partido, inscripción ni editar resultado (`AcademiaNavPolicy`, `AcademiaRoot`, `CompetenciasScreen`, `strings.xml`, `FUNCIONALIDADES.md`, `COMPETENCIAS_FASE1.md`).
+
 ### Cambiado
+
+- **Build release para compartir APK:** el tipo `release` usa la misma **firma *debug*** del SDK (`signingConfig = debug`), de modo que `assembleRelease` genera un **`app-release.apk` firmado** e instalable fuera de Play Store (p. ej. WhatsApp). **No** sustituye un keystore de publicación en tienda (`app/build.gradle.kts`).
 
 - **Competencias — nuevo partido:** **pantalla completa** (`Dialog` + `DialogProperties(usePlatformDefaultWidth = false)`), `Scaffold` con barra superior y **Cancelar / Guardar** abajo; lista con aire; jornada y fecha a **ancho completo**; ayuda de fecha bajo el campo; tarjetas de categoría más amplias; se elimina el párrafo introductorio **redundante** (sin inscripciones no se abre el flujo y la categoría ya se elige en la lista) (`DialogoNuevoPartido`, `CompetenciasScreen`, `strings.xml`).
 

@@ -170,6 +170,8 @@ fun CompetenciasScreen(
     viewModel: CompetenciasViewModel,
     config: AcademiaConfig,
 ) {
+    val padreSoloLectura = !config.remoteAcademiaId.isNullOrBlank() &&
+        config.cloudMembresiaRol?.equals("parent", ignoreCase = true) == true
     val innerNav = rememberNavController()
     NavHost(
         navController = innerNav,
@@ -180,6 +182,7 @@ fun CompetenciasScreen(
             CompetenciasListaScaffold(
                 viewModel = viewModel,
                 config = config,
+                padreSoloLectura = padreSoloLectura,
                 onAbrirCompetencia = { id ->
                     innerNav.navigate("detalle/$id")
                 },
@@ -194,6 +197,7 @@ fun CompetenciasScreen(
                 competenciaId = id,
                 viewModel = viewModel,
                 config = config,
+                padreSoloLectura = padreSoloLectura,
                 onBack = {
                     viewModel.limpiarDetalle()
                     innerNav.popBackStack()
@@ -208,6 +212,7 @@ fun CompetenciasScreen(
 private fun CompetenciasListaScaffold(
     viewModel: CompetenciasViewModel,
     config: AcademiaConfig,
+    padreSoloLectura: Boolean,
     onAbrirCompetencia: (String) -> Unit,
 ) {
     val ui by viewModel.listaUi.collectAsState()
@@ -241,7 +246,13 @@ private fun CompetenciasListaScaffold(
                 .padding(horizontal = 16.dp),
         ) {
             Text(
-                stringResource(R.string.competitions_list_intro),
+                stringResource(
+                    if (padreSoloLectura) {
+                        R.string.competitions_list_intro_parent
+                    } else {
+                        R.string.competitions_list_intro
+                    },
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp),
@@ -489,6 +500,7 @@ private fun CompetenciaDetalleScaffold(
     competenciaId: String,
     viewModel: CompetenciasViewModel,
     config: AcademiaConfig,
+    padreSoloLectura: Boolean,
     onBack: () -> Unit,
 ) {
     val ui by viewModel.detalleUi.collectAsState()
@@ -533,6 +545,19 @@ private fun CompetenciaDetalleScaffold(
                     }
                 }
                 HorizontalDivider()
+                if (padreSoloLectura) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    ) {
+                        Text(
+                            stringResource(R.string.competitions_detail_read_only_banner),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                    }
+                    HorizontalDivider()
+                }
                 when (tab) {
                     0 -> TabPartidos(
                         competenciaId = competenciaId,

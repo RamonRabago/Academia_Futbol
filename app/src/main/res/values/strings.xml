@@ -207,6 +207,8 @@
     <string name="competitions_reload_cd">Actualizar competencias</string>
     <string name="competitions_fab_new">Nueva competencia</string>
     <string name="competitions_list_intro">Ligas y torneos de la academia en la nube. El filtro de categoría de arriba limita qué competencias ves según inscripciones.</string>
+    <string name="competitions_list_intro_parent">Competencias y partidos de la categoría seleccionada. Solo consulta: no puedes crear ni editar desde aquí.</string>
+    <string name="competitions_detail_read_only_banner">Solo lectura. Los cambios los gestiona el club.</string>
     <string name="competitions_empty">No hay competencias que coincidan con el filtro actual.</string>
     <string name="competitions_row_sport">Deporte: %1$s</string>
     <string name="competitions_row_season">Temporada: %1$s</string>

@@ -1,6 +1,6 @@
 # Competencias multideporte — Fase 1 (implementado)
 
-Fase 1 incluye **modelo en Supabase**, **DTOs + repositorio remoto**, **dominio (reglas de puntos + tabla)** y **caso de uso** de orquestación. **Fase 2** añade la ruta `competencias`, `CompetenciasScreen` / `CompetenciasViewModel` y textos en `strings.xml` (ver `CHANGELOG.md`).
+Fase 1 incluye **modelo en Supabase**, **DTOs + repositorio remoto**, **dominio (reglas de puntos + tabla)** y **caso de uso** de orquestación. **Fase 2** añade la ruta `competencias`, `CompetenciasScreen` / `CompetenciasViewModel` y textos en `strings.xml`. **Fase 3** habilita la misma ruta para **padre en nube** en solo lectura (ver `CHANGELOG.md`).
 
 ## 1. Resumen de arquitectura
 
@@ -71,7 +71,13 @@ Fase 1 incluye **modelo en Supabase**, **DTOs + repositorio remoto**, **dominio 
 - **Etiquetas de marcador** desde `CatalogoDeporteRow` con fallback en recursos de cadena.
 - Pendiente opcional: espejo **Room** + `needsCloudPush` para offline.
 
-## 9. Escalabilidad (preparado, no implementado)
+## 9. Fase 3 (padre en nube, solo lectura)
+
+- Con academia vinculada a la nube y rol de membresía **parent**, la ruta **`competencias`** es visible (`AcademiaNavPolicy`); en el menú ☰ del padre aparece junto a **Recursos** (`AcademiaRoot.tabsMenuDesplegable`).
+- **`puedeCrearCompetencia`** / **`puedeAgregarInscripcionOPartido`** siguen en `false` para padre: sin FAB, sin botones de alta y sin edición de partido; textos de contexto en lista y franja bajo las pestañas en detalle (`CompetenciasScreen`, `strings.xml`).
+- Los datos que ve el padre los limita **RLS** (p. ej. competencias con hijo en la misma categoría inscrita).
+
+## 10. Escalabilidad (preparado, no implementado)
 
 - **`detalle_marcador_json`** para sets/periodos/entradas.
 - **`grupo`** en inscripción para tablas múltiples.

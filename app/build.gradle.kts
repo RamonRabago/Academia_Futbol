@@ -68,6 +68,8 @@ android {
 
     buildTypes {
         release {
+            /** Firma con el keystore *debug* del SDK: APK instalable por WhatsApp sin Play Store (no usar para publicación en tienda). */
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

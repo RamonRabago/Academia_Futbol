@@ -150,7 +150,7 @@ private sealed class Tab(
     val labelRes: Int,
 ) {
     data object Inicio : Tab("inicio", R.string.tab_home)
-    /** Pantalla intermedia: jugadores, asistencia, estadísticas, recursos (no aplica a padre en nube). */
+    /** Pantalla intermedia: jugadores, asistencia, estadísticas, recursos (no aplica a padre en nube; competencias va directo al menú ☰). */
     data object Equipo : Tab("equipo_hub", R.string.tab_team_hub)
     data object Jugadores : Tab("jugadores", R.string.tab_players)
     data object Asistencia : Tab("asistencia", R.string.tab_attendance)
@@ -195,8 +195,9 @@ private sealed class Tab(
                     if (rutaPrincipalVisible(Recursos.route, config, uid)) add(Recursos)
                     if (rutaPrincipalVisible(Competencias.route, config, uid)) add(Competencias)
                     if (rutaPrincipalVisible(Finanzas.route, config, uid)) add(Finanzas)
-                } else if (rutaPrincipalVisible(Recursos.route, config, uid)) {
-                    add(Recursos)
+                } else {
+                    if (rutaPrincipalVisible(Recursos.route, config, uid)) add(Recursos)
+                    if (rutaPrincipalVisible(Competencias.route, config, uid)) add(Competencias)
                 }
             }
         }
