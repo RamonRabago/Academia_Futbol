@@ -26,8 +26,8 @@ Catálogo **por áreas de producto** de lo que la app ofrece hoy. No sustituye e
 ## Navegación y roles
 
 - **Barra inferior:** **Inicio**, **Padres** (si el rol del dispositivo lo permite) y **Academia**.
-- **Menú ☰ (cabecera):** acceso a **Jugadores**, **Asistencia**, **Estadísticas**, **Recursos**, **Competencias** (solo con academia en nube y no como padre en nube), **Finanzas** (según permisos y academia vinculada a la nube). Puede incluir **Cambiar categoría** y otras entradas con scroll si no caben.
-- **Padre en nube** (`remoteAcademiaId` + rol `parent`): suele ver **Inicio**, **Recursos**, **Padres** y **Academia**; no **Finanzas** ni el bloque operativo de equipo (jugadores / asistencia / estadísticas) salvo política distinta en código.
+- **Menú ☰ (cabecera):** acceso a **Jugadores**, **Asistencia**, **Estadísticas**, **Recursos**, **Competencias** (academia en nube; **padre** ve **Recursos** y **Competencias** en solo lectura), **Finanzas** (según permisos y academia vinculada a la nube). Puede incluir **Cambiar categoría** y otras entradas con scroll si no caben.
+- **Padre en nube** (`remoteAcademiaId` + rol `parent`): **Inicio**, **Recursos**, **Competencias** (solo lectura), **Padres** y **Academia**; no **Finanzas** ni el bloque operativo de equipo (jugadores / asistencia / estadísticas) salvo política distinta en código.
 - **Filtro de categoría:** afecta listados y resúmenes donde aplique («todas» o una categoría concreta).
 
 Lógica central de visibilidad: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt`.
