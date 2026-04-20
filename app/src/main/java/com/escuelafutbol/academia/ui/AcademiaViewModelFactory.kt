@@ -12,6 +12,7 @@ import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
 import com.escuelafutbol.academia.ui.auth.AcademiaBindingViewModel
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
+import com.escuelafutbol.academia.ui.competencias.CompetenciasViewModel
 import com.escuelafutbol.academia.ui.contenido.ContenidoViewModel
 import com.escuelafutbol.academia.ui.finanzas.FinanzasViewModel
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
@@ -92,6 +93,13 @@ class AcademiaViewModelFactory(
                 ) as T
             modelClass.isAssignableFrom(ContenidoViewModel::class.java) ->
                 ContenidoViewModel(
+                    application,
+                    database,
+                    s.filtroCategoria,
+                    s.categoriasPermitidasOperacion,
+                ) as T
+            modelClass.isAssignableFrom(CompetenciasViewModel::class.java) ->
+                CompetenciasViewModel(
                     application,
                     database,
                     s.filtroCategoria,

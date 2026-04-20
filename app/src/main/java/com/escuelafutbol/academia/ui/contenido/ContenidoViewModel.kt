@@ -59,6 +59,13 @@ data class ContenidoItemUi(
     val createdAtMillis: Long,
     val reacciones: ContenidoReaccionesUi = ContenidoReaccionesUi(),
     val estadoPublicacion: String = ContenidoEstadoPublicacion.PUBLISHED,
+    /**
+     * Filas distintas en `academia_contenido_categoria` que corresponden a la misma publicación
+     * (mismo envío en varias categorías). Vacío = solo [id].
+     */
+    val idsFilasMismaPublicacion: List<String> = emptyList(),
+    /** Categorías de esas filas (permisos y moderación). Vacío = inferir de [categoriaNombre]. */
+    val categoriasDeFilas: List<String> = emptyList(),
 )
 
 object ContenidoTema {
@@ -130,10 +137,14 @@ class ContenidoViewModel(
         if (c.remoteAcademiaId.isNullOrBlank()) return@combine 0
         val last = c.recursosUltimaVistaAtMillis
         val u = uid?.trim()?.takeIf { it.isNotEmpty() }
-        items.count { item ->
-            item.createdAtMillis > last &&
-                (u == null || !item.authorUserId.trim().equals(u, ignoreCase = true))
-        }
+        items
+            .asSequence()
+            .filter { item ->
+                item.createdAtMillis > last &&
+                    (u == null || !item.authorUserId.trim().equals(u, ignoreCase = true))
+            }
+            .distinctBy { huellaPublicacionMulticategoria(it) }
+            .count()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val itemsPresentados: StateFlow<List<ContenidoItemUi>> = combine(
@@ -143,7 +154,7 @@ class ContenidoViewModel(
         filtroEstadoPublicacion,
         _reaccionesPorContenido,
     ) { raw, catFiltro, temaFiltro, estadoFiltro, reaccMap ->
-        raw
+        val conReacciones = raw
             .asSequence()
             .filter {
                 catFiltro == null ||
@@ -155,6 +166,11 @@ class ContenidoViewModel(
                 item.copy(reacciones = reaccMap[item.id] ?: ContenidoReaccionesUi())
             }
             .toList()
+        if (catFiltro == null) {
+            fusionarItemsMulticategoriaMismaPublicacion(conReacciones, reaccMap)
+        } else {
+            conReacciones
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
@@ -310,16 +326,21 @@ class ContenidoViewModel(
         if (config.remoteAcademiaId.isNullOrBlank()) return false
         if (config.cloudMembresiaRol?.equals("parent", ignoreCase = true) == true) return false
         val uid = app.supabaseClient?.auth?.currentUserOrNull()?.id?.toString()
+        val catsItem = item.categoriasParaPermisos()
         return when (val rol = config.cloudMembresiaRol?.lowercase()) {
             "owner", "admin", "coordinator" -> true
             "coach" -> {
                 val permitidas = categoriasPermitidasOperacion.value
-                permitidas?.any { it.equals(item.categoriaNombre, ignoreCase = true) } == true
+                permitidas?.any { p -> catsItem.any { it.equals(p, ignoreCase = true) } } == true
             }
             null -> config.esSesionDueñoCuentaAcademiaRemota(uid)
             else -> false
         }
     }
+
+    /** Archivar / menú: basta con permiso en alguna categoría de la fila (o grupo fusionado). */
+    fun puedeGestionarRecursosPublicacion(config: AcademiaConfig, item: ContenidoItemUi): Boolean =
+        item.categoriasParaPermisos().any { puedePublicar(config, it) }
 
     private fun resolverEstadoInicialPublicacion(
         config: AcademiaConfig,
@@ -432,59 +453,92 @@ class ContenidoViewModel(
         }
     }
 
-    suspend fun aprobarPublicacion(id: String): Result<Unit> {
+    private suspend fun aprobarPublicacionUna(id: String): Result<Unit> {
         val client = app.supabaseClient ?: return Result.failure(IllegalStateException("Sin conexión a la nube"))
         val uid = client.auth.currentUserOrNull()?.id?.toString()?.takeIf { it.isNotBlank() }
             ?: return Result.failure(IllegalStateException("Sin sesión"))
         val aid = database.academiaConfigDao().getActual()?.remoteAcademiaId?.takeIf { it.isNotBlank() }
             ?: return Result.failure(IllegalStateException("Academia no vinculada a la nube"))
         val iso = Instant.now().toString()
-        val res = AcademiaContenidoCategoriaRepository(client).actualizarEstadoPublicacion(
+        return AcademiaContenidoCategoriaRepository(client).actualizarEstadoPublicacion(
             academiaId = aid,
             id = id,
             estadoPublicacion = ContenidoEstadoPublicacion.PUBLISHED,
             approvedAtIso = iso,
             approvedByUserId = uid,
         )
-        if (res.isSuccess) refrescarSuspend()
-        return res
     }
 
-    suspend fun rechazarPublicacion(id: String): Result<Unit> {
+    suspend fun aprobarPublicacionesPorIds(ids: Collection<String>): Result<Unit> {
+        val distinct = ids.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (distinct.isEmpty()) {
+            return Result.failure(IllegalStateException("Sin publicación"))
+        }
+        for (id in distinct) {
+            val r = aprobarPublicacionUna(id)
+            if (r.isFailure) return r
+        }
+        refrescarSuspend()
+        return Result.success(Unit)
+    }
+
+    private suspend fun rechazarPublicacionUna(id: String): Result<Unit> {
         val client = app.supabaseClient ?: return Result.failure(IllegalStateException("Sin conexión a la nube"))
         val aid = database.academiaConfigDao().getActual()?.remoteAcademiaId?.takeIf { it.isNotBlank() }
             ?: return Result.failure(IllegalStateException("Academia no vinculada a la nube"))
-        val res = AcademiaContenidoCategoriaRepository(client).actualizarEstadoPublicacion(
+        return AcademiaContenidoCategoriaRepository(client).actualizarEstadoPublicacion(
             academiaId = aid,
             id = id,
             estadoPublicacion = ContenidoEstadoPublicacion.REJECTED,
             approvedAtIso = null,
             approvedByUserId = null,
         )
-        if (res.isSuccess) refrescarSuspend()
-        return res
     }
 
-    fun aprobarDesdeUi(id: String, onDone: (Result<Unit>) -> Unit = {}) {
-        viewModelScope.launch { onDone(aprobarPublicacion(id)) }
+    suspend fun rechazarPublicacionesPorIds(ids: Collection<String>): Result<Unit> {
+        val distinct = ids.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (distinct.isEmpty()) {
+            return Result.failure(IllegalStateException("Sin publicación"))
+        }
+        for (id in distinct) {
+            val r = rechazarPublicacionUna(id)
+            if (r.isFailure) return r
+        }
+        refrescarSuspend()
+        return Result.success(Unit)
     }
 
-    fun rechazarDesdeUi(id: String, onDone: (Result<Unit>) -> Unit = {}) {
-        viewModelScope.launch { onDone(rechazarPublicacion(id)) }
+    fun aprobarDesdeUi(ids: Collection<String>, onDone: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch { onDone(aprobarPublicacionesPorIds(ids)) }
     }
 
-    suspend fun archivar(id: String): Result<Unit> {
+    fun rechazarDesdeUi(ids: Collection<String>, onDone: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch { onDone(rechazarPublicacionesPorIds(ids)) }
+    }
+
+    private suspend fun archivarUna(id: String): Result<Unit> {
         val client = app.supabaseClient ?: return Result.failure(IllegalStateException("Sin conexión a la nube"))
         val aid = database.academiaConfigDao().getActual()?.remoteAcademiaId?.takeIf { it.isNotBlank() }
             ?: return Result.failure(IllegalStateException("Academia no vinculada a la nube"))
-        val res = AcademiaContenidoCategoriaRepository(client).archivar(academiaId = aid, id = id)
-        if (res.isSuccess) refrescarSuspend()
-        return res
+        return AcademiaContenidoCategoriaRepository(client).archivar(academiaId = aid, id = id)
     }
 
-    fun archivarDesdeUi(id: String, onDone: (Result<Unit>) -> Unit = {}) {
+    suspend fun archivarPorIds(ids: Collection<String>): Result<Unit> {
+        val distinct = ids.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (distinct.isEmpty()) {
+            return Result.failure(IllegalStateException("Sin publicación"))
+        }
+        for (id in distinct) {
+            val r = archivarUna(id)
+            if (r.isFailure) return r
+        }
+        refrescarSuspend()
+        return Result.success(Unit)
+    }
+
+    fun archivarDesdeUi(ids: Collection<String>, onDone: (Result<Unit>) -> Unit = {}) {
         viewModelScope.launch {
-            onDone(archivar(id))
+            onDone(archivarPorIds(ids))
         }
     }
 
@@ -537,10 +591,11 @@ private fun agregarReaccionesMap(
     }
 }
 
-private fun AcademiaContenidoCategoriaRow.toUi(): ContenidoItemUi =
-    ContenidoItemUi(
+private fun AcademiaContenidoCategoriaRow.toUi(): ContenidoItemUi {
+    val cat = categoriaNombre.trim()
+    return ContenidoItemUi(
         id = id,
-        categoriaNombre = categoriaNombre,
+        categoriaNombre = cat,
         tema = tema,
         titulo = titulo,
         cuerpo = cuerpo,
@@ -549,4 +604,75 @@ private fun AcademiaContenidoCategoriaRow.toUi(): ContenidoItemUi =
         cuerpoImagenesUrls = decodeContenidoCuerpoImagenesUrls(cuerpoImagenesUrlsJson),
         createdAtMillis = parseInstantMs(createdAt),
         estadoPublicacion = estadoPublicacion.trim().ifEmpty { ContenidoEstadoPublicacion.PUBLISHED },
+        idsFilasMismaPublicacion = listOf(id),
+        categoriasDeFilas = listOf(cat).filter { it.isNotEmpty() },
     )
+}
+
+/** Ids de filas Supabase a aprobar, rechazar o archivar (incluye multicategoría). */
+fun ContenidoItemUi.idsFilasParaAccionesRemotas(): List<String> {
+    val xs = idsFilasMismaPublicacion.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    return if (xs.isEmpty()) listOf(id) else xs.sorted()
+}
+
+internal fun ContenidoItemUi.categoriasParaPermisos(): List<String> {
+    val xs = categoriasDeFilas.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    return if (xs.isEmpty()) {
+        listOf(categoriaNombre.trim()).filter { it.isNotEmpty() }
+    } else {
+        xs
+    }
+}
+
+private fun huellaPublicacionMulticategoria(item: ContenidoItemUi): String =
+    listOf(
+        item.authorUserId.lowercase(),
+        item.tema,
+        item.titulo.trim(),
+        item.cuerpo.trim(),
+        item.imagenUrl ?: "",
+        item.cuerpoImagenesUrls.joinToString("\u0001"),
+        item.estadoPublicacion,
+    ).joinToString("\u0000")
+
+private fun fusionarReaccionesMultiplesFilas(
+    ids: List<String>,
+    reaccMap: Map<String, ContenidoReaccionesUi>,
+): ContenidoReaccionesUi {
+    val partes = ids.map { reaccMap[it] ?: ContenidoReaccionesUi() }
+    return ContenidoReaccionesUi(
+        like = partes.sumOf { it.like },
+        celebrate = partes.sumOf { it.celebrate },
+        thanks = partes.sumOf { it.thanks },
+        strong = partes.sumOf { it.strong },
+        miTipo = partes.firstOrNull { !it.miTipo.isNullOrBlank() }?.miTipo,
+    )
+}
+
+private fun fusionarItemsMulticategoriaMismaPublicacion(
+    items: List<ContenidoItemUi>,
+    reaccMap: Map<String, ContenidoReaccionesUi>,
+): List<ContenidoItemUi> {
+    if (items.size <= 1) return items
+    return items
+        .groupBy { huellaPublicacionMulticategoria(it) }
+        .values
+        .map { grupo ->
+            if (grupo.size == 1) {
+                grupo.first()
+            } else {
+                val orden = grupo.sortedBy { it.id }
+                val base = orden.first()
+                val ids = orden.flatMap { it.idsFilasParaAccionesRemotas() }.distinct().sorted()
+                val cats = orden.flatMap { it.categoriasParaPermisos() }.distinct().sorted()
+                base.copy(
+                    id = ids.first(),
+                    categoriaNombre = if (cats.size == 1) cats.first() else cats.joinToString(", "),
+                    categoriasDeFilas = cats,
+                    idsFilasMismaPublicacion = ids,
+                    reacciones = fusionarReaccionesMultiplesFilas(ids, reaccMap),
+                )
+            }
+        }
+        .sortedByDescending { it.createdAtMillis }
+}

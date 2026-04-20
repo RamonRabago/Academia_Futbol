@@ -191,9 +191,19 @@ class AttendanceViewModel(
         }
         val hayMarcasFueraDeDiasEntreno =
             filtradasCrudas.isNotEmpty() && filtradas.isEmpty()
-        val total = filtradas.size
-        val pres = filtradas.count { it.presente }
-        val aus = total - pres
+        val jugadoresIds = when (focoValido) {
+            null -> ids
+            else -> setOf(focoValido)
+        }
+        val cupos = contarPresentesAusentesEntrenamientoImplicitos(
+            jugadoresIds,
+            base.diasEntreno,
+            filtradasCrudas,
+            base.scopeKey,
+        )
+        val total = cupos.totalCupos
+        val pres = cupos.presentes
+        val aus = cupos.ausentes
         val pct = if (total == 0) null else (100f * pres / total)
         val etiqueta = when (base.modo) {
             AsistenciaPeriodoResumen.MesVista -> {

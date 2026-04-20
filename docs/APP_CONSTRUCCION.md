@@ -18,6 +18,7 @@ Documento vivo para alinear **equipo**, **dueños de academias** y **desarrollo*
 | Economía | Finanzas | cobros mensuales, staff | tablas de cobros / staff |
 | Comunicación urgente | Padres (avisos) | — (lectura en caliente) | `academia_mensajes_categoria` |
 | **Contenido de valor** | **Recursos** | — (lista en memoria + pull) | **`academia_contenido_categoria`**, **`academia_contenido_reaccion`** |
+| Competencias / ligas | *(Fase 2: UI)* | — (Fase 1 solo nube + dominio) | **`catalogo_deporte`**, **`academia_competencia`**, **`academia_competencia_categoria`**, **`academia_competencia_partido`** (ver **`docs/COMPETENCIAS_FASE1.md`**) |
 
 ## Recursos para la categoría (nuevo)
 
@@ -37,6 +38,7 @@ Documento vivo para alinear **equipo**, **dueños de academias** y **desarrollo*
 
 ## Referencias rápidas en el repo
 
+- Catálogo de funcionalidades (mapa por áreas): [`docs/FUNCIONALIDADES.md`](FUNCIONALIDADES.md)
 - Registro de versiones: `CHANGELOG.md`
 - Contratos SQL recientes: `supabase/migrations/`
 - Navegación y visibilidad por rol: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt` (barra inferior: Inicio / Padres / Academia; menú ☰ arriba izquierda con el resto de rutas visibles).

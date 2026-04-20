@@ -4,7 +4,9 @@
 )
 package com.escuelafutbol.academia.ui.contenido
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,13 +18,16 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,11 +48,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,15 +64,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -86,6 +97,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
@@ -284,12 +299,12 @@ fun ContenidoScreen(
                                 item = item,
                                 mostrarCategoria = categoriaFiltro == null,
                                 puedeGestionar = puedePublicarAlguna &&
-                                    viewModel.puedePublicar(config, item.categoriaNombre),
+                                    viewModel.puedeGestionarRecursosPublicacion(config, item),
                                 puedeModerar = viewModel.puedeModerarPublicacion(config, item),
                                 onOpen = { detalle = item },
                                 onArchivar = { confirmarArchivar = item },
                                 onAprobar = {
-                                    viewModel.aprobarDesdeUi(item.id) { r ->
+                                    viewModel.aprobarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
                                         scope.launch {
                                             if (r.isFailure) {
                                                 snack.showSnackbar(
@@ -303,7 +318,7 @@ fun ContenidoScreen(
                                     }
                                 },
                                 onRechazar = {
-                                    viewModel.rechazarDesdeUi(item.id) { r ->
+                                    viewModel.rechazarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
                                         scope.launch {
                                             if (r.isFailure) {
                                                 snack.showSnackbar(
@@ -424,7 +439,7 @@ fun ContenidoScreen(
                     if (viewModel.puedeModerarPublicacion(config, d)) {
                         TextButton(
                             onClick = {
-                                viewModel.rechazarDesdeUi(d.id) { r ->
+                                viewModel.rechazarDesdeUi(d.idsFilasParaAccionesRemotas()) { r ->
                                     scope.launch {
                                         if (r.isFailure) {
                                             snack.showSnackbar(
@@ -443,7 +458,7 @@ fun ContenidoScreen(
                         }
                         TextButton(
                             onClick = {
-                                viewModel.aprobarDesdeUi(d.id) { r ->
+                                viewModel.aprobarDesdeUi(d.idsFilasParaAccionesRemotas()) { r ->
                                     scope.launch {
                                         if (r.isFailure) {
                                             snack.showSnackbar(
@@ -478,7 +493,7 @@ fun ContenidoScreen(
                 TextButton(
                     onClick = {
                         confirmarArchivar = null
-                        viewModel.archivarDesdeUi(item.id) { r ->
+                        viewModel.archivarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
                             scope.launch {
                                 if (r.isFailure) {
                                     val detalle = r.exceptionOrNull()?.message?.trim()?.take(180)
@@ -544,6 +559,9 @@ fun ContenidoScreen(
     }
 }
 
+private enum class DestinoCamaraPublicarContenido { PORTADA, CUERPO }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DialogoPublicarContenido(
     categoriasDisponibles: List<String>,
@@ -583,6 +601,10 @@ private fun DialogoPublicarContenido(
     var imagenPreview by remember { mutableStateOf<File?>(null) }
     val imagenesCuerpo = remember { mutableStateListOf<File>() }
 
+    var archivoCamaraTemp by remember { mutableStateOf<File?>(null) }
+    var destinoCamara by remember { mutableStateOf<DestinoCamaraPublicarContenido?>(null) }
+    var destinoCamaraTrasPermiso by remember { mutableStateOf<DestinoCamaraPublicarContenido?>(null) }
+
     val pickImagen = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri: Uri? ->
@@ -604,6 +626,77 @@ private fun DialogoPublicarContenido(
         }
     }
 
+    val takePicture = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { success ->
+        val f = archivoCamaraTemp
+        val dest = destinoCamara
+        archivoCamaraTemp = null
+        destinoCamara = null
+        if (f == null || dest == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            if (!success || !f.exists()) {
+                runCatching { f.delete() }
+                return@launch
+            }
+            val copiado = copiarArchivoJpegCapturaContenido(context, f) ?: return@launch
+            when (dest) {
+                DestinoCamaraPublicarContenido.PORTADA -> {
+                    imagenPreview?.let { runCatching { it.delete() } }
+                    imagenPreview = copiado
+                }
+                DestinoCamaraPublicarContenido.CUERPO -> {
+                    if (imagenesCuerpo.size < maxCuerpo) {
+                        imagenesCuerpo.add(copiado)
+                    } else {
+                        runCatching { copiado.delete() }
+                    }
+                }
+            }
+        }
+    }
+
+    val requestCameraPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val pend = destinoCamaraTrasPermiso
+        destinoCamaraTrasPermiso = null
+        if (!granted || pend == null) return@rememberLauncherForActivityResult
+        val f = File(context.cacheDir, "contenido_cam_${System.currentTimeMillis()}.jpg")
+        runCatching { if (!f.exists()) f.createNewFile() }
+        archivoCamaraTemp = f
+        destinoCamara = pend
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            f,
+        )
+        takePicture.launch(uri)
+    }
+
+    fun lanzarCamara(dest: DestinoCamaraPublicarContenido) {
+        if (dest == DestinoCamaraPublicarContenido.CUERPO && imagenesCuerpo.size >= maxCuerpo) return
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED -> {
+                val f = File(context.cacheDir, "contenido_cam_${System.currentTimeMillis()}.jpg")
+                runCatching { if (!f.exists()) f.createNewFile() }
+                archivoCamaraTemp = f
+                destinoCamara = dest
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    f,
+                )
+                takePicture.launch(uri)
+            }
+            else -> {
+                destinoCamaraTrasPermiso = dest
+                requestCameraPermission.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
     fun limpiarAdjuntosYCerrar() {
         imagenPreview?.let { runCatching { it.delete() } }
         imagenPreview = null
@@ -612,219 +705,422 @@ private fun DialogoPublicarContenido(
         onDismiss()
     }
 
-    AlertDialog(
+    val maxChars = ContenidoViewModel.MAX_CHARS_CUERPO_SOCIAL
+    val formularioListoParaPublicar =
+        categoriaSel.isNotBlank() &&
+            puedePublicarSeleccion(categoriaSel)
+
+    fun ejecutarPublicar() {
+        errLocal = null
+        enviando = true
+        val destino = if (categoriaSel.trim() == ContenidoViewModel.CATEGORIA_TODAS_MAGIC) {
+            categoriasDisponibles.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        } else {
+            listOf(categoriaSel.trim())
+        }
+        onPublicar(
+            destino,
+            temaSel,
+            tituloDesdeCuerpoSocial(cuerpo),
+            cuerpo.trim(),
+            imagenPreview,
+            imagenesCuerpo.toList(),
+            visibleYaParaFamilias && visibleDirectoFamiliasPermitido,
+        ) { res ->
+            enviando = false
+            res.onSuccess {
+                imagenPreview = null
+                imagenesCuerpo.clear()
+                onExito()
+            }
+                .onFailure { e ->
+                    errLocal = e.message
+                        ?: context.getString(R.string.resources_publish_error)
+                }
+        }
+    }
+
+    Dialog(
         onDismissRequest = { if (!enviando) limpiarAdjuntosYCerrar() },
-        title = { Text(stringResource(R.string.resources_publish_title)) },
-        text = {
-            Column(
-                Modifier
-                    .heightIn(max = 480.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(stringResource(R.string.resources_publish_category_help), style = MaterialTheme.typography.bodySmall)
-                TextButton(
-                    onClick = { dialogoCat = true },
-                    enabled = categoriasOpciones.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        etiquetaCategoriaSeleccionada(categoriaSel),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (visibleDirectoFamiliasPermitido) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            stringResource(R.string.resources_publish_visible_families_now),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Switch(
-                            checked = visibleYaParaFamilias,
-                            onCheckedChange = { visibleYaParaFamilias = it },
-                            enabled = !enviando,
-                        )
-                    }
-                    Text(
-                        stringResource(R.string.resources_publish_visible_families_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        stringResource(R.string.resources_publish_pending_approval_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(stringResource(R.string.resources_publish_theme_label), style = MaterialTheme.typography.labelMedium)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ContenidoTema.todosWire.forEach { w ->
-                        FilterChip(
-                            selected = temaSel == w,
-                            onClick = { temaSel = w },
-                            label = { Text(temaLabel(w), style = MaterialTheme.typography.labelSmall) },
-                        )
-                    }
-                }
-                Text(
-                    stringResource(R.string.resources_cover_label),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                FilledTonalButton(
-                    onClick = { pickImagen.launch("image/*") },
-                    enabled = !enviando,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.resources_add_cover))
-                }
-                imagenPreview?.let { f ->
-                    AsyncImage(
-                        model = f,
-                        contentDescription = stringResource(R.string.resources_cover_preview_cd),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop,
-                    )
-                    TextButton(
-                        onClick = {
-                            runCatching { f.delete() }
-                            imagenPreview = null
-                        },
-                    ) {
-                        Text(stringResource(R.string.resources_remove_cover))
-                    }
-                }
-                Text(
-                    stringResource(R.string.resources_body_photos_label),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    stringResource(R.string.resources_body_photos_hint, maxCuerpo),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                FilledTonalButton(
-                    onClick = { pickImagenCuerpo.launch("image/*") },
-                    enabled = !enviando && imagenesCuerpo.size < maxCuerpo,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.resources_add_body_photo))
-                }
-                if (imagenesCuerpo.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        itemsIndexed(
-                            imagenesCuerpo,
-                            key = { _, f -> f.absolutePath },
-                        ) { _, file ->
-                            Box(
-                                modifier = Modifier.size(width = 88.dp, height = 88.dp),
-                            ) {
-                                AsyncImage(
-                                    model = file,
-                                    contentDescription = stringResource(R.string.resources_cover_preview_cd),
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            Scaffold(
+                contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    stringResource(R.string.resources_publish_title),
+                                    style = MaterialTheme.typography.titleLarge,
                                 )
-                                IconButton(
-                                    onClick = {
-                                        runCatching { file.delete() }
-                                        imagenesCuerpo.remove(file)
-                                    },
-                                    modifier = Modifier.align(Alignment.TopEnd),
+                                Text(
+                                    stringResource(R.string.resources_publish_editor_intro),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = { if (!enviando) limpiarAdjuntosYCerrar() },
+                                enabled = !enviando,
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.resources_publish_close_cd),
+                                )
+                            }
+                        },
+                    )
+                },
+                bottomBar = {
+                    Column {
+                        if (enviando) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                        HorizontalDivider()
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(
+                                onClick = { limpiarAdjuntosYCerrar() },
+                                enabled = !enviando,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                            Button(
+                                onClick = { ejecutarPublicar() },
+                                enabled = formularioListoParaPublicar && !enviando,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(stringResource(R.string.resources_publish_submit))
+                            }
+                        }
+                    }
+                },
+            ) { padding ->
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .imePadding(),
+                ) {
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 8.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        OutlinedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            ),
+                        ) {
+                            Column(
+                                Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    stringResource(R.string.resources_publish_category_help),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                TextButton(
+                                    onClick = { dialogoCat = true },
+                                    enabled = categoriasOpciones.isNotEmpty() && !enviando,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                 ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = stringResource(R.string.resources_body_photo_remove_cd),
+                                    Text(
+                                        etiquetaCategoriaSeleccionada(categoriaSel),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
                                 }
                             }
                         }
-                    }
-                }
-                val maxChars = ContenidoViewModel.MAX_CHARS_CUERPO_SOCIAL
-                OutlinedTextField(
-                    value = cuerpo,
-                    onValueChange = { v ->
-                        if (v.length <= maxChars) {
-                            cuerpo = v
-                            errLocal = null
-                        }
-                    },
-                    label = { Text(stringResource(R.string.resources_publish_field_message, maxChars)) },
-                    supportingText = {
-                        Text(
-                            stringResource(R.string.resources_publish_char_count, cuerpo.length, maxChars),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 100.dp),
-                    minLines = 3,
-                    maxLines = 10,
-                )
-                errLocal?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !enviando &&
-                    categoriaSel.isNotBlank() &&
-                    puedePublicarSeleccion(categoriaSel),
-                onClick = {
-                    errLocal = null
-                    enviando = true
-                    val destino = if (categoriaSel.trim() == ContenidoViewModel.CATEGORIA_TODAS_MAGIC) {
-                        categoriasDisponibles.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-                    } else {
-                        listOf(categoriaSel.trim())
-                    }
-                    onPublicar(
-                        destino,
-                        temaSel,
-                        tituloDesdeCuerpoSocial(cuerpo),
-                        cuerpo.trim(),
-                        imagenPreview,
-                        imagenesCuerpo.toList(),
-                        visibleYaParaFamilias && visibleDirectoFamiliasPermitido,
-                    ) { res ->
-                        enviando = false
-                        res.onSuccess {
-                            imagenPreview = null
-                            imagenesCuerpo.clear()
-                            onExito()
-                        }
-                            .onFailure { e ->
-                                errLocal = e.message
-                                    ?: context.getString(R.string.resources_publish_error)
+                        OutlinedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            ),
+                        ) {
+                            Column(
+                                Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                if (visibleDirectoFamiliasPermitido) {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.resources_publish_visible_families_now),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Switch(
+                                            checked = visibleYaParaFamilias,
+                                            onCheckedChange = { visibleYaParaFamilias = it },
+                                            enabled = !enviando,
+                                        )
+                                    }
+                                    Text(
+                                        stringResource(R.string.resources_publish_visible_families_help),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                } else {
+                                    Text(
+                                        stringResource(R.string.resources_publish_pending_approval_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
+                        }
+                        Text(
+                            stringResource(R.string.resources_publish_theme_label),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            ContenidoTema.todosWire.forEach { w ->
+                                FilterChip(
+                                    selected = temaSel == w,
+                                    onClick = { if (!enviando) temaSel = w },
+                                    enabled = !enviando,
+                                    label = { Text(temaLabel(w), style = MaterialTheme.typography.labelLarge) },
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = cuerpo,
+                            onValueChange = { v ->
+                                if (v.length <= maxChars) {
+                                    cuerpo = v
+                                    errLocal = null
+                                }
+                            },
+                            label = { Text(stringResource(R.string.resources_publish_field_message, maxChars)) },
+                            supportingText = {
+                                Text(
+                                    stringResource(R.string.resources_publish_char_count, cuerpo.length, maxChars),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 200.dp),
+                            minLines = 8,
+                            maxLines = 18,
+                            enabled = !enviando,
+                        )
+                        Text(
+                            stringResource(R.string.resources_cover_label),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedButton(
+                                onClick = { pickImagen.launch("image/*") },
+                                enabled = !enviando,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Default.Image,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text(
+                                        stringResource(R.string.staff_pick_gallery),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = { lanzarCamara(DestinoCamaraPublicarContenido.PORTADA) },
+                                enabled = !enviando,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Default.PhotoCamera,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text(
+                                        stringResource(R.string.staff_take_photo),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                        }
+                        imagenPreview?.let { f ->
+                            AsyncImage(
+                                model = f,
+                                contentDescription = stringResource(R.string.resources_cover_preview_cd),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 220.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
+                            TextButton(
+                                onClick = {
+                                    runCatching { f.delete() }
+                                    imagenPreview = null
+                                },
+                                enabled = !enviando,
+                            ) {
+                                Text(stringResource(R.string.resources_remove_cover))
+                            }
+                        }
+                        Text(
+                            stringResource(R.string.resources_body_photos_label),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            stringResource(R.string.resources_body_photos_hint, maxCuerpo),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedButton(
+                                onClick = { pickImagenCuerpo.launch("image/*") },
+                                enabled = !enviando && imagenesCuerpo.size < maxCuerpo,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Default.Image,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text(
+                                        stringResource(R.string.staff_pick_gallery),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = { lanzarCamara(DestinoCamaraPublicarContenido.CUERPO) },
+                                enabled = !enviando && imagenesCuerpo.size < maxCuerpo,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Default.PhotoCamera,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text(
+                                        stringResource(R.string.staff_take_photo),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                        }
+                        if (imagenesCuerpo.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                itemsIndexed(
+                                    imagenesCuerpo,
+                                    key = { _, f -> f.absolutePath },
+                                ) { _, file ->
+                                    Box(
+                                        modifier = Modifier.size(width = 88.dp, height = 88.dp),
+                                    ) {
+                                        AsyncImage(
+                                            model = file,
+                                            contentDescription = stringResource(R.string.resources_cover_preview_cd),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(8.dp)),
+                                            contentScale = ContentScale.Crop,
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                runCatching { file.delete() }
+                                                imagenesCuerpo.remove(file)
+                                            },
+                                            enabled = !enviando,
+                                            modifier = Modifier.align(Alignment.TopEnd),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = stringResource(R.string.resources_body_photo_remove_cd),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        errLocal?.let {
+                            Text(
+                                it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
-                },
-            ) {
-                Text(stringResource(R.string.resources_publish_submit))
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = { limpiarAdjuntosYCerrar() }, enabled = !enviando) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
-    )
+        }
+    }
 
     if (dialogoCat && categoriasOpciones.isNotEmpty()) {
         AlertDialog(
@@ -1305,6 +1601,24 @@ private fun tiempoRelativoEspañol(ms: Long): String {
     if (w < 5) return "hace ${w} sem"
     val mes = d / 30
     return "hace ${mes.coerceAtLeast(1)} mes${if (mes <= 1L) "" else "es"}"
+}
+
+private suspend fun copiarArchivoJpegCapturaContenido(context: Context, origen: File): File? = withContext(Dispatchers.IO) {
+    if (!origen.exists() || origen.length() <= 0L) {
+        runCatching { origen.delete() }
+        return@withContext null
+    }
+    val dest = File(context.cacheDir, "contenido_pub_${System.currentTimeMillis()}.jpg")
+    val ok = runCatching {
+        origen.copyTo(dest, overwrite = true)
+        origen.delete()
+        dest.exists() && dest.length() > 0L
+    }.getOrDefault(false)
+    if (!ok) {
+        runCatching { dest.delete() }
+        return@withContext null
+    }
+    dest
 }
 
 private suspend fun copiarUriImagenContenido(context: Context, uri: Uri): File? = withContext(Dispatchers.IO) {

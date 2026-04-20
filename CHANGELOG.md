@@ -4,6 +4,52 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Competencias — resultado del partido:** registro de **anotadores** (jugador de la categoría o nombre libre + cantidad) guardado en **`detalle_marcador_json`** con modelo `DetalleMarcadorPayload` / `AnotadorMarcadorLinea` (`DetalleMarcadorMarcadorJson.kt`); resumen en la tarjeta del listado para padres; aviso si la suma de anotaciones no coincide con el marcador propio; **fecha del encuentro** editable con calendario en la pantalla de resultado (`CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
+
+### Cambiado
+
+- **Competencias — nuevo partido:** **pantalla completa** (`Dialog` + `DialogProperties(usePlatformDefaultWidth = false)`), `Scaffold` con barra superior y **Cancelar / Guardar** abajo; lista con aire; jornada y fecha a **ancho completo**; ayuda de fecha bajo el campo; tarjetas de categoría más amplias; se elimina el párrafo introductorio **redundante** (sin inscripciones no se abre el flujo y la categoría ya se elige en la lista) (`DialogoNuevoPartido`, `CompetenciasScreen`, `strings.xml`).
+
+- **Tema (modo claro):** el esquema de color ya no deja al **Material 3** rellenar superficies con sus valores por defecto (suelen verse **rosados/violetas**); `background`, `surface`, `surfaceVariant` y `surfaceContainer*` pasan a **blanco y grises neutros**; contornos neutros. Modo oscuro: superficies y contenedores **gris carbón** coherentes (`Theme.kt`, `Color.kt`).
+
+- **Competencias — lista de partidos:** cada tarjeta muestra de forma **rápida** victoria, empate o derrota (marcador propio vs rival) con **fondo tonal**, **borde** e **icono** junto al resultado, más **banda vertical** de color; los pendientes conservan estilo neutro (`TabPartidos`, `strings.xml`).
+
+- **Competencias — tabla:** cabecera y filas con la **misma** repartición de `weight` (PJ…Pts + **Var.** compacta); **sin** párrafos introductorios de leyenda en pantalla (la cabecera basta); nombres en una línea con ellipsis y columnas numéricas con **alineación a la derecha** y cifras tabulares (`tnum`); tabla principal en **`Card`** elevado y bloque de líderes en **`OutlinedCard`** más ligero; **líderes ofensivos** solo como ranking cuando el desglose es **coherente** con el marcador propio (si no, mensaje vacío o de inconsistencia); en ranking, **icono de balón** (o básquet) en círculo tonal junto a cada anotador y subtítulo acortado. Dominio: `CompetenciaTablaCalculator.kt`, `CompetenciaLideresOfensivos.kt` (`construirLideresOfensivosTabla`), `CompetenciasViewModel` / `CompetenciasDetalleUi`, `CompetenciasScreen`, `strings.xml`. Guía de evolución: **`docs/COMPETENCIAS_TABLA_EVOLUCION.md`** (referencia también en `COMPETENCIAS_FASE1.md`).
+
+- **Competencias — lista de partidos:** al tocar la fila del partido se **despliega** el bloque de **anotadores** (foto si coincide con la plantilla local, icono de balón, nombres legibles) con **animación** de entrada escalonada; el personal con permiso dispone de **Editar** aparte para abrir el resultado. Ya no se muestra el párrafo corrido de anotadores en la tarjeta colapsada (`TabPartidos`, `strings.xml`).
+
+- **Competencias — resultado del partido (UI):** de diálogo modal a **pantalla completa** con `Scaffold`, cabecera con contexto del encuentro, marcador destacado, anotadores en tarjetas y **selector de jugador en bottom sheet** con búsqueda y **foto** (Coil); barra inferior **Cancelar / Guardar** (`PantallaResultadoPartido`, `FilaAnotadorResultadoUi`). Regla de proyecto **`.cursor/rules/ui-compose-pantallas-calidad.mdc`** para priorizar layout amplio y listas legibles en nuevas pantallas Compose. Ajuste de **espacio en anotadores**: jugador a **ancho completo** y cantidad/borrar en segunda fila; textos con `fillMaxWidth` y ellipsis; barra superior y lista más compactas (`CompetenciasScreen`, `strings.xml`). El formulario de resultado pasa a **`Dialog` a nivel ventana** (`DialogProperties(usePlatformDefaultWidth = false)`) desde **`CompetenciaDetalleScaffold`**, encima de pestañas y barra de competencia, para recuperar área útil.
+
+- **Competencias — nuevo partido:** mismo criterio visual que nueva competencia (`Dialog` + `Surface`), secciones con jerarquía de color, **tarjetas** para elegir categoría inscrita (icono + borde al seleccionar), jornada/fecha en fila, **selector de fecha** con `DatePickerDialog` / icono de calendario (campo solo lectura, ISO para Supabase) y mensajes de error en contenedor tonal (`CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — nueva competencia:** el formulario pasa a un **diálogo a tarjeta** con scroll, **filas de deporte** con icono grande (32 dp), borde resaltado y altura táctil mínima; texto de ayuda bajo «Deporte» y tipo con **placeholder** en lugar del párrafo bajo el campo (`CompetenciasScreen`, `strings.xml`).
+
+### Corregido
+
+- **Competencias — jornada duplicada:** no se puede **registrar** un partido con la **misma jornada** que otro de la **misma categoría inscrita** en la competencia (validación en `CompetenciasViewModel` + mensaje `competitions_error_duplicate_matchday`); al abrir **Registrar partido**, el campo **jornada** se **sugiere** como la siguiente libre por categoría (`CompetenciasScreen`). En **Postgres/Supabase**, migración **`20260520150000_academia_comp_partido_unique_jornada.sql`**: normaliza duplicados ya existentes y crea índice único `(competencia_id, categoria_en_competencia_id, jornada)`.
+
+- **Competencias — resultado:** si el partido queda **jugado** con marcador, el **estado** ya no puede quedar como «programado» (se normaliza al guardar y en la lista si llegan datos incoherentes). Al activar **Jugado** **antes** de la fecha programada del encuentro se abre el **calendario** para fijar la fecha real; si activas **Jugado** el **mismo día** que la fecha programada (calendario local del dispositivo), no se fuerza ese paso (`PantallaResultadoPartido`, `TabPartidos`, `strings.xml`).
+
+- **Competencias — guardar / listar:** el tipo se **normaliza** a `liga` / `copa` / `torneo` / `amistoso` / `otro` antes del `INSERT` (el check SQL rechazaba textos libres o mayúsculas). **Coach** puede crear competencias y ver **borradores sin inscripciones** vía migración **`20260520120000_academia_competencias_coach_insert_borrador.sql`**; el listado en app ya no filtra en cliente las competencias vacías (la visibilidad la marca RLS). Mensaje genérico si Supabase no devuelve detalle (`CompetenciasViewModel`, `CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — RLS `SELECT`:** migración **`20260520130000_academia_competencia_select_staff_data_access.sql`** — staff con **`academia_staff_data_access`** ve todas las competencias de la academia; padres con función **`academia_competencia_padre_puede_ver`** (`SECURITY DEFINER`) para **no encadenar** la RLS de `academia_competencia_categoria` (evita *infinite recursion detected in policy*). **`20260520140000_academia_competencia_select_fix_recursion.sql`** repite el arreglo si ya se aplicó una 201300 antigua. **`AcademiaCompetenciasRepository.listarCompetencias`** devuelve **`Result`** y la UI muestra errores de red/RLS.
+
+- **Asistencia — porcentaje del resumen y estadísticas:** el cálculo ya usa **todos los cupos** (cada alumno en cada día marcado como entrenamiento); quien queda con el interruptor en **no asistió** sin guardar fila en Room cuenta como **ausente**, no se ignora (antes solo entraban quienes tenían registro explícito y el % podía quedar en 100 % de más) (`DiaEntrenamientoReglas`, `AttendanceViewModel`, `StatsViewModel`).
+
+- **Recursos — vista «todas las categorías»:** si una misma publicación se envió a **varias categorías**, el listado ya **no repite** la tarjeta; se muestra **una sola** entrada (categorías en cabecera separadas por coma), reacciones **sumadas** por fila, y **aprobar / rechazar / archivar** actúan sobre **todas** las filas vinculadas (`ContenidoViewModel`, `ContenidoScreen`).
+
+### Añadido
+
+- **Competencias multideporte (Fase 2 — UI staff):** ruta **`competencias`** en **`AcademiaRoot`** (menú ☰), **`AcademiaNavPolicy`** (requiere academia en nube; oculta a padre en nube), atajos en **Inicio** y **Equipo**; pantalla **`CompetenciasScreen`**, **`CompetenciasViewModel`** en **`AcademiaViewModelFactory`**; textos en **`strings.xml`**. RLS coach **`20260520110000_academia_competencias_coach_select.sql`** (lectura de competencias con inscripción en categoría asignada al coach).
+
+- **Competencias multideporte (Fase 1):** migración **`20260520100000_academia_competencias_multideporte_fase1.sql`** (`catalogo_deporte`, `academia_competencia`, `academia_competencia_categoria`, `academia_competencia_partido`, RLS, semilla de deportes); DTOs `CompetenciasMultideporteDto.kt`, **`AcademiaCompetenciasRepository`**, dominio **`ReglasPuntosResolver`**, **`CompetenciaTablaCalculator`**, **`CompetenciasCasosUso`**; guía **`docs/COMPETENCIAS_FASE1.md`** y apunte en **`docs/FUNCIONALIDADES.md`**.
+
+- **Documentación:** catálogo de funcionalidades por áreas de producto en **`docs/FUNCIONALIDADES.md`** (enlazado desde **`docs/APP_CONSTRUCCION.md`**).
+
+- **Recursos — publicar:** el flujo **+** pasa de un diálogo a una **pantalla completa** con tarjetas de contexto, **más espacio para el mensaje** (área de texto ampliada), **Galería** y **Cámara** para portada y fotos del artículo (permiso `CAMERA` + `TakePicture` como en otras pantallas), barra inferior **Cancelar / Publicar** e indicador de envío (`ContenidoScreen`, `strings.xml` `resources_publish_editor_intro`, `resources_publish_close_cd`).
+
 ### Cambiado
 
 - **Gestionar miembros (padres y tutores):** la lista muestra **solo** cuentas con rol padre/tutor (sin entrenadores duplicados respecto a Equipo); **chips por categoría** según alumnos vinculados (un tutor con hijos en varias categorías aparece al filtrar cualquiera de ellas); al cambiar vínculos se **recarga** la lista para actualizar categorías (`AcademiaMiembrosViewModel`, `AcademiaMiembrosAdminScreen`, `AcademiaScreen`, `strings.xml`, `members_manage_menu_subtitle`).

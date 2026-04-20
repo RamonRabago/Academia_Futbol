@@ -20,6 +20,12 @@ private fun lightenTowardWhite(c: Color, ratio: Float = 0.82f): Color {
     return Color(blended)
 }
 
+private val NeutralOnSurface = Color(0xFF1A1C1E)
+private val NeutralOnSurfaceVariant = Color(0xFF44474E)
+private val NeutralSurfaceVariant = Color(0xFFE1E2E6)
+private val NeutralOutline = Color(0xFF74777F)
+private val NeutralOutlineVariant = Color(0xFFC4C6CF)
+
 private fun brandLightScheme(primary: Color, secondary: Color) = lightColorScheme(
     primary = primary,
     onPrimary = onContentForBackground(primary),
@@ -27,12 +33,32 @@ private fun brandLightScheme(primary: Color, secondary: Color) = lightColorSchem
     onPrimaryContainer = primary,
     secondary = secondary,
     onSecondary = onContentForBackground(secondary),
+    secondaryContainer = lightenTowardWhite(secondary, 0.82f),
+    onSecondaryContainer = secondary,
     tertiary = secondary,
+    onTertiary = onContentForBackground(secondary),
+    tertiaryContainer = Color(0xFFF0F0F2),
+    onTertiaryContainer = NeutralOnSurfaceVariant,
+    background = SurfaceLight,
+    onBackground = NeutralOnSurface,
     surface = SurfaceLight,
+    onSurface = NeutralOnSurface,
+    surfaceVariant = NeutralSurfaceVariant,
+    onSurfaceVariant = NeutralOnSurfaceVariant,
+    surfaceContainerLowest = SurfaceLight,
+    surfaceContainerLow = Color(0xFFF7F7F9),
+    surfaceContainer = Color(0xFFF0F0F2),
+    surfaceContainerHigh = Color(0xFFEAEAED),
+    surfaceContainerHighest = Color(0xFFE4E4E8),
+    outline = NeutralOutline,
+    outlineVariant = NeutralOutlineVariant,
+    scrim = Color.Black,
 )
 
 private fun brandDarkScheme(primary: Color, secondary: Color): ColorScheme {
     val p = lightenTowardWhite(primary, 0.35f)
+    val darkSurface = Color(0xFF121212)
+    val darkOnSurface = Color(0xFFE3E3E3)
     return darkColorScheme(
         primary = p,
         onPrimary = onContentForBackground(p),
@@ -40,6 +66,20 @@ private fun brandDarkScheme(primary: Color, secondary: Color): ColorScheme {
         onPrimaryContainer = Color(0xFFB8E8D0),
         secondary = secondary,
         onSecondary = onContentForBackground(secondary),
+        background = Color(0xFF101010),
+        onBackground = darkOnSurface,
+        surface = darkSurface,
+        onSurface = darkOnSurface,
+        surfaceVariant = Color(0xFF2C2C2C),
+        onSurfaceVariant = Color(0xFFC4C4C8),
+        surfaceContainerLowest = Color(0xFF0D0D0D),
+        surfaceContainerLow = Color(0xFF181818),
+        surfaceContainer = Color(0xFF1C1C1C),
+        surfaceContainerHigh = Color(0xFF222222),
+        surfaceContainerHighest = Color(0xFF282828),
+        outline = Color(0xFF8E8E93),
+        outlineVariant = Color(0xFF3A3A3C),
+        scrim = Color.Black,
     )
 }
 

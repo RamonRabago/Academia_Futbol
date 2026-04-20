@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -110,6 +111,8 @@ import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
 import com.escuelafutbol.academia.ui.finanzas.FinanzasScreen
 import com.escuelafutbol.academia.ui.finanzas.FinanzasViewModel
 import com.escuelafutbol.academia.ui.categoria.CategoriaSelectionScreen
+import com.escuelafutbol.academia.ui.competencias.CompetenciasScreen
+import com.escuelafutbol.academia.ui.competencias.CompetenciasViewModel
 import com.escuelafutbol.academia.ui.contenido.ContenidoScreen
 import com.escuelafutbol.academia.ui.contenido.ContenidoViewModel
 import com.escuelafutbol.academia.ui.parents.ParentsScreen
@@ -153,6 +156,7 @@ private sealed class Tab(
     data object Asistencia : Tab("asistencia", R.string.tab_attendance)
     data object Estadisticas : Tab("estadisticas", R.string.tab_stats)
     data object Recursos : Tab("contenido", R.string.tab_resources)
+    data object Competencias : Tab("competencias", R.string.tab_competitions)
     data object Finanzas : Tab("finanzas", R.string.tab_finances)
     data object Padres : Tab("padres", R.string.tab_parents)
     data object Academia : Tab("academia", R.string.tab_academy)
@@ -165,6 +169,7 @@ private sealed class Tab(
             Asistencia,
             Estadisticas,
             Recursos,
+            Competencias,
             Finanzas,
             Padres,
             Academia,
@@ -188,6 +193,7 @@ private sealed class Tab(
                     if (rutaPrincipalVisible(Asistencia.route, config, uid)) add(Asistencia)
                     if (rutaPrincipalVisible(Estadisticas.route, config, uid)) add(Estadisticas)
                     if (rutaPrincipalVisible(Recursos.route, config, uid)) add(Recursos)
+                    if (rutaPrincipalVisible(Competencias.route, config, uid)) add(Competencias)
                     if (rutaPrincipalVisible(Finanzas.route, config, uid)) add(Finanzas)
                 } else if (rutaPrincipalVisible(Recursos.route, config, uid)) {
                     add(Recursos)
@@ -273,6 +279,7 @@ private fun iconoVectorTab(tab: Tab): ImageVector = when (tab) {
     Tab.Asistencia -> Icons.Default.TaskAlt
     Tab.Estadisticas -> Icons.Default.Assessment
     Tab.Recursos -> Icons.AutoMirrored.Filled.MenuBook
+    Tab.Competencias -> Icons.Default.EmojiEvents
     Tab.Finanzas -> Icons.Default.Payments
     Tab.Padres -> Icons.Default.MailOutline
     Tab.Academia -> Icons.Default.Settings
@@ -841,6 +848,13 @@ private fun AcademiaMainScaffold(
                     config = config,
                     categoriaFiltro = filtroCategoria,
                 )
+            }
+            composable(Tab.Competencias.route) {
+                val vm: CompetenciasViewModel = viewModel(
+                    key = "competencias_$sessionAuthUserId",
+                    factory = childFactory,
+                )
+                CompetenciasScreen(viewModel = vm, config = config)
             }
             composable(Tab.Finanzas.route) {
                 val vm: FinanzasViewModel = viewModel(factory = childFactory)

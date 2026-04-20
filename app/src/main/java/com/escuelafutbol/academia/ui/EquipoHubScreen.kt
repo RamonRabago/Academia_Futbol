@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Icon
@@ -46,6 +47,7 @@ fun EquipoHubScreen(
             EquipoDestino("jugadores", R.string.tab_players, Icons.Default.Group),
             EquipoDestino("asistencia", R.string.tab_attendance, Icons.Default.TaskAlt),
             EquipoDestino("estadisticas", R.string.tab_stats, Icons.Default.Assessment),
+            EquipoDestino("competencias", R.string.tab_competitions, Icons.Default.EmojiEvents),
             EquipoDestino("contenido", R.string.tab_resources, Icons.AutoMirrored.Filled.MenuBook),
         ).filter { rutaPrincipalVisible(it.route, config, uidSesion) }
     }

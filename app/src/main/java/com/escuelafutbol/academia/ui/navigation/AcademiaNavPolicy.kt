@@ -7,7 +7,7 @@ import java.util.Locale
 
 /**
  * Rutas del `NavHost` principal (`inicio`, `jugadores`, …).
- * Mismo criterio que la barra inferior (solo Inicio / Padres / Academia) y el menú superior (`tabsMenuDesplegable`), más atajos de Inicio (`AcademiaRoot` + `InicioScreen.accesoRapidoVisible`).
+ * Mismo criterio que la barra inferior (solo Inicio / Padres / Academia) y el menú superior (`tabsMenuDesplegable`), más atajos de Inicio (`AcademiaRoot` + `InicioScreen.accesoRapidoVisible`). La ruta `competencias` exige academia en nube y oculta a padres en nube.
  */
 fun rutaPrincipalVisible(
     route: String,
@@ -20,12 +20,18 @@ fun rutaPrincipalVisible(
         if (config.remoteAcademiaId != null && cloudRol == "parent") return false
         return config.puedeVerMensualidadEnEsteDispositivo(uidSesionAuth)
     }
-    /** Hub «Equipo»: agrupa jugadores / asistencia / estadísticas / recursos (solo staff en nube). */
+    /** Hub «Equipo»: agrupa jugadores / asistencia / estadísticas / recursos / competencias (solo staff en nube). */
     if (route == "equipo_hub") {
         if (config.remoteAcademiaId != null && cloudRol == "parent") return false
-        return listOf("jugadores", "asistencia", "estadisticas", "contenido").any { sub ->
+        return listOf("jugadores", "asistencia", "estadisticas", "contenido", "competencias").any { sub ->
             rutaPrincipalVisible(sub, config, uidSesionAuth)
         }
+    }
+    /** Competencias y partidos: solo academia vinculada a la nube; padres en nube quedan fuera hasta fase de solo lectura. */
+    if (route == "competencias") {
+        if (config.remoteAcademiaId.isNullOrBlank()) return false
+        if (cloudRol == "parent") return false
+        return true
     }
     if (config.remoteAcademiaId != null && cloudRol == "parent") {
         return route == "inicio" || route == "contenido" || route == "padres" || route == "academia"

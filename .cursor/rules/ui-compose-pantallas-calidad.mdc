@@ -1,0 +1,22 @@
+---
+description: Calidad visual inicial en pantallas Compose (espacio, listas, fotos, jerarquía)
+alwaysApply: true
+---
+
+# UI Compose — calidad desde el primer diseño
+
+Al crear o rediseñar pantallas en **Jetpack Compose** en esta app:
+
+1. **Formularios densos** (varios campos, listas, selectores): preferir **pantalla completa** (`Scaffold` + `TopAppBar` + barra inferior fija para acciones primarias) o **modal bottom sheet ancho** con lista desplazable. Si el flujo vive **dentro de pestañas o scaffold anidado**, un `Surface(fillMaxSize())` local **no** ocupa la ventana: usar **`androidx.compose.ui.window.Dialog`** con `DialogProperties(usePlatformDefaultWidth = false)` y contenido `fillMaxSize()` para cubrir barras y pestañas. Evitar `ExposedDropdownMenu` muy comprimido para listas largas (nombres, fotos).
+
+2. **Selectores de personas** (jugadores, staff, tutores): cuando exista foto en Room/Supabase, mostrar **avatar circular** (`AsyncImage` + `coilFotoModel` o equivalente) en la lista y en la fila seleccionada; lista con **búsqueda** si hay muchos registros.
+
+3. **Jerarquía y aire**: secciones con títulos (`titleMedium` / color `primary`), **cards o `Surface`** con esquinas 16–22 dp, padding horizontal **≥ 16–20 dp**, separación vertical clara entre bloques. Marcadores o números importantes con **tipografía grande** (`headlineLarge` / centrado).
+
+4. **Toques mínimos**: altura táctil **≥ 48 dp** en filas clicables; no depender solo de un desplegable minúsculo para tareas frecuentes.
+
+5. **Filas con nombre largo + controles** (cantidad, iconos): no poner el nombre en un `Row` que compite en `weight` con campos fijos; usar **bloque ancho completo** para el nombre (o tarjeta) y **segunda fila** para cantidad/acciones, con `Modifier.fillMaxWidth()` en textos y `TextOverflow.Ellipsis`.
+
+6. **Padres / lectura rápida**: textos cortos, **ellipsis** en nombres largos, un solo mensaje de ayuda por sección (no párrafos repetidos bajo cada campo).
+
+Si una tarea pide “formulario” o “elegir de una lista”, plantea primero **layout completo o bottom sheet** antes que un diálogo modal pequeño.

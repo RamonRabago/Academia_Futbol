@@ -6,6 +6,7 @@ import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Jugador
+import com.escuelafutbol.academia.ui.attendance.contarPresentesAusentesEntrenamientoImplicitos
 import com.escuelafutbol.academia.ui.attendance.diaMarcadoComoEntrenamiento
 import com.escuelafutbol.academia.ui.attendance.scopeKeyAsistencia
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
@@ -111,8 +112,14 @@ class StatsViewModel(
         val asistencias = crudas.filter {
             diaMarcadoComoEntrenamiento(it.fechaDia, scope, marcasEntreno)
         }
-        val totalFilas = asistencias.size
-        val presentes = asistencias.count { it.presente }
+        val cupos = contarPresentesAusentesEntrenamientoImplicitos(
+            ids,
+            marcasEntreno,
+            crudas,
+            scope,
+        )
+        val totalFilas = cupos.totalCupos
+        val presentes = cupos.presentes
         val porcentaje = if (totalFilas == 0) null else presentes * 100.0 / totalFilas
         val dias = asistencias.map { it.fechaDia }.distinct().size
         StatsUi(
