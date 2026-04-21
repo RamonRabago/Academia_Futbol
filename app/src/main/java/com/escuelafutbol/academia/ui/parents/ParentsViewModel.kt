@@ -38,6 +38,8 @@ data class MesAdeudoPadreUi(val etiquetaMes: String, val saldoPendiente: Double)
 data class HijoResumenUi(
     val nombre: String,
     val categoria: String,
+    val fotoUrlSupabase: String? = null,
+    val fotoRutaAbsoluta: String? = null,
     /** Id de fila en `academia_padres_alumnos` para desvincular al tutor actual; null hasta cargar vínculos. */
     val vinculoId: String? = null,
     val ultimasAsistencias: List<LineaAsistenciaPadreUi>,
@@ -361,6 +363,8 @@ class ParentsViewModel(
             HijoResumenUi(
                 nombre = j.nombre,
                 categoria = j.categoria,
+                fotoUrlSupabase = j.fotoUrlSupabase,
+                fotoRutaAbsoluta = j.fotoRutaAbsoluta,
                 vinculoId = vid,
                 ultimasAsistencias = lineas,
                 mesesVencidos = mesesVencidos,

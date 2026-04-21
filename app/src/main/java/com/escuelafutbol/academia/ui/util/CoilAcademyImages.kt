@@ -38,7 +38,12 @@ fun AcademiaConfig.coilPortadaModel(context: Context): Any? {
     return ImageRequest.Builder(context).data(f).crossfade(true).build()
 }
 
-fun Jugador.coilFotoModel(context: Context): Any? {
+/** Foto de alumno o staff por URL Supabase o ruta local (p. ej. tarjetas sin la entidad `Jugador`). */
+fun coilFotoJugadorModel(
+    context: Context,
+    fotoUrlSupabase: String?,
+    fotoRutaAbsoluta: String?,
+): Any? {
     fotoUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
     val path = fotoRutaAbsoluta ?: return null
     val f = File(path)
@@ -46,10 +51,8 @@ fun Jugador.coilFotoModel(context: Context): Any? {
     return ImageRequest.Builder(context).data(f).crossfade(true).build()
 }
 
-fun Staff.coilFotoModel(context: Context): Any? {
-    fotoUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
-    val path = fotoRutaAbsoluta ?: return null
-    val f = File(path)
-    if (!f.exists()) return null
-    return ImageRequest.Builder(context).data(f).crossfade(true).build()
-}
+fun Jugador.coilFotoModel(context: Context): Any? =
+    coilFotoJugadorModel(context, fotoUrlSupabase, fotoRutaAbsoluta)
+
+fun Staff.coilFotoModel(context: Context): Any? =
+    coilFotoJugadorModel(context, fotoUrlSupabase, fotoRutaAbsoluta)

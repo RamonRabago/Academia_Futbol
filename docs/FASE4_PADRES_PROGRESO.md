@@ -29,7 +29,7 @@
 
 - **SQL:** `supabase/migrations/20260521140000_padres_alumnos_delete_parent_own.sql`
 - **App:** `ParentsViewModel.kt`, `ParentsScreen.kt`, `PadresAlumnosRepository.kt`
-- **Copy:** `strings.xml` (cadenas `parent_unlink*`, `parent_add_child_*`)
+- **Copy:** `strings.xml` (cadenas `parent_unlink*`, `parent_summary_add_child`, `parent_children_empty_state`, etc.)
 
 ---
 

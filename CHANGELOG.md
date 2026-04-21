@@ -12,6 +12,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Padres — acción única:** solo **«Agregar hijo»** en la tarjeta resumen (icono **+**); eliminado el botón duplicado «+ Vincular hijo» del panel inferior; el panel de candidatos queda **debajo del resumen** para que el toque abra siempre el bloque correcto (`ParentsSummaryCard`, `ParentsLinkChildPanel`, `ParentsPadreConHijosContent`, `ParentsScreen`).
+
+- **Padres — modularización UI:** composables en `ui/parents/components/` (`ParentsSummaryCard`, `LinkedChildCard`, `ChildHeaderRow`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `EmptyChildrenState`, `ParentsLinkChildPanel`, `ParentsInboxMessageCard`) y `ParentsPadreConHijosContent.kt`; tarjetas de hijo **colapsadas por defecto** y **solo una expandida** a la vez; `ParentsScreen` delega el flujo padre con hijos (`ParentsPadreConHijosContent`).
+
+- **Padres — UX «Mis hijos»:** un solo subtítulo breve, botón **«+ Vincular hijo»** y panel desplegable con candidatos; **un único mensaje de vacío** solo si no hay hijos vinculados ni candidatos; sin repetir bloques «Vincular otro hijo» / «no encontramos…» cuando ya hay hijos en lista; orden: título → hijos → aviso de pagos (si aplica) → vincular (`ParentsScreen`, `strings.xml`).
+
+- **Padres — vincular hijo:** texto mientras **consulta la nube**; si hay **candidatos por correo**, el panel se **abre solo** (salvo que el usuario haya pulsado **Ocultar**); texto introductorio y aviso cuando **no hay más candidatos** con hijos ya vinculados (`ParentsScreen`, `strings.xml`).
+
+- **Padres — tarjeta de cada hijo:** **foto circular** (Coil: URL Supabase o archivo local) y **nombre** en hasta dos líneas con **ellipsis**; la acción **Desvincular** pasa a una **segunda fila** alineada a la derecha para no comprimir el texto (`ParentsScreen`, `ParentsViewModel`, `coilFotoJugadorModel` en `CoilAcademyImages.kt`).
+
 - **Área útil en pestañas (cabecera global):** **Finanzas**, **Asistencia**, **Estadísticas**, **Jugadores** y **Padres** dejan de duplicar **`TopAppBar`** respecto a **`AcademiaMainScaffold`**; título compacto en el contenido, menos padding vertical y listas con **`contentPadding`** ajustado (FAB en **Jugadores** alineado en el contenedor). Más filas visibles sin scroll (`FinanzasScreen`, `AttendanceScreen`, `StatsScreen`, `PlayersScreen`, `ParentsScreen`).
 
 - **Finanzas — más lista visible:** en una sola fila **título + navegación de mes**; botón «Prellenar…» y chips con menos aire; pestañas en **fila compacta** sustituyendo `SecondaryTabRow`; menos separación en la lista y en cada tarjeta de alumno (`FinanzasScreen`). **Barra inferior principal** (Inicio / Padres / Academia): sustituye el `NavigationBar` de Material por una barra **más baja** manteniendo icono, etiqueta e insignia de no leídos (`AcademiaRoot`).
