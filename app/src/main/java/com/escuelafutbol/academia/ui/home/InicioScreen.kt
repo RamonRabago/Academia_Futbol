@@ -1,5 +1,6 @@
 package com.escuelafutbol.academia.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,10 +27,16 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +51,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,9 +64,18 @@ import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.model.normalizarClaveCategoriaNombre
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
+import com.escuelafutbol.academia.ui.util.coilFotoJugadorModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+
+/** Opción del selector de portada por hijo (Inicio, rol padre). */
+data class InicioPadrePortadaOpcion(
+    val jugadorRemoteId: String,
+    val nombre: String,
+    val fotoUrlSupabase: String?,
+    val fotoRutaAbsoluta: String?,
+)
 
 private sealed class InicioImageViewer {
     data object Logo : InicioImageViewer()
@@ -75,6 +93,13 @@ fun InicioScreen(
     accesoRapidoVisible: (route: String) -> Boolean = { true },
     /** Nombre o correo de la cuenta (Supabase); null si no hay dato. */
     sesionEtiqueta: String? = null,
+    /** Padre/tutor en nube: sin chip de categoría de staff ni datos operativos de categoría en cabecera. */
+    vistaPadreEnNube: Boolean = false,
+    /** Solo si hay más de un hijo con `remoteId`; vacío = sin selector. */
+    parentPortadaSelectorOpciones: List<InicioPadrePortadaOpcion> = emptyList(),
+    /** Valor actual de [SessionViewModel.parentInicioPortadaJugadorRemoteId]. */
+    parentPortadaJugadorRemoteIdSeleccionado: String? = null,
+    onParentPortadaJugadorRemoteIdChange: (String) -> Unit = {},
     onNavigate: (route: String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -204,7 +229,11 @@ fun InicioScreen(
                     shadowElevation = 0.dp,
                 ) {
                     Text(
-                        stringResource(R.string.working_in, categoriaEtiqueta),
+                        if (vistaPadreEnNube) {
+                            stringResource(R.string.home_parent_scope_badge)
+                        } else {
+                            stringResource(R.string.working_in, categoriaEtiqueta)
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -212,6 +241,27 @@ fun InicioScreen(
                         textAlign = TextAlign.Center,
                     )
                 }
+            }
+            if (vistaPadreEnNube && parentPortadaSelectorOpciones.size > 1) {
+                InicioParentPortadaSelector(
+                    opciones = parentPortadaSelectorOpciones,
+                    remoteIdSeleccionado = parentPortadaJugadorRemoteIdSeleccionado,
+                    onRemoteIdChange = onParentPortadaJugadorRemoteIdChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 2.dp),
+                )
+            }
+            if (vistaPadreEnNube) {
+                Text(
+                    stringResource(R.string.home_parent_quick_hint_padres),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
         if (atajosVisibles.isNotEmpty()) {
@@ -273,6 +323,150 @@ fun InicioScreen(
             )
         } else {
             LaunchedEffect(v) { imageViewer = null }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InicioParentPortadaSelector(
+    opciones: List<InicioPadrePortadaOpcion>,
+    remoteIdSeleccionado: String?,
+    onRemoteIdChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val seleccionActual = opciones.firstOrNull { op ->
+        op.jugadorRemoteId.equals(remoteIdSeleccionado, ignoreCase = true)
+    } ?: opciones.first()
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier.semantics {
+            contentDescription = context.getString(R.string.home_parent_portada_dropdown_cd)
+        },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                stringResource(R.string.home_parent_portada_label),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                shadowElevation = 0.dp,
+                modifier = Modifier
+                    .weight(1f)
+                    .menuAnchor(
+                        type = MenuAnchorType.PrimaryNotEditable,
+                        enabled = opciones.size > 1,
+                    ),
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f).padding(end = 4.dp),
+                    ) {
+                        val fotoModel = coilFotoJugadorModel(
+                            context,
+                            seleccionActual.fotoUrlSupabase,
+                            seleccionActual.fotoRutaAbsoluta,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (fotoModel != null) {
+                                AsyncImage(
+                                    model = fotoModel,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Text(
+                            seleccionActual.nombre,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                }
+            }
+        }
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            opciones.forEach { op ->
+                val foto = coilFotoJugadorModel(context, op.fotoUrlSupabase, op.fotoRutaAbsoluta)
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            op.nombre,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    onClick = {
+                        onRemoteIdChange(op.jugadorRemoteId)
+                        expanded = false
+                    },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (foto != null) {
+                                AsyncImage(
+                                    model = foto,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    },
+                )
+            }
         }
     }
 }

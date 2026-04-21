@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.ui.parents.components.ParentsInboxMessageCard
 import com.escuelafutbol.academia.ui.parents.components.ParentsLinkChildPanel
@@ -75,8 +77,7 @@ fun ParentsScreen(
     }
     val moneyFmt = remember { java.text.NumberFormat.getCurrencyInstance(Locale.getDefault()) }
 
-    val contenidoFlow = remember { viewModel.contenidoSegunMembresia() }
-    val contenido by contenidoFlow.collectAsState(initial = ParentsTabContent.StaffComunicaciones)
+    val contenido by viewModel.parentsTabContent.collectAsState()
     val mensajesState by viewModel.mensajesNube.collectAsState()
     val enviandoMensaje by viewModel.enviandoMensaje.collectAsState()
 
@@ -89,19 +90,24 @@ fun ParentsScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {},
+        /** El `Scaffold` principal (`AcademiaRoot`) ya aplica insets; sin esto se duplica el hueco inferior (y aire extra arriba). */
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .padding(horizontal = 12.dp, vertical = 0.dp),
         ) {
             Text(
-                stringResource(R.string.tab_parents),
+                stringResource(R.string.tab_parents).uppercase(Locale.ROOT),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 4.dp),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 1.dp),
             )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (val c = contenido) {
@@ -149,6 +155,11 @@ fun ParentsScreen(
                 )
             }
             is ParentsTabContent.PadreConHijos -> {
+                LaunchedEffect(remoteAcademiaId, c.hijos.map { it.jugadorLocalId }) {
+                    if (!remoteAcademiaId.isNullOrBlank() && c.hijos.isNotEmpty()) {
+                        viewModel.refrescarRendimientoCompetenciasPadre()
+                    }
+                }
                 ParentsPadreConHijosContent(
                     modifier = Modifier.fillMaxSize(),
                     viewModel = viewModel,

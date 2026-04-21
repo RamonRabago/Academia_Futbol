@@ -21,6 +21,11 @@ data class AnotadorMarcadorLinea(
     @SerialName("jugador_remote_id") val jugadorRemoteId: String? = null,
     @SerialName("nombre_mostrado") val nombreMostrado: String,
     val cantidad: Int = 1,
+    /**
+     * URL pública de foto al guardar el resultado (p. ej. Storage). Permite que cuentas **padre**
+     * muestren miniaturas sin tener la fila completa del jugador en Room (RLS solo devuelve hijos vinculados).
+     */
+    @SerialName("foto_url") val fotoUrl: String? = null,
 )
 
 object DetalleMarcadorJsonCodec {

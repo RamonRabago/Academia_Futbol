@@ -3,7 +3,10 @@ package com.escuelafutbol.academia.ui.competencias
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
@@ -29,13 +33,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Switch
@@ -69,6 +71,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -77,6 +80,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.ripple
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.rememberDatePickerState
@@ -100,6 +104,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -111,7 +117,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -122,8 +130,13 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.escuelafutbol.academia.R
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Jugador
+import com.escuelafutbol.academia.data.local.model.normalizarClaveCategoriaNombre
+import com.escuelafutbol.academia.ui.util.coilFotoJugadorModel
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.data.remote.dto.AnotadorMarcadorLinea
 import com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaPartidoRow
@@ -140,7 +153,6 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val RUTA_LISTA = "lista"
@@ -161,6 +173,84 @@ private fun partidoResultadoVisual(p: AcademiaCompetenciaPartidoRow): PartidoRes
         a > b -> PartidoResultadoVisual.Victoria
         a < b -> PartidoResultadoVisual.Derrota
         else -> PartidoResultadoVisual.Empate
+    }
+}
+
+private data class PartidoTarjetaResultadoEstilo(
+    val anchoBarra: Dp,
+    val colorBarra: Color,
+    val colorBorde: Color,
+    val colorFondo: Color,
+    val colorMarcador: Color,
+)
+
+@Composable
+private fun partidoTarjetaResultadoEstilo(rv: PartidoResultadoVisual): PartidoTarjetaResultadoEstilo {
+    val dark = isSystemInDarkTheme()
+    val scheme = MaterialTheme.colorScheme
+    return when (rv) {
+        PartidoResultadoVisual.Victoria ->
+            if (!dark) {
+                PartidoTarjetaResultadoEstilo(
+                    anchoBarra = 5.dp,
+                    colorBarra = Color(0xFF2E7D32),
+                    colorBorde = Color(0xFF2E7D32).copy(alpha = 0.42f),
+                    colorFondo = Color(0xFFE8F5E9).copy(alpha = 0.55f),
+                    colorMarcador = Color(0xFF1B5E20),
+                )
+            } else {
+                PartidoTarjetaResultadoEstilo(
+                    anchoBarra = 5.dp,
+                    colorBarra = Color(0xFF66BB6A),
+                    colorBorde = Color(0xFF66BB6A).copy(alpha = 0.45f),
+                    colorFondo = Color(0xFF1B3D2F).copy(alpha = 0.42f),
+                    colorMarcador = Color(0xFFC8E6C9),
+                )
+            }
+        PartidoResultadoVisual.Derrota ->
+            if (!dark) {
+                PartidoTarjetaResultadoEstilo(
+                    anchoBarra = 5.dp,
+                    colorBarra = Color(0xFFC62828),
+                    colorBorde = Color(0xFFC62828).copy(alpha = 0.42f),
+                    colorFondo = Color(0xFFFFEBEE).copy(alpha = 0.5f),
+                    colorMarcador = Color(0xFFB71C1C),
+                )
+            } else {
+                PartidoTarjetaResultadoEstilo(
+                    anchoBarra = 5.dp,
+                    colorBarra = Color(0xFFEF5350),
+                    colorBorde = Color(0xFFEF5350).copy(alpha = 0.45f),
+                    colorFondo = Color(0xFF4A1C1C).copy(alpha = 0.38f),
+                    colorMarcador = Color(0xFFFFCDD2),
+                )
+            }
+        PartidoResultadoVisual.Empate ->
+            if (!dark) {
+                PartidoTarjetaResultadoEstilo(
+                    anchoBarra = 5.dp,
+                    colorBarra = Color(0xFF546E7A),
+                    colorBorde = Color(0xFF78909C).copy(alpha = 0.5f),
+                    colorFondo = Color(0xFFECEFF1).copy(alpha = 0.65f),
+                    colorMarcador = Color(0xFF455A64),
+                )
+            } else {
+                PartidoTarjetaResultadoEstilo(
+                    anchoBarra = 5.dp,
+                    colorBarra = Color(0xFF90A4AE),
+                    colorBorde = Color(0xFF90A4AE).copy(alpha = 0.45f),
+                    colorFondo = Color(0xFF37474F).copy(alpha = 0.35f),
+                    colorMarcador = Color(0xFFCFD8DC),
+                )
+            }
+        PartidoResultadoVisual.Pendiente ->
+            PartidoTarjetaResultadoEstilo(
+                anchoBarra = 4.dp,
+                colorBarra = scheme.outline.copy(alpha = if (dark) 0.65f else 0.55f),
+                colorBorde = scheme.outlineVariant,
+                colorFondo = scheme.surface,
+                colorMarcador = scheme.onSurfaceVariant,
+            )
     }
 }
 
@@ -216,7 +306,16 @@ private fun CompetenciasListaScaffold(
     onAbrirCompetencia: (String) -> Unit,
 ) {
     val ui by viewModel.listaUi.collectAsState()
+    val categoriasHijo by viewModel.categoriasHijoPadre.collectAsState()
+    val filtroLocalPadre by viewModel.filtroLocalPadre.collectAsState()
+    val vinculosPadreRemotos by viewModel.vinculosPadreJugadorRemoteIds.collectAsState()
     var dialogoNueva by remember { mutableStateOf(false) }
+
+    LaunchedEffect(padreSoloLectura) {
+        if (padreSoloLectura) {
+            viewModel.refrescarAmbitoPadreCompetencias()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -257,6 +356,29 @@ private fun CompetenciasListaScaffold(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
+            if (padreSoloLectura && categoriasHijo.size > 1) {
+                val chipScroll = rememberScrollState()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(chipScroll)
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = filtroLocalPadre == null,
+                        onClick = { viewModel.setFiltroLocalPadreCategoria(null) },
+                        label = { Text(stringResource(R.string.competitions_parent_filter_all)) },
+                    )
+                    categoriasHijo.forEach { nombreCat ->
+                        FilterChip(
+                            selected = filtroLocalPadre == nombreCat,
+                            onClick = { viewModel.setFiltroLocalPadreCategoria(nombreCat) },
+                            label = { Text(nombreCat) },
+                        )
+                    }
+                }
+            }
             if (ui.error != null) {
                 Text(ui.error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
@@ -267,8 +389,17 @@ private fun CompetenciasListaScaffold(
                         .padding(24.dp),
                 )
             } else if (ui.items.isEmpty()) {
+                val vacioPadre = padreSoloLectura && categoriasHijo.isEmpty()
+                val msg = when {
+                    vacioPadre && vinculosPadreRemotos.isEmpty() ->
+                        stringResource(R.string.competitions_parent_empty_no_cloud_links)
+                    vacioPadre ->
+                        stringResource(R.string.competitions_parent_empty_sync_local)
+                    padreSoloLectura -> stringResource(R.string.competitions_parent_empty_no_matches)
+                    else -> stringResource(R.string.competitions_empty)
+                }
                 Text(
-                    stringResource(R.string.competitions_empty),
+                    msg,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 24.dp),
@@ -291,6 +422,17 @@ private fun CompetenciasListaScaffold(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
+                                if (padreSoloLectura && row.categoriasRelacionadas.size > 1) {
+                                    Text(
+                                        stringResource(
+                                            R.string.competitions_parent_categories_in_row,
+                                            row.categoriasRelacionadas.joinToString(" · "),
+                                        ),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                }
                                 row.competencia.temporada?.takeIf { it.isNotBlank() }?.let { t ->
                                     Text(
                                         stringResource(R.string.competitions_row_season, t),
@@ -504,6 +646,7 @@ private fun CompetenciaDetalleScaffold(
     onBack: () -> Unit,
 ) {
     val ui by viewModel.detalleUi.collectAsState()
+    val hijosPadre by viewModel.hijosPadreVinculados.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     var partidoResultado by remember { mutableStateOf<com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaPartidoRow?>(null) }
     val tabs = listOf(
@@ -558,6 +701,24 @@ private fun CompetenciaDetalleScaffold(
                     }
                     HorizontalDivider()
                 }
+                val detallePadreSinContenidoFiltrado = padreSoloLectura &&
+                    ui.competencia != null &&
+                    !ui.cargando &&
+                    ui.error == null &&
+                    ui.inscripciones.isEmpty()
+                if (detallePadreSinContenidoFiltrado) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                    ) {
+                        Text(
+                            stringResource(R.string.competitions_parent_detail_empty_filtered),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        )
+                    }
+                    HorizontalDivider()
+                }
                 when (tab) {
                     0 -> TabPartidos(
                         competenciaId = competenciaId,
@@ -572,6 +733,8 @@ private fun CompetenciaDetalleScaffold(
                         ui = ui,
                         viewModel = viewModel,
                         config = config,
+                        padreSoloLectura = padreSoloLectura,
+                        hijosPadreVinculados = hijosPadre,
                     )
                 }
             }
@@ -599,10 +762,16 @@ private fun CompetenciaDetalleScaffold(
     }
 }
 
+private fun jugadorRemoteIdCoincide(a: String?, b: String?): Boolean {
+    val x = a?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+    val y = b?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+    return x.equals(y, ignoreCase = true)
+}
+
 private fun jugadorParaLineaMarcador(jugadores: List<Jugador>, a: AnotadorMarcadorLinea): Jugador? {
     val rid = a.jugadorRemoteId?.trim()?.takeIf { it.isNotEmpty() }
     if (rid != null) {
-        jugadores.find { it.remoteId == rid }?.let { return it }
+        jugadores.find { j -> jugadorRemoteIdCoincide(j.remoteId, rid) }?.let { return it }
     }
     val nom = a.nombreMostrado.trim()
     if (nom.isEmpty()) return null
@@ -610,80 +779,150 @@ private fun jugadorParaLineaMarcador(jugadores: List<Jugador>, a: AnotadorMarcad
 }
 
 @Composable
-private fun FilaAnotadorListaPartidoAnimada(
-    index: Int,
-    anotador: AnotadorMarcadorLinea,
+private fun PartidoEstadoChip(estadoResuelto: String) {
+    val norm = estadoResuelto.trim().lowercase(Locale.ROOT)
+    val dark = isSystemInDarkTheme()
+    val scheme = MaterialTheme.colorScheme
+    val (bg, fg) = when (norm) {
+        CompetenciaPartidoEstado.JUGADO ->
+            if (!dark) Color(0xFFE8F5E9) to Color(0xFF1B5E20)
+            else Color(0xFF1B3D2F) to Color(0xFF81C784)
+        CompetenciaPartidoEstado.PROGRAMADO ->
+            if (!dark) Color(0xFFFFF8E1) to Color(0xFFE65100)
+            else Color(0xFF4A3F00) to Color(0xFFFFE082)
+        CompetenciaPartidoEstado.CANCELADO ->
+            if (!dark) Color(0xFFFFEBEE) to Color(0xFFC62828)
+            else Color(0xFF4A1C1C) to Color(0xFFFFCDD2)
+        CompetenciaPartidoEstado.POSPUESTO ->
+            scheme.surfaceVariant to scheme.onSurfaceVariant
+        else ->
+            scheme.secondaryContainer to scheme.onSecondaryContainer
+    }
+    val label = when (norm) {
+        CompetenciaPartidoEstado.JUGADO -> stringResource(R.string.competitions_match_status_chip_played)
+        CompetenciaPartidoEstado.PROGRAMADO -> stringResource(R.string.competitions_match_status_chip_scheduled)
+        CompetenciaPartidoEstado.CANCELADO -> stringResource(R.string.competitions_match_status_chip_cancelled)
+        CompetenciaPartidoEstado.POSPUESTO -> stringResource(R.string.competitions_match_status_chip_postponed)
+        else ->
+            estadoResuelto.replaceFirstChar { ch ->
+                if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+            }
+    }
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(10.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = fg,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun AvatarAnotadorSinFotoPlaceholder() {
+    val cd = stringResource(R.string.competitions_scorer_list_avatar_none_cd)
+    Surface(
+        modifier = Modifier.size(40.dp),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)),
+    ) {
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Person,
+                contentDescription = cd,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilaAnotadorPartidoTarjeta(
     jugadorResuelto: Jugador?,
+    anotador: AnotadorMarcadorLinea,
     unidadSingular: String,
     unidadPlural: String,
 ) {
     val context = LocalContext.current
-    var mostrar by remember(index, anotador.nombreMostrado, anotador.cantidad) { mutableStateOf(false) }
-    LaunchedEffect(index, anotador.nombreMostrado, anotador.cantidad) {
-        delay(index * 72L)
-        mostrar = true
-    }
+    val fallbackNombre = stringResource(R.string.competitions_scorer_name_unlisted)
+    val nombreLista = anotador.nombreMostrado.trim()
+        .ifBlank { jugadorResuelto?.nombre?.trim().orEmpty() }
+        .ifBlank { fallbackNombre }
     val unidad = if (anotador.cantidad == 1) unidadSingular else unidadPlural
-    AnimatedVisibility(
-        visible = mostrar,
-        enter = fadeIn(animationSpec = tween(300)) +
-            slideInVertically(
-                animationSpec = tween(320, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 5 },
-            ),
+    val fotoModel = remember(
+        anotador.fotoUrl,
+        anotador.jugadorRemoteId,
+        jugadorResuelto?.id,
+        jugadorResuelto?.fotoUrlSupabase,
+        jugadorResuelto?.fotoRutaAbsoluta,
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.SportsSoccer,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            val fotoModel = jugadorResuelto?.coilFotoModel(context)
-            if (fotoModel != null) {
-                AsyncImage(
-                    model = fotoModel,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Outlined.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+        coilFotoJugadorModel(
+            context,
+            anotador.fotoUrl?.trim()?.takeIf { it.isNotEmpty() } ?: jugadorResuelto?.fotoUrlSupabase,
+            jugadorResuelto?.fotoRutaAbsoluta,
+        )
+    }
+    val avatarModifier = Modifier
+        .size(40.dp)
+        .clip(CircleShape)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (fotoModel != null) {
+            SubcomposeAsyncImage(
+                model = fotoModel,
+                contentDescription = nombreLista,
+                modifier = avatarModifier,
+                contentScale = ContentScale.Crop,
+            ) {
+                when (painter.state) {
+                    is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+                    else -> AvatarAnotadorSinFotoPlaceholder()
                 }
             }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = anotador.nombreMostrado.trim(),
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${anotador.cantidad} $unidad",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+        } else {
+            AvatarAnotadorSinFotoPlaceholder()
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = nombreLista,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Column(
+            modifier = Modifier
+                .widthIn(min = 56.dp)
+                .wrapContentWidth(Alignment.End),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = anotador.cantidad.toString(),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.End,
+            )
+            Text(
+                text = unidad,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+            )
         }
     }
 }
@@ -726,20 +965,26 @@ private fun TabPartidos(
             )
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(ui.partidos, key = { it.id }) { p ->
                     val detalleMarcador = DetalleMarcadorJsonCodec.decodeOrNull(p.detalleMarcadorJson)
                     val anotadores = detalleMarcador?.anotadores.orEmpty().filter { a ->
-                        a.nombreMostrado.isNotBlank() && a.cantidad > 0
+                        if (a.cantidad <= 0) return@filter false
+                        val nombreOk = a.nombreMostrado.trim().isNotEmpty()
+                        val ridOk = !a.jugadorRemoteId.isNullOrBlank()
+                        nombreOk || ridOk
                     }
                     val puedeEditar = viewModel.puedeAgregarInscripcionOPartido(config)
                     val exp = expandedPartidoId == p.id
                     var jugadoresCat by remember(p.id) { mutableStateOf<List<Jugador>>(emptyList()) }
-                    LaunchedEffect(exp, p.categoriaNombre) {
+                    LaunchedEffect(exp, p.categoriaNombre, p.id, p.detalleMarcadorJson) {
                         if (exp) {
-                            jugadoresCat = viewModel.jugadoresParaCategoria(p.categoriaNombre)
+                            jugadoresCat = viewModel.jugadoresParaAnotadoresPartido(
+                                p.categoriaNombre,
+                                anotadores,
+                            )
                         }
                     }
                     val toggleExpand = {
@@ -747,30 +992,7 @@ private fun TabPartidos(
                     }
                     val rv = partidoResultadoVisual(p)
                     val scheme = MaterialTheme.colorScheme
-                    val borderColor = when (rv) {
-                        PartidoResultadoVisual.Victoria -> scheme.primary.copy(alpha = 0.55f)
-                        PartidoResultadoVisual.Derrota -> scheme.error.copy(alpha = 0.5f)
-                        PartidoResultadoVisual.Empate -> scheme.tertiary.copy(alpha = 0.5f)
-                        PartidoResultadoVisual.Pendiente -> scheme.outlineVariant
-                    }
-                    val containerColor = when (rv) {
-                        PartidoResultadoVisual.Victoria -> scheme.primaryContainer.copy(alpha = 0.28f)
-                        PartidoResultadoVisual.Derrota -> scheme.errorContainer.copy(alpha = 0.28f)
-                        PartidoResultadoVisual.Empate -> scheme.tertiaryContainer.copy(alpha = 0.32f)
-                        PartidoResultadoVisual.Pendiente -> scheme.surface
-                    }
-                    val barColor = when (rv) {
-                        PartidoResultadoVisual.Victoria -> scheme.primary
-                        PartidoResultadoVisual.Derrota -> scheme.error
-                        PartidoResultadoVisual.Empate -> scheme.tertiary
-                        PartidoResultadoVisual.Pendiente -> scheme.surfaceVariant.copy(alpha = 0f)
-                    }
-                    val marcadorTint = when (rv) {
-                        PartidoResultadoVisual.Victoria -> scheme.primary
-                        PartidoResultadoVisual.Derrota -> scheme.error
-                        PartidoResultadoVisual.Empate -> scheme.tertiary
-                        PartidoResultadoVisual.Pendiente -> scheme.onSurface
-                    }
+                    val estiloTarjeta = partidoTarjetaResultadoEstilo(rv)
                     val iconoResultado = when (rv) {
                         PartidoResultadoVisual.Victoria -> Icons.Default.CheckCircle
                         PartidoResultadoVisual.Derrota -> Icons.Default.Close
@@ -783,10 +1005,22 @@ private fun TabPartidos(
                         PartidoResultadoVisual.Empate -> stringResource(R.string.competitions_match_result_draw_cd)
                         PartidoResultadoVisual.Pendiente -> ""
                     }
+                    val sumaGolesAnotadores = anotadores.sumOf { it.cantidad }
+                    val expandInteraction = remember(p.id) { MutableInteractionSource() }
                     OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        border = BorderStroke(1.dp, borderColor),
-                        colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable(
+                                interactionSource = expandInteraction,
+                                indication = ripple(bounded = true),
+                                onClickLabel = stringResource(R.string.competitions_match_toggle_scorers_cd),
+                                role = Role.Button,
+                                onClick = toggleExpand,
+                            ),
+                        border = BorderStroke(1.dp, estiloTarjeta.colorBorde),
+                        colors = CardDefaults.outlinedCardColors(containerColor = estiloTarjeta.colorFondo),
+                        shape = RoundedCornerShape(16.dp),
                     ) {
                         Row(
                             Modifier
@@ -794,83 +1028,45 @@ private fun TabPartidos(
                                 .height(IntrinsicSize.Min),
                             verticalAlignment = Alignment.Top,
                         ) {
-                            if (rv != PartidoResultadoVisual.Pendiente) {
-                                Box(
-                                    Modifier
-                                        .width(5.dp)
-                                        .fillMaxHeight()
-                                        .background(
-                                            color = barColor,
-                                            shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
-                                        ),
-                                )
-                            }
+                            Box(
+                                Modifier
+                                    .width(estiloTarjeta.anchoBarra)
+                                    .fillMaxHeight()
+                                    .background(
+                                        color = estiloTarjeta.colorBarra,
+                                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                                    ),
+                            )
                             Column(
                                 Modifier
                                     .weight(1f)
-                                    .padding(12.dp)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
                                     .animateContentSize(animationSpec = tween(280)),
                             ) {
                                 Row(
                                     Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    verticalAlignment = Alignment.Top,
                                 ) {
-                                    Row(
-                                        Modifier
-                                            .weight(1f)
-                                            .heightIn(min = 48.dp)
-                                            .clickable(
-                                                onClickLabel = stringResource(R.string.competitions_match_toggle_scorers_cd),
-                                            ) { toggleExpand() },
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(
-                                                stringResource(
-                                                    R.string.competitions_match_row_title,
-                                                    p.jornada,
-                                                    p.fecha,
-                                                    p.rival.ifBlank { "—" },
-                                                ),
-                                                style = MaterialTheme.typography.titleSmall,
-                                            )
-                                            val marcador = if (p.jugado && p.scorePropio != null && p.scoreRival != null) {
-                                                "${p.scorePropio} – ${p.scoreRival}"
-                                            } else {
-                                                stringResource(R.string.competitions_match_pending)
-                                            }
-                                            if (p.jugado && p.scorePropio != null && p.scoreRival != null && iconoResultado != null) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(top = 4.dp),
-                                                ) {
-                                                    Icon(
-                                                        imageVector = iconoResultado,
-                                                        contentDescription = descripcionResultado,
-                                                        tint = marcadorTint,
-                                                        modifier = Modifier.size(26.dp),
-                                                    )
-                                                    Spacer(Modifier.width(8.dp))
-                                                    Text(
-                                                        marcador,
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = marcadorTint,
-                                                    )
-                                                }
-                                            } else {
-                                                Text(
-                                                    marcador,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = scheme.onSurfaceVariant,
-                                                    modifier = Modifier.padding(top = 4.dp),
-                                                )
-                                            }
-                                        }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(
+                                                R.string.competitions_match_header_one_line,
+                                                p.jornada,
+                                                p.rival.ifBlank { "—" },
+                                                p.fecha,
+                                            ),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = scheme.onSurface,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    IconButton(onClick = toggleExpand) {
                                         Icon(
                                             imageVector = if (exp) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            contentDescription = stringResource(R.string.competitions_match_toggle_scorers_cd),
+                                            tint = MaterialTheme.colorScheme.primary,
                                         )
                                     }
                                     if (puedeEditar) {
@@ -882,6 +1078,60 @@ private fun TabPartidos(
                                         }
                                     }
                                 }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                val marcadorTexto = if (p.jugado && p.scorePropio != null && p.scoreRival != null) {
+                                    "${p.scorePropio} – ${p.scoreRival}"
+                                } else {
+                                    stringResource(R.string.competitions_match_pending)
+                                }
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (p.jugado && p.scorePropio != null && p.scoreRival != null && iconoResultado != null) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
+                                        ) {
+                                            Icon(
+                                                imageVector = iconoResultado,
+                                                contentDescription = descripcionResultado,
+                                                tint = estiloTarjeta.colorMarcador,
+                                                modifier = Modifier.size(32.dp),
+                                            )
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(
+                                                text = marcadorTexto,
+                                                style = MaterialTheme.typography.headlineLarge,
+                                                fontWeight = FontWeight.Black,
+                                                color = estiloTarjeta.colorMarcador,
+                                                maxLines = 1,
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            text = marcadorTexto,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = estiloTarjeta.colorMarcador,
+                                            textAlign = TextAlign.Center,
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(6.dp))
+
+                                Box(
+                                    Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    PartidoEstadoChip(estadoPartidoMostrado(p))
+                                }
+
                                 AnimatedVisibility(
                                     visible = exp,
                                     enter = expandVertically(
@@ -896,46 +1146,64 @@ private fun TabPartidos(
                                     Column(
                                         Modifier
                                             .fillMaxWidth()
-                                            .padding(top = 10.dp),
+                                            .padding(top = 12.dp),
                                     ) {
-                                        Text(
-                                            stringResource(R.string.competitions_scorers_section),
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                        Spacer(Modifier.height(6.dp))
-                                        if (anotadores.isEmpty()) {
-                                            Text(
-                                                stringResource(R.string.competitions_match_scorers_empty_detail),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        } else {
-                                            anotadores.forEachIndexed { i, a ->
-                                                if (i > 0) {
-                                                    HorizontalDivider(
-                                                        Modifier.padding(vertical = 2.dp),
-                                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = scheme.surfaceVariant.copy(alpha = 0.45f),
+                                        ) {
+                                            Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                                                Text(
+                                                    text = stringResource(R.string.competitions_scorers_section),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = scheme.primary,
+                                                )
+                                                if (anotadores.isNotEmpty()) {
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        text = pluralStringResource(
+                                                            R.plurals.competitions_match_goals_total,
+                                                            sumaGolesAnotadores,
+                                                            sumaGolesAnotadores,
+                                                        ) + " · " + pluralStringResource(
+                                                            R.plurals.competitions_match_scoring_players,
+                                                            anotadores.size,
+                                                            anotadores.size,
+                                                        ),
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = scheme.onSurfaceVariant,
                                                     )
                                                 }
-                                                val jRes = jugadorParaLineaMarcador(jugadoresCat, a)
-                                                FilaAnotadorListaPartidoAnimada(
-                                                    index = i,
-                                                    anotador = a,
-                                                    jugadorResuelto = jRes,
-                                                    unidadSingular = ui.deporte?.etiquetaScoreSingular ?: fallbackSingular,
-                                                    unidadPlural = ui.deporte?.etiquetaScorePlural ?: fallbackPlural,
-                                                )
+                                                Spacer(Modifier.height(8.dp))
+                                                if (anotadores.isEmpty()) {
+                                                    Text(
+                                                        text = stringResource(R.string.competitions_match_scorers_empty_detail),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = scheme.onSurfaceVariant,
+                                                    )
+                                                } else {
+                                                    anotadores.forEachIndexed { i, a ->
+                                                        if (i > 0) {
+                                                            HorizontalDivider(
+                                                                Modifier.padding(vertical = 4.dp),
+                                                                color = scheme.outlineVariant,
+                                                            )
+                                                        }
+                                                        val jRes = jugadorParaLineaMarcador(jugadoresCat, a)
+                                                        FilaAnotadorPartidoTarjeta(
+                                                            jugadorResuelto = jRes,
+                                                            anotador = a,
+                                                            unidadSingular = ui.deporte?.etiquetaScoreSingular ?: fallbackSingular,
+                                                            unidadPlural = ui.deporte?.etiquetaScorePlural ?: fallbackPlural,
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
-                                Text(
-                                    stringResource(R.string.competitions_match_state, estadoPartidoMostrado(p)),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 8.dp),
-                                )
                             }
                         }
                     }
@@ -1354,12 +1622,203 @@ private fun FilaTabla(linea: LineaTablaPosicion) {
     }
 }
 
+private data class HijoGrupoInscripcionesPadre(
+    val hijo: Jugador,
+    val filas: List<com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaCategoriaRow>,
+)
+
+private fun agruparInscripcionesPadrePorHijo(
+    hijos: List<Jugador>,
+    inscripciones: List<com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaCategoriaRow>,
+): List<HijoGrupoInscripcionesPadre> =
+    hijos.mapNotNull { h ->
+        val clave = normalizarClaveCategoriaNombre(h.categoria)
+        val filas = inscripciones.filter { normalizarClaveCategoriaNombre(it.categoriaNombre) == clave }
+        if (filas.isEmpty()) null else HijoGrupoInscripcionesPadre(h, filas)
+    }
+
+@Composable
+private fun FilaDatoInscripcionPadre(
+    etiqueta: String,
+    valor: String,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    ) {
+        Text(
+            etiqueta,
+            style = MaterialTheme.typography.labelMedium,
+            color = scheme.onSurfaceVariant,
+        )
+        Text(
+            valor,
+            style = MaterialTheme.typography.bodyLarge,
+            color = scheme.onSurface,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun TarjetaInscripcionesPorHijoPadre(
+    nombreHijo: String,
+    filas: List<com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaCategoriaRow>,
+    nombreLiga: String?,
+    valorSinEquipo: String,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                nombreHijo,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.primary,
+            )
+            Text(
+                stringResource(R.string.competitions_parent_inscriptions_intro),
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            filas.forEachIndexed { idx, ins ->
+                if (idx > 0) {
+                    HorizontalDivider(
+                        Modifier.padding(vertical = 12.dp),
+                        color = scheme.outlineVariant,
+                    )
+                }
+                val equipo = ins.nombreEquipoMostrado?.trim()?.takeIf { it.isNotEmpty() } ?: valorSinEquipo
+                FilaDatoInscripcionPadre(
+                    stringResource(R.string.competitions_parent_inscriptions_team),
+                    equipo,
+                )
+                FilaDatoInscripcionPadre(
+                    stringResource(R.string.competitions_parent_inscriptions_category),
+                    ins.categoriaNombre.trim().ifEmpty { valorSinEquipo },
+                )
+                nombreLiga?.let { liga ->
+                    FilaDatoInscripcionPadre(
+                        stringResource(R.string.competitions_parent_inscriptions_league),
+                        liga,
+                    )
+                }
+                ins.grupo?.trim()?.takeIf { it.isNotEmpty() }?.let { g ->
+                    Text(
+                        stringResource(R.string.competitions_group_label, g),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabInscripcionesPadre(
+    ui: CompetenciasDetalleUi,
+    hijosVinculados: List<Jugador>,
+) {
+    val nombreLiga = ui.competencia?.nombre?.trim()?.takeIf { it.isNotEmpty() }
+    val valorSinEquipo = stringResource(R.string.competitions_parent_inscriptions_value_unknown)
+    val grupos = remember(hijosVinculados, ui.inscripciones) {
+        agruparInscripcionesPadrePorHijo(hijosVinculados, ui.inscripciones)
+    }
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (grupos.isEmpty() && ui.inscripciones.isNotEmpty()) {
+            item(key = "inscripciones_padre_sin_match") {
+                TarjetaInscripcionesPadreSinAsociacion(
+                    inscripciones = ui.inscripciones,
+                    nombreLiga = nombreLiga,
+                    valorSinEquipo = valorSinEquipo,
+                )
+            }
+        } else {
+            items(grupos, key = { it.hijo.id }) { g ->
+                TarjetaInscripcionesPorHijoPadre(
+                    nombreHijo = g.hijo.nombre.trim().ifEmpty { valorSinEquipo },
+                    filas = g.filas,
+                    nombreLiga = nombreLiga,
+                    valorSinEquipo = valorSinEquipo,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TarjetaInscripcionesPadreSinAsociacion(
+    inscripciones: List<com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaCategoriaRow>,
+    nombreLiga: String?,
+    valorSinEquipo: String,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = scheme.secondaryContainer.copy(alpha = 0.45f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                stringResource(R.string.competitions_parent_inscriptions_fallback_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.onSecondaryContainer,
+            )
+            Text(
+                stringResource(R.string.competitions_parent_inscriptions_fallback_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSecondaryContainer.copy(alpha = 0.9f),
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            inscripciones.forEachIndexed { idx, ins ->
+                if (idx > 0) {
+                    HorizontalDivider(
+                        Modifier.padding(vertical = 10.dp),
+                        color = scheme.outlineVariant,
+                    )
+                }
+                val equipo = ins.nombreEquipoMostrado?.trim()?.takeIf { it.isNotEmpty() } ?: valorSinEquipo
+                FilaDatoInscripcionPadre(
+                    stringResource(R.string.competitions_parent_inscriptions_team),
+                    equipo,
+                )
+                FilaDatoInscripcionPadre(
+                    stringResource(R.string.competitions_parent_inscriptions_category),
+                    ins.categoriaNombre.trim().ifEmpty { valorSinEquipo },
+                )
+                nombreLiga?.let { liga ->
+                    FilaDatoInscripcionPadre(
+                        stringResource(R.string.competitions_parent_inscriptions_league),
+                        liga,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TabInscripciones(
     competenciaId: String,
     ui: CompetenciasDetalleUi,
     viewModel: CompetenciasViewModel,
     config: AcademiaConfig,
+    padreSoloLectura: Boolean,
+    hijosPadreVinculados: List<Jugador>,
 ) {
     var dialogo by remember { mutableStateOf(false) }
     val categorias by viewModel.nombresCategoriasLocales.collectAsState()
@@ -1374,19 +1833,23 @@ private fun TabInscripciones(
                 Text(stringResource(R.string.competitions_add_team))
             }
         }
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(ui.inscripciones, key = { it.id }) { ins ->
-                OutlinedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(ins.categoriaNombre, style = MaterialTheme.typography.titleSmall)
-                        ins.nombreEquipoMostrado?.takeIf { it.isNotBlank() }?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall)
-                        }
-                        ins.grupo?.takeIf { it.isNotBlank() }?.let { g ->
-                            Text(stringResource(R.string.competitions_group_label, g), style = MaterialTheme.typography.labelSmall)
+        if (padreSoloLectura) {
+            TabInscripcionesPadre(ui = ui, hijosVinculados = hijosPadreVinculados)
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(ui.inscripciones, key = { it.id }) { ins ->
+                    OutlinedCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(ins.categoriaNombre, style = MaterialTheme.typography.titleSmall)
+                            ins.nombreEquipoMostrado?.takeIf { it.isNotBlank() }?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
+                            ins.grupo?.takeIf { it.isNotBlank() }?.let { g ->
+                                Text(stringResource(R.string.competitions_group_label, g), style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }
@@ -1822,6 +2285,8 @@ private data class AnotadorEditorFila(
     val nombreLibre: String,
     val cantidadTexto: String,
     val remoteIdPendiente: String? = null,
+    /** Copia de [AnotadorMarcadorLinea.fotoUrl] al cargar el partido; se reutiliza al guardar si Room no trae foto. */
+    val fotoUrlPersistida: String? = null,
 )
 
 @Composable
@@ -2001,6 +2466,7 @@ private fun PantallaResultadoPartido(
                     nombreLibre = a.nombreMostrado.trim(),
                     cantidadTexto = a.cantidad.coerceIn(1, 99).toString(),
                     remoteIdPendiente = a.jugadorRemoteId?.trim()?.takeIf { it.isNotEmpty() },
+                    fotoUrlPersistida = a.fotoUrl?.trim()?.takeIf { it.isNotEmpty() },
                 ),
             )
         }
@@ -2011,8 +2477,15 @@ private fun PantallaResultadoPartido(
             val f = filas[i]
             val rid = f.remoteIdPendiente ?: continue
             if (f.jugadorLocalId != null) continue
-            val j = jugadores.find { it.remoteId == rid } ?: continue
-            filas[i] = f.copy(jugadorLocalId = j.id, nombreLibre = j.nombre.trim(), remoteIdPendiente = null)
+            val j = jugadores.find { jr ->
+                jr.remoteId?.trim()?.equals(rid, ignoreCase = true) == true
+            } ?: continue
+            filas[i] = f.copy(
+                jugadorLocalId = j.id,
+                nombreLibre = j.nombre.trim(),
+                remoteIdPendiente = null,
+                fotoUrlPersistida = f.fotoUrlPersistida,
+            )
         }
     }
 
@@ -2046,14 +2519,16 @@ private fun PantallaResultadoPartido(
             }
             if (nombre.isEmpty()) continue
             val qty = f.cantidadTexto.toIntOrNull()?.coerceIn(1, 99) ?: 1
-            val remote = f.jugadorLocalId?.let { lid ->
-                jugadores.find { it.id == lid }?.remoteId?.trim()?.takeIf { it.isNotEmpty() }
-            }
+            val jSel = f.jugadorLocalId?.let { lid -> jugadores.find { it.id == lid } }
+            val remote = jSel?.remoteId?.trim()?.takeIf { it.isNotEmpty() }
+            val fotoUrlOut = jSel?.fotoUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }
+                ?: f.fotoUrlPersistida?.trim()?.takeIf { it.isNotEmpty() }
             lineas.add(
                 AnotadorMarcadorLinea(
                     jugadorRemoteId = remote,
                     nombreMostrado = nombre,
                     cantidad = qty,
+                    fotoUrl = fotoUrlOut,
                 ),
             )
         }
@@ -2438,6 +2913,7 @@ private fun PantallaResultadoPartido(
                                                 jugadorLocalId = j.id,
                                                 nombreLibre = j.nombre.trim(),
                                                 remoteIdPendiente = null,
+                                                fotoUrlPersistida = null,
                                             )
                                         }
                                         selectorFilaKey = null
@@ -2459,6 +2935,7 @@ private fun PantallaResultadoPartido(
                                                 jugadorLocalId = null,
                                                 nombreLibre = "",
                                                 remoteIdPendiente = null,
+                                                fotoUrlPersistida = null,
                                             )
                                         }
                                         selectorFilaKey = null

@@ -215,10 +215,12 @@ class AuthViewModel(
             } catch (_: Throwable) {
             }
             withContext(Dispatchers.IO) {
+                val app = getApplication<AcademiaApplication>()
+                app.sessionManager.onSignedOut()
                 runCatching {
-                    val app = getApplication<AcademiaApplication>()
                     if (!uid.isNullOrBlank()) {
                         app.database.sessionCategoriaRecienteDao().deleteForUser(uid)
+                        app.database.sessionParentPortadaJugadorDao().deleteForUser(uid)
                     }
                     val dao = app.database.academiaConfigDao()
                     val cfg = dao.getActual() ?: return@runCatching

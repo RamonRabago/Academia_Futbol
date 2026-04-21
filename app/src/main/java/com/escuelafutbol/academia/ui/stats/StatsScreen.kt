@@ -1,6 +1,7 @@
 package com.escuelafutbol.academia.ui.stats
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,12 +26,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import java.text.NumberFormat
 import java.util.Locale
@@ -42,6 +46,21 @@ fun StatsScreen(
     configAcademia: AcademiaConfig,
     sessionAuthUserId: String = "",
 ) {
+    if (configAcademia.esPadreMembresiaNube()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                stringResource(R.string.role_route_blocked_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(24.dp),
+            )
+        }
+        return
+    }
     val stats by viewModel.stats.collectAsState()
     val uidSesion = sessionAuthUserId.takeIf { it.isNotBlank() }
     val puedeCuotas = configAcademia.puedeVerMensualidadEnEsteDispositivo(uidSesion)

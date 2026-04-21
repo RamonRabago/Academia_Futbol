@@ -62,7 +62,35 @@ import java.util.Locale
 fun FinanzasScreen(
     viewModel: FinanzasViewModel,
     puedeVerFinanzas: Boolean,
+    /** Padre/tutor en nube: no cargar ni mostrar finanzas de staff aunque la ruta se componga por error. */
+    bloqueoPadreEnNube: Boolean = false,
 ) {
+    if (!puedeVerFinanzas || bloqueoPadreEnNube) {
+        val cuerpo = if (bloqueoPadreEnNube) {
+            stringResource(R.string.role_route_blocked_body)
+        } else {
+            stringResource(R.string.finance_no_permission_hint)
+        }
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                stringResource(R.string.tab_finances),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            Text(
+                cuerpo,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        return
+    }
+
     val state by viewModel.uiState.collectAsState()
     var lineaEditar by remember { mutableStateOf<FinanzaLineaAlumno?>(null) }
     var lineaNuevo by remember { mutableStateOf<Jugador?>(null) }
@@ -81,27 +109,6 @@ fun FinanzasScreen(
         if (a is FinanzasAlcance.SoloCategoria && a.nombre !in state.categoriasDisponibles) {
             viewModel.setAlcanceGeneral()
         }
-    }
-
-    if (!puedeVerFinanzas) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        ) {
-            Text(
-                stringResource(R.string.tab_finances),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-            Text(
-                stringResource(R.string.finance_no_permission_hint),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-        return
     }
 
     val tabTitles = buildList {

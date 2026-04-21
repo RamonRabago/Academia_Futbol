@@ -2,15 +2,69 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). Las fechas usan el calendario del equipo.
 
-## [Sin publicar]
+## [1.0.1] — 2026-04-21
+
+Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`) con firma *debug* del SDK (instalable fuera de Play Store; ver `app/build.gradle.kts`). Para **portadas de categoría en cuenta padre**, desplegar en Supabase la migración **`20260422180000_list_my_parent_categorias_portadas_rpc.sql`**.
+
+### Cambiado
+
+- **Inicio (padre en nube) — portada por categoría del hijo:** la imagen ancha usa la misma resolución que staff (`categoriaPortadaParaFiltro`) con hijos ordenados por nombre y preferencia por **`jugador_remote_id`** en **`SessionViewModel`** (`parentInicioPortadaJugadorRemoteId`, `reconciliarPortadaPadreConHijos`); reconciliación al cambiar la lista; **`HijoResumenUi.jugadorRemoteId`**; tests de lógica en `SessionParentPortadaReconciliacionTest` (`ParentInicioPortada.kt`, `ParentsViewModel`, `SessionViewModel`, `AcademiaRoot`). **Persistencia Room:** tabla **`session_parent_portada_jugador`** + DAO; migración v**32**; lectura/escritura en `SessionViewModel`; borrado en `signOut` (`AuthViewModel`).
+
+- **Inicio (padre) — selector de portada por hijo:** si hay **más de un hijo** con `remoteId`, fila compacta «Portada» + menú con avatar y nombre; llama a **`setParentInicioPortadaJugadorRemoteId`** (`InicioScreen`, `InicioPadrePortadaOpcion`, `strings.xml`, `AcademiaRoot`).
+
+- **Barra inferior (Inicio / Padres / Academia):** el fondo del tab activo usa **`primaryContainer`**, derivado del **color primario** de la academia en la paleta, en lugar del tinte sobre **`secondaryContainer`** (`AcademiaRoot`).
+
+- **Padres — densidad vertical (solo layout):** menos padding/márgenes en contenedor de pestaña, `LazyColumn`, tarjeta de hijo expandida y bloques (próximo partido, competiciones, entrenos, adeudos, hint); filas de asistencia y chips algo más compactos (`ParentsScreen`, `ParentsPadreConHijosContent`, `LinkedChildCard`, `ChildExpandedContent`, `ParentsChildPerformanceSection`, `AttendanceSection`, `DebtSection`, `ChildHeaderRow`).
+
+- **Padres — insets anidados y cabecera:** el `Scaffold` interno usa **`contentWindowInsets` vacíos** (como Recursos) para no duplicar hueco respecto al `Scaffold` de `AcademiaRoot`; título de pestaña **«PADRES»** centrado en mayúsculas; `LazyColumn` con menos **padding superior/inferior** (`ParentsScreen`, `ParentsPadreConHijosContent`).
+
+- **Copy padres (MX):** competiciones «rendimiento reciente del equipo»; «Entrenamientos» en títulos y asistencia; frase de goles con singular en ventana de 1 partido (`strings.xml`, `ParentsChildPerformanceSection`).
+
+- **Padres — tarjeta expandida (acabado visual):** tipografía y espaciado alineados entre bloques; **estados vacíos** unificados (`ParentBlockEmptyState`) en competiciones, resultados recientes, entrenos y pagos; sección **Pagos** con cabecera propia; chips de asistencia y superficies algo más suaves; hint final más ligero (`ParentsChildPerformanceSection`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `strings.xml`).
+
+- **Padres — tarjeta expandida del hijo (solo UX):** orden fijo **próximo partido → competiciones → entrenos → adeudos → desvincular**; **Próximo partido** en `ElevatedCard` con barra de acento y más jerarquía; secciones con **títulos y subtítulos**; entrenos separados de ligas; hint en contenedor suave al final (`ParentsChildPerformanceSection`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `strings.xml`).
+
+- **Padres (rol tutor en nube):** al expandir un hijo, bloque de **rendimiento**: **próximo partido** (rival, fecha, hora, sede, liga), **resumen compacto** (goles en ligas desde Supabase + **% asistencia a entrenos** desde Room), **últimos resultados del equipo** (G/E/P, máx. 5) y texto **«marcó en X de los últimos Y»**; lista de entrenos recortada a **5** fechas con leyenda de histórico. Cálculo solo lectura vía `AcademiaCompetenciasRepository` + `ParentsRendimientoComputo` (`ParentsViewModel`, `ParentsScreen`, `ParentsPadreConHijosContent`, `ParentsChildPerformanceSection`, `ChildExpandedContent`, `LinkedChildCard`, `strings.xml`).
+
+- **Competencias — Inscripciones (padre):** pestaña con **tarjetas por hijo** vinculado: nombre del alumno, texto «Tu hijo juega en:», **equipo**, **categoría** y **liga o competencia** con etiquetas claras; **staff** conserva la lista técnica anterior. Asociación hijo ↔ inscripción solo por **presentación**: categoría del `Jugador` en Room normalizada = `categoria_nombre` de la inscripción (`CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
+
+### Corregido
+
+- **Inicio (padre) — portada de categoría sin imagen:** el rol **parent** no pasa RLS de `categorias` (`academia_staff_data_access`), así que el pull dejaba Room **sin `portada_url`** aunque existiera en Supabase. Nueva RPC **`list_my_parent_categorias_portadas`** (categorías de hijos vinculados) y llamada en **`AcademiaCloudSync.pullCategorias`** junto al refuerzo del coach (`20260422180000_list_my_parent_categorias_portadas_rpc.sql`).
+
+- **Inicio (padre) — selector de portada:** `ExposedDropdownMenuBox` usaba **`DropdownMenu`** en lugar de **`ExposedDropdownMenu`**, lo que provocaba cierre al abrir el menú; se alinea con Material 3 (`ExposedDropdownMenu`, **`menuAnchor`** en la superficie ancla) (`InicioScreen`).
+
+- **Competencias — lista de anotadores (vista padre/partido):** el `Row` de cada anotador dejaba el **nombre con ancho 0** porque la columna de goles usaba `fillMaxWidth()` dentro de un `Row` sin ancho fijo; se usa **ancho ajustado al contenido** para el bloque de cantidad. **Nombre** con respaldo desde `Jugador` en Room si `nombre_mostrado` viene vacío y texto **«Anotador»** si no hay datos; el filtro de filas admite líneas con **`jugador_remote_id`** aunque falte nombre. **Foto:** `SubcomposeAsyncImage` con placeholder mientras carga o si falla la URL (`CompetenciasScreen`, `strings.xml`).
+
+- **UI por rol (padre vs staff):** Inicio sin observar categorías/jugadores globales si es padre en nube; chip «Vista familia» e indicación a «Padres»; `AcademiaScreen` sustituido por vista mínima para padre; `LaunchedEffect` redirige a Inicio si la ruta actual no pasa `rutaPrincipalVisible`; guardas en `NavHost` (Equipo, Jugadores, Asistencia, Estadísticas, Finanzas); early-return en `PlayersScreen`, `AttendanceScreen`, `StatsScreen` y `FinanzasScreen` (`AcademiaRoot`, `InicioScreen`, `AcademiaScreen`, `strings.xml`).
+
+- **Padre en nube y selector de categoría:** el selector de staff ya no tapa el `NavHost` (p. ej. pestaña Padres); «Cambiar categoría» queda deshabilitado para padre; con restricción vacía no se ofrece la tarjeta «Todas las categorías» en el selector (`AcademiaRoot`, `CategoriaSelectionScreen`).
 
 ### Añadido
+
+- **Aislamiento por sesión (auth):** `AcademiaSessionManager` + purga transaccional de tablas espejo en Room (`SessionOperationalMirrorDao`); al cerrar sesión y al detectar cambio de usuario se vacían jugadores, categorías, asistencias, staff, cobros, etc.; `AcademiaRoot` purga antes del binding, reinicia árbol con `key(uid)` y claves de `ViewModel` por usuario; padre en nube fuerza cierre del selector de categoría y restricción vacía (no «todas») (`AcademiaApplication`, `AuthViewModel`, `AcademiaRoot`).
 
 - **Competencias — resultado del partido:** registro de **anotadores** (jugador de la categoría o nombre libre + cantidad) guardado en **`detalle_marcador_json`** con modelo `DetalleMarcadorPayload` / `AnotadorMarcadorLinea` (`DetalleMarcadorMarcadorJson.kt`); resumen en la tarjeta del listado para padres; aviso si la suma de anotaciones no coincide con el marcador propio; **fecha del encuentro** editable con calendario en la pantalla de resultado (`CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
 
 - **Competencias — Fase 3 (padre en nube):** acceso **solo lectura** a la misma pantalla de competencias (menú ☰ junto a Recursos, atajo Inicio si aplica); textos de contexto y franja «solo lectura» en detalle; sin crear competencia, partido, inscripción ni editar resultado (`AcademiaNavPolicy`, `AcademiaRoot`, `CompetenciasScreen`, `strings.xml`, `FUNCIONALIDADES.md`, `COMPETENCIAS_FASE1.md`).
 
+- **Competencias (padre):** categorías desde **hijos vinculados** en Room (no categoría de sesión de staff); **filtro local** «Todas mis categorías» + **chips** si hay más de una; lista y detalle filtran inscripciones/partidos/tabla por nombre normalizado; línea de categorías en la tarjeta solo si hay **varias** categorías en la competencia (`CompetenciasViewModel`, `CompetenciasScreen`, `strings.xml`).
+
 ### Cambiado
+
+- **Competencias (padre):** vacío en lista distingue **sin vínculos en nube** vs **vínculos sin categorías en Room**; en detalle, aviso cuando el filtrado deja **sin inscripciones** aplicables (`CompetenciasViewModel`, `CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — lista de partidos:** tarjeta con **jornada / fecha vs rival / marcador destacado / chip de estado** (jugado, programado, cancelado, pospuesto) y bloque **Anotadores** con avatar (Coil o placeholder), nombre y goles alineados a la derecha (`CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — lista de partidos (refinamiento):** cabecera **jornada+rival / fecha**, marcador **centrado** más grande, chip bajo el marcador, **tarjeta entera** para expandir, resumen **goles/anotadores** con plurales y filas de anotación más limpias (`CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — partidos:** cabecera en **un solo string** (`vs %2$s`) para evitar **«vsFENIX»** por trim de espacio en recursos; tarjeta **más compacta** y colores **verde / rojo / gris** según victoria, derrota o empate (`CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — fotos de anotadores:** carga de plantilla por **categoría normalizada** y unión por **`jugador_remote_id`** (incluye hijos/padre sin roster completo); comparación de UUID **sin distinguir mayúsculas** (`CompetenciasViewModel`, `CompetenciasScreen`).
+
+- **Competencias — fotos padre / detalle marcador:** en cuenta **padre** Room solo tiene **hijos vinculados** (RLS + `pruneJugadoresNoAutorizadosParaPadre`); el detalle del marcador guarda opcionalmente **`foto_url`** por anotador para que Coil muestre miniatura **sin** depender de tener al compañero en Room; al **re-guardar** se conserva `foto_url` del JSON vía estado de edición; placeholder de lista más claro (`DetalleMarcadorMarcadorJson.kt`, `CompetenciasScreen`, `strings.xml`).
+
+- **Padres — avisos del club (padre con hijos):** módulo **`ParentsClubNoticesSection`** en `OutlinedCard` con cabecera (título, subtítulo «Mensajes de tus categorías», **actualizar con icono**), chips en `FlowRow`, carga con texto, estado vacío con icono y dos líneas, y **feed de tarjetas** dentro del mismo contenedor (`ParentsClubNoticesSection.kt`, `ParentsPadreConHijosContent.kt`, `strings.xml`).
 
 - **Padres — acción única:** solo **«Agregar hijo»** en la tarjeta resumen (icono **+**); eliminado el botón duplicado «+ Vincular hijo» del panel inferior; el panel de candidatos queda **debajo del resumen** para que el toque abra siempre el bloque correcto (`ParentsSummaryCard`, `ParentsLinkChildPanel`, `ParentsPadreConHijosContent`, `ParentsScreen`).
 
@@ -316,6 +370,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 - **`AcademiaMiembrosViewModel`:** `runCatching` sobre `setMiembroActivo` / `setMiembroRol` / `replaceMiembroCategorias` devolvía `Result<PostgrestResult>`; los callbacks esperaban `Result<Unit>` — el bloque ahora termina en `Unit` tras la llamada suspendida.
 - **Nombre que volvía a «Mi Academia»**: causado por pull que leía `academias.nombre` en Supabase sin haber subido antes el nombre editado localmente.
+
+## [Sin publicar]
+
+Cambios posteriores a la revisión **1.0.1** (2026-04-21).
 
 ---
 

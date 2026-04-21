@@ -93,7 +93,7 @@ data class AcademiaMiembroCategoriaLinkRow(
 @Serializable
 data class CoachCategoryNombreRow(val nombre: String)
 
-/** Fila devuelta por RPC `list_my_coach_categorias_portadas`. */
+/** Fila devuelta por RPC `list_my_coach_categorias_portadas` y `list_my_parent_categorias_portadas`. */
 @Serializable
 data class CoachCategoriaPortadaRow(
     @SerialName("categoria_id") val categoriaId: String? = null,

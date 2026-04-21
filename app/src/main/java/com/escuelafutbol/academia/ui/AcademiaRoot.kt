@@ -70,6 +70,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -109,6 +110,7 @@ import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.ui.academia.AcademiaConfigViewModel
 import com.escuelafutbol.academia.ui.academia.AcademiaScreen
 import com.escuelafutbol.academia.ui.academia.StaffViewModel
+import com.escuelafutbol.academia.ui.home.InicioPadrePortadaOpcion
 import com.escuelafutbol.academia.ui.home.InicioScreen
 import com.escuelafutbol.academia.ui.attendance.AttendanceScreen
 import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
@@ -121,6 +123,7 @@ import com.escuelafutbol.academia.ui.competencias.CompetenciasViewModel
 import com.escuelafutbol.academia.ui.contenido.ContenidoScreen
 import com.escuelafutbol.academia.ui.contenido.ContenidoViewModel
 import com.escuelafutbol.academia.ui.parents.ParentsScreen
+import com.escuelafutbol.academia.ui.parents.ParentsTabContent
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
 import com.escuelafutbol.academia.ui.players.PlayersScreen
 import com.escuelafutbol.academia.ui.players.PlayersViewModel
@@ -141,6 +144,8 @@ import com.escuelafutbol.academia.ui.auth.isPasswordRecoverySession
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import com.escuelafutbol.academia.data.local.model.cloudCoachCategoriasPermitidasOperacion
 import com.escuelafutbol.academia.data.local.model.categoriaPortadaParaFiltro
+import com.escuelafutbol.academia.data.local.model.categoriaPortadaParaPadreInicio
+import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.local.model.membresiaNubeAunNoResuelta
 import com.escuelafutbol.academia.push.FcmRegistration
 import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
@@ -149,6 +154,7 @@ import com.escuelafutbol.academia.ui.util.coilLogoModel
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.combine
 import androidx.compose.ui.graphics.vector.ImageVector
+import java.util.Locale
 
 private sealed class Tab(
     val route: String,
@@ -257,7 +263,8 @@ private fun AcademiaPrincipalNavigationBar(
                         .clip(RoundedCornerShape(12.dp))
                         .background(
                             if (selected) {
-                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                                /** Tinte de la marca: `primaryContainer` sale del color base elegido por la academia (`Theme.kt`). */
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
                             } else {
                                 Color.Transparent
                             },
@@ -388,16 +395,20 @@ fun AcademiaRoot(factory: ViewModelProvider.Factory) {
         }
     }
 
-    val bindingVm: AcademiaBindingViewModel = viewModel(factory = factory)
-    val bindingState by bindingVm.uiState.collectAsState()
     // Solo al cambiar de usuario. Con sesión «pegada» durante Initializing la clave no se vacía.
     val bindingRefreshKey = when (val s = authSession) {
         is SessionStatus.Authenticated ->
             s.session.user?.id?.toString().orEmpty().ifEmpty { ultimoUserIdAutenticado.orEmpty() }
         else -> ultimoUserIdAutenticado.orEmpty()
     }
+    val bindingVm: AcademiaBindingViewModel = viewModel(
+        key = "academia_binding__${bindingRefreshKey.ifEmpty { "none" }}",
+        factory = factory,
+    )
+    val bindingState by bindingVm.uiState.collectAsState()
     LaunchedEffect(bindingRefreshKey) {
         if (bindingRefreshKey.isNotEmpty()) {
+            app.sessionManager.ensureLocalDataIsolationForAuthUser(bindingRefreshKey)
             bindingVm.refresh()
         }
     }
@@ -442,12 +453,21 @@ private fun AcademiaRootAuthenticatedContent(
         key = authUserIdKey.ifEmpty { "session" },
         factory = scopedFactory,
     )
-    val configVm: AcademiaConfigViewModel = viewModel(factory = scopedFactory)
+    val configVm: AcademiaConfigViewModel = viewModel(
+        key = "academia_config_$authUserIdKey",
+        factory = scopedFactory,
+    )
     val config by configVm.config.collectAsState()
     val enPrincipal by sessionVm.enMenuPrincipal.collectAsState()
     val filtroCategoria by sessionVm.filtroCategoria.collectAsState()
     val childFactory = remember(sessionVm) {
         AcademiaViewModelFactory(application, app.database, sessionVm)
+    }
+
+    LaunchedEffect(config.esPadreMembresiaNube(), authUserIdKey) {
+        if (config.esPadreMembresiaNube()) {
+            sessionVm.cerrarSelectorCategoria()
+        }
     }
 
     LaunchedEffect(
@@ -458,16 +478,22 @@ private fun AcademiaRootAuthenticatedContent(
         authUserIdKey,
     ) {
         val uidSesion = authUserIdKey.takeIf { it.isNotBlank() }
-        if (config.membresiaNubeAunNoResuelta(uidSesion)) {
-            sessionVm.actualizarRestriccionOperacionCoach(
-                permitidas = null,
-                esperandoMembresiaNube = true,
-            )
-        } else {
-            sessionVm.actualizarRestriccionOperacionCoach(
-                permitidas = config.cloudCoachCategoriasPermitidasOperacion(),
-                esperandoMembresiaNube = false,
-            )
+        when {
+            config.membresiaNubeAunNoResuelta(uidSesion) ->
+                sessionVm.actualizarRestriccionOperacionCoach(
+                    permitidas = null,
+                    esperandoMembresiaNube = true,
+                )
+            config.esPadreMembresiaNube() ->
+                sessionVm.actualizarRestriccionOperacionCoach(
+                    permitidas = emptySet(),
+                    esperandoMembresiaNube = false,
+                )
+            else ->
+                sessionVm.actualizarRestriccionOperacionCoach(
+                    permitidas = config.cloudCoachCategoriasPermitidasOperacion(),
+                    esperandoMembresiaNube = false,
+                )
         }
     }
 
@@ -475,17 +501,19 @@ private fun AcademiaRootAuthenticatedContent(
         colorPrimarioHex = config.temaColorPrimarioHex,
         colorSecundarioHex = config.temaColorSecundarioHex,
     ) {
-        AcademiaMainScaffold(
-            sessionVm = sessionVm,
-            config = config,
-            context = context,
-            factory = scopedFactory,
-            childFactory = childFactory,
-            filtroCategoria = filtroCategoria,
-            authVm = authVm,
-            mostrandoSelectorCategoria = !enPrincipal,
-            sessionAuthUserId = authUserIdKey,
-        )
+        key(authUserIdKey) {
+            AcademiaMainScaffold(
+                sessionVm = sessionVm,
+                config = config,
+                context = context,
+                factory = scopedFactory,
+                childFactory = childFactory,
+                filtroCategoria = filtroCategoria,
+                authVm = authVm,
+                mostrandoSelectorCategoria = !enPrincipal && !config.esPadreMembresiaNube(),
+                sessionAuthUserId = authUserIdKey,
+            )
+        }
     }
 }
 
@@ -532,16 +560,36 @@ private fun AcademiaMainScaffold(
     val currentDestination = navBackStackEntry?.destination
     val impideCambiarCategoria by sessionVm.impideVolverASeleccionCategoria.collectAsState()
 
-    val etiquetaCategoria = if (filtroCategoria == null) {
-        stringResource(R.string.category_all)
-    } else {
-        filtroCategoria!!
+    val uidSesionRol = sessionAuthUserId.takeIf { it.isNotBlank() }
+    val esPadreEnBarra = config.esPadreMembresiaNube()
+    val etiquetaCategoria = when {
+        esPadreEnBarra -> stringResource(R.string.home_parent_scope_badge)
+        filtroCategoria == null -> stringResource(R.string.category_all)
+        else -> filtroCategoria!!
+    }
+
+    LaunchedEffect(
+        currentDestination?.route,
+        currentDestination?.id,
+        config.remoteAcademiaId,
+        config.cloudMembresiaRol,
+        config.remoteAcademiaCuentaUserId,
+        uidSesionRol,
+    ) {
+        val route = currentDestination?.route ?: return@LaunchedEffect
+        if (!rutaPrincipalVisible(route, config, uidSesionRol)) {
+            navController.navigate(Tab.Inicio.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    inclusive = false
+                    saveState = false
+                }
+                launchSingleTop = true
+            }
+        }
     }
 
     val etiquetaCuentaSesion = authVm.cuentaEtiquetaVisible()
     val sessionBarAccountLabel = stringResource(R.string.session_bar_account_label)
-
-    val uidSesionRol = sessionAuthUserId.takeIf { it.isNotBlank() }
     val tabsVisibles = remember(config, uidSesionRol) {
         Tab.barraInferior(config, uidSesionRol)
     }
@@ -565,7 +613,10 @@ private fun AcademiaMainScaffold(
         }
     }
 
-    val syncVm: CloudSyncViewModel = viewModel(factory = factory)
+    val syncVm: CloudSyncViewModel = viewModel(
+        key = "cloud_sync_$sessionAuthUserId",
+        factory = factory,
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     val activityForContenido = LocalContext.current as ComponentActivity
@@ -575,6 +626,21 @@ private fun AcademiaMainScaffold(
         factory = childFactory,
     )
     val recursosNoLeidos by contenidoVmGlobal.recursosNoLeidosCount.collectAsState()
+
+    /** Misma instancia en Inicio (portada por hijo) y Padres; almacén a nivel actividad para no duplicar estado. */
+    val parentsVmShared: ParentsViewModel = viewModel(
+        viewModelStoreOwner = activityForContenido,
+        key = "padres_$sessionAuthUserId",
+        factory = childFactory,
+    )
+    LaunchedEffect(config.esPadreMembresiaNube(), config.remoteAcademiaId) {
+        if (config.esPadreMembresiaNube()) {
+            val aid = config.remoteAcademiaId?.trim()?.takeIf { it.isNotEmpty() }
+            if (aid != null) {
+                parentsVmShared.refrescarVinculosPadre()
+            }
+        }
+    }
 
     val enRecursos = currentDestination?.hierarchy?.any { it.route == Tab.Recursos.route } == true
     val cabeceraPrincipalScrollState = rememberTopAppBarState()
@@ -639,7 +705,9 @@ private fun AcademiaMainScaffold(
                             // ("scrollable with infinity max height"). Material3 ya limita y desplaza el menú.
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.change_category)) },
-                                enabled = !impideCambiarCategoria && !mostrandoSelectorCategoria,
+                                enabled = !impideCambiarCategoria &&
+                                    !mostrandoSelectorCategoria &&
+                                    !config.esPadreMembresiaNube(),
                                 onClick = {
                                     menuNavegacionExpanded = false
                                     sessionVm.volverASeleccionCategoria()
@@ -797,7 +865,10 @@ private fun AcademiaMainScaffold(
                 .semantics { contentDescription = pullRefreshCd },
         ) {
             if (mostrandoSelectorCategoria) {
-                val pickerVm: CategoriaPickerViewModel = viewModel(factory = factory)
+                val pickerVm: CategoriaPickerViewModel = viewModel(
+                    key = "categoria_picker_$sessionAuthUserId",
+                    factory = factory,
+                )
                 val categoriasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
                 val esperandoMembresia by sessionVm.esperandoMembresiaNubeParaSelector.collectAsState()
                 CategoriaSelectionScreen(
@@ -822,6 +893,10 @@ private fun AcademiaMainScaffold(
                     modifier = Modifier.fillMaxSize(),
                 ) {
             composable(Tab.Equipo.route) {
+                if (!rutaPrincipalVisible(Tab.Equipo.route, config, uidSesionRol)) {
+                    Box(Modifier.fillMaxSize())
+                    return@composable
+                }
                 EquipoHubScreen(
                     config = config,
                     uidSesion = uidSesionRol,
@@ -836,7 +911,49 @@ private fun AcademiaMainScaffold(
             }
             composable(Tab.Inicio.route) {
                 val appInicio = context.applicationContext as AcademiaApplication
-                val categoriaInicio by produceState<Categoria?>(null, filtroCategoria) {
+                val esPadreInicio = config.esPadreMembresiaNube()
+                val parentsTab by parentsVmShared.parentsTabContent.collectAsState()
+                val hijosPadre = remember(parentsTab) {
+                    (parentsTab as? ParentsTabContent.PadreConHijos)?.hijos.orEmpty()
+                }
+                val hijosPortadaPairs = remember(hijosPadre) {
+                    hijosPadre
+                        .mapNotNull { h ->
+                            val rid = h.jugadorRemoteId?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                            Triple(rid, h.categoria, h.nombre.trim().ifEmpty { "?" })
+                        }
+                        .sortedBy { it.third.lowercase(Locale.ROOT) }
+                        .map { it.first to it.second }
+                }
+                val opcionesSelectorPortadaPadre = remember(hijosPadre) {
+                    hijosPadre
+                        .mapNotNull { h ->
+                            val rid = h.jugadorRemoteId?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                            InicioPadrePortadaOpcion(
+                                jugadorRemoteId = rid,
+                                nombre = h.nombre.trim().ifEmpty { "?" },
+                                fotoUrlSupabase = h.fotoUrlSupabase,
+                                fotoRutaAbsoluta = h.fotoRutaAbsoluta,
+                            )
+                        }
+                        .sortedBy { it.nombre.lowercase(Locale.ROOT) }
+                }
+                val hijosPortadaKey = remember(hijosPortadaPairs) {
+                    hijosPortadaPairs.joinToString("\u001e") { "${it.first}|${it.second}" }
+                }
+                LaunchedEffect(hijosPortadaKey) {
+                    val refs = hijosPadre.mapNotNull { h ->
+                        val rid = h.jugadorRemoteId?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                        HijoPortadaPadreRef(jugadorRemoteId = rid, nombre = h.nombre.trim().ifEmpty { "?" })
+                    }
+                    sessionVm.reconciliarPortadaPadreConHijos(refs)
+                }
+                val parentPortadaJugadorRemoteId by sessionVm.parentInicioPortadaJugadorRemoteId.collectAsState()
+                val categoriaInicioStaff by produceState<Categoria?>(null, filtroCategoria, esPadreInicio) {
+                    if (esPadreInicio) {
+                        value = null
+                        return@produceState
+                    }
                     val nombreCat = filtroCategoria
                     if (nombreCat == null) {
                         value = null
@@ -851,6 +968,35 @@ private fun AcademiaMainScaffold(
                         categoriaPortadaParaFiltro(nombreCat, tabla, jugadores)
                     }.collect { value = it }
                 }
+                val categoriaInicioPadre by produceState<Categoria?>(
+                    null,
+                    hijosPortadaKey,
+                    parentPortadaJugadorRemoteId,
+                    esPadreInicio,
+                ) {
+                    if (!esPadreInicio) {
+                        value = null
+                        return@produceState
+                    }
+                    if (hijosPortadaPairs.isEmpty()) {
+                        value = null
+                        return@produceState
+                    }
+                    val daoCat = appInicio.database.categoriaDao()
+                    val daoJug = appInicio.database.jugadorDao()
+                    combine(
+                        daoCat.observeAllOrdered(),
+                        daoJug.observeCategorias(),
+                    ) { tabla, jugadores ->
+                        categoriaPortadaParaPadreInicio(
+                            hijosOrdenados = hijosPortadaPairs,
+                            jugadorRemoteIdPreferido = parentPortadaJugadorRemoteId,
+                            desdeTabla = tabla,
+                            desdeJugadores = jugadores,
+                        )
+                    }.collect { value = it }
+                }
+                val categoriaInicio = if (esPadreInicio) categoriaInicioPadre else categoriaInicioStaff
                 InicioScreen(
                     config = config,
                     categoriaPortada = categoriaInicio,
@@ -859,6 +1005,12 @@ private fun AcademiaMainScaffold(
                         rutaPrincipalVisible(route, config, uidSesionRol)
                     },
                     sesionEtiqueta = etiquetaCuentaSesion,
+                    vistaPadreEnNube = esPadreInicio,
+                    parentPortadaSelectorOpciones = opcionesSelectorPortadaPadre,
+                    parentPortadaJugadorRemoteIdSeleccionado = parentPortadaJugadorRemoteId,
+                    onParentPortadaJugadorRemoteIdChange = { rid ->
+                        sessionVm.setParentInicioPortadaJugadorRemoteId(rid)
+                    },
                     onNavigate = { route ->
                         navController.navigate(route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -869,8 +1021,18 @@ private fun AcademiaMainScaffold(
                 )
             }
             composable(Tab.Jugadores.route) {
-                val vm: PlayersViewModel = viewModel(factory = childFactory)
-                val cfgVm: AcademiaConfigViewModel = viewModel(factory = factory)
+                if (!rutaPrincipalVisible(Tab.Jugadores.route, config, uidSesionRol)) {
+                    Box(Modifier.fillMaxSize())
+                    return@composable
+                }
+                val vm: PlayersViewModel = viewModel(
+                    key = "jugadores_$sessionAuthUserId",
+                    factory = childFactory,
+                )
+                val cfgVm: AcademiaConfigViewModel = viewModel(
+                    key = "academia_config_tab_jugadores_$sessionAuthUserId",
+                    factory = factory,
+                )
                 val cfg by cfgVm.config.collectAsState()
                 PlayersScreen(
                     viewModel = vm,
@@ -881,11 +1043,29 @@ private fun AcademiaMainScaffold(
                 )
             }
             composable(Tab.Asistencia.route) {
-                val vm: AttendanceViewModel = viewModel(factory = childFactory)
-                AttendanceScreen(vm, filtroCategoria)
+                if (!rutaPrincipalVisible(Tab.Asistencia.route, config, uidSesionRol)) {
+                    Box(Modifier.fillMaxSize())
+                    return@composable
+                }
+                val vm: AttendanceViewModel = viewModel(
+                    key = "asistencia_$sessionAuthUserId",
+                    factory = childFactory,
+                )
+                AttendanceScreen(
+                    viewModel = vm,
+                    categoriaFiltro = filtroCategoria,
+                    configAcademia = config,
+                )
             }
             composable(Tab.Estadisticas.route) {
-                val vm: StatsViewModel = viewModel(factory = childFactory)
+                if (!rutaPrincipalVisible(Tab.Estadisticas.route, config, uidSesionRol)) {
+                    Box(Modifier.fillMaxSize())
+                    return@composable
+                }
+                val vm: StatsViewModel = viewModel(
+                    key = "stats_$sessionAuthUserId",
+                    factory = childFactory,
+                )
                 StatsScreen(
                     viewModel = vm,
                     configAcademia = config,
@@ -907,22 +1087,35 @@ private fun AcademiaMainScaffold(
                 CompetenciasScreen(viewModel = vm, config = config)
             }
             composable(Tab.Finanzas.route) {
-                val vm: FinanzasViewModel = viewModel(factory = childFactory)
+                if (!rutaPrincipalVisible(Tab.Finanzas.route, config, uidSesionRol)) {
+                    Box(Modifier.fillMaxSize())
+                    return@composable
+                }
+                val vm: FinanzasViewModel = viewModel(
+                    key = "finanzas_$sessionAuthUserId",
+                    factory = childFactory,
+                )
                 FinanzasScreen(
                     viewModel = vm,
                     puedeVerFinanzas = config.puedeVerMensualidadEnEsteDispositivo(uidSesionRol),
+                    bloqueoPadreEnNube = config.esPadreMembresiaNube(),
                 )
             }
             composable(Tab.Padres.route) {
-                val vm: ParentsViewModel = viewModel(factory = childFactory)
                 ParentsScreen(
-                    viewModel = vm,
+                    viewModel = parentsVmShared,
                     remoteAcademiaId = config.remoteAcademiaId,
                 )
             }
             composable(Tab.Academia.route) {
-                val cfg: AcademiaConfigViewModel = viewModel(factory = factory)
-                val stf: StaffViewModel = viewModel(factory = factory)
+                val cfg: AcademiaConfigViewModel = viewModel(
+                    key = "academia_config_tab_academia_$sessionAuthUserId",
+                    factory = factory,
+                )
+                val stf: StaffViewModel = viewModel(
+                    key = "staff_$sessionAuthUserId",
+                    factory = factory,
+                )
                 AcademiaScreen(
                     configVm = cfg,
                     staffVm = stf,

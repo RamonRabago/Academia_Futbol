@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.escuelafutbol.academia.ui.parents.HijoRendimientoCompPadreUi
 import com.escuelafutbol.academia.ui.parents.HijoResumenUi
 import java.text.DateFormat
 import java.text.NumberFormat
@@ -17,6 +18,8 @@ import java.text.NumberFormat
 @Composable
 fun LinkedChildCard(
     hijo: HijoResumenUi,
+    rendimiento: HijoRendimientoCompPadreUi?,
+    rendimientoCargando: Boolean,
     expanded: Boolean,
     onExpandToggle: () -> Unit,
     moneyFmt: NumberFormat,
@@ -31,7 +34,7 @@ fun LinkedChildCard(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             ChildHeaderRow(
                 hijo = hijo,
                 expanded = expanded,
@@ -42,6 +45,8 @@ fun LinkedChildCard(
             AnimatedVisibility(visible = expanded) {
                 ChildExpandedContent(
                     hijo = hijo,
+                    rendimiento = rendimiento,
+                    rendimientoCargando = rendimientoCargando,
                     moneyFmt = moneyFmt,
                     dateFmt = dateFmt,
                     onRequestUnlink = onRequestUnlink,

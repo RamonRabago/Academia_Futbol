@@ -8,6 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.SessionCategoriaRecienteDao
+import com.escuelafutbol.academia.data.local.dao.SessionParentPortadaJugadorDao
+import com.escuelafutbol.academia.data.local.dao.SessionOperationalMirrorDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
@@ -17,6 +19,7 @@ import com.escuelafutbol.academia.data.local.dao.StaffCategoriaDao
 import com.escuelafutbol.academia.data.local.dao.StaffDao
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.SessionCategoriaReciente
+import com.escuelafutbol.academia.data.local.entity.SessionParentPortadaJugador
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.DiaEntrenamiento
 import com.escuelafutbol.academia.data.local.entity.Categoria
@@ -35,11 +38,12 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         Categoria::class,
         AcademiaConfig::class,
         SessionCategoriaReciente::class,
+        SessionParentPortadaJugador::class,
         Staff::class,
         StaffCategoria::class,
         CobroMensualAlumno::class,
     ],
-    version = 31,
+    version = 32,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -50,6 +54,8 @@ abstract class AcademiaDatabase : RoomDatabase() {
     abstract fun categoriaDao(): CategoriaDao
     abstract fun academiaConfigDao(): AcademiaConfigDao
     abstract fun sessionCategoriaRecienteDao(): SessionCategoriaRecienteDao
+    abstract fun sessionParentPortadaJugadorDao(): SessionParentPortadaJugadorDao
+    abstract fun sessionOperationalMirrorDao(): SessionOperationalMirrorDao
     abstract fun staffDao(): StaffDao
 
     abstract fun staffCategoriaDao(): StaffCategoriaDao
@@ -392,6 +398,21 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_31_32 =
+            object : Migration(31, 32) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `session_parent_portada_jugador` (
+                          `userId` TEXT NOT NULL,
+                          `jugadorRemoteId` TEXT,
+                          PRIMARY KEY(`userId`)
+                        )
+                        """.trimIndent().replace("\n", " "),
+                    )
+                }
+            }
+
         private val MIGRATION_19_20 =
             object : Migration(19, 20) {
                 override fun migrate(db: SupportSQLiteDatabase) {
@@ -461,6 +482,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_28_29,
                     MIGRATION_29_30,
                     MIGRATION_30_31,
+                    MIGRATION_31_32,
                 )
                 .build()
     }

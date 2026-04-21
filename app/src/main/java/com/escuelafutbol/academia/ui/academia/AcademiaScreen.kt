@@ -119,6 +119,7 @@ import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Staff
+import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.local.model.rolDispositivoEfectivo
 import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
 import com.escuelafutbol.academia.data.local.model.RolStaff
@@ -181,6 +182,13 @@ fun AcademiaScreen(
     onSignOut: (() -> Unit)? = null,
 ) {
     val config by configVm.config.collectAsState()
+    if (config.esPadreMembresiaNube()) {
+        AcademiaPadreNubeSimpleScreen(
+            config = config,
+            onSignOut = onSignOut,
+        )
+        return
+    }
     val staff by staffVm.staff.collectAsState()
     val rolDispositivo = config.rolDispositivoEfectivo(sessionAuthUserId.takeIf { it.isNotBlank() })
     val esPersonalClub = rolDispositivo.esPersonalClub()
@@ -2272,6 +2280,65 @@ private fun InviteRoleCodeRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+/** Academia en pestaña inferior para padre/tutor en nube: sin staff, invitaciones ni ajustes del club. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AcademiaPadreNubeSimpleScreen(
+    config: AcademiaConfig,
+    onSignOut: (() -> Unit)?,
+) {
+    val scroll = rememberScrollState()
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text(stringResource(R.string.tab_academy)) })
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(scroll)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ),
+            ) {
+                Column(
+                    Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.academy_readonly_family_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        config.nombreAcademia,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        stringResource(R.string.academy_parent_cloud_tab_intro),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onSignOut != null) {
+                OutlinedButton(
+                    onClick = onSignOut,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.auth_sign_out))
+                }
             }
         }
     }

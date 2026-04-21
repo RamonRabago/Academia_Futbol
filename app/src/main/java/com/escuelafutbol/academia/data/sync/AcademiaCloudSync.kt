@@ -809,6 +809,7 @@ class AcademiaCloudSync(
             mergeCategoriaDesdeNube(dao, row.nombre, row.id, row.portadaUrl)
         }
         pullCategoriasCoachPortadasRpc(academiaId, dao)
+        pullCategoriasParentPortadasRpc(academiaId, dao)
     }
 
     /**
@@ -819,6 +820,22 @@ class AcademiaCloudSync(
         val rpcRows = runCatching {
             val params = buildJsonObject { put("p_academia_id", academiaId) }
             client.postgrest.rpc("list_my_coach_categorias_portadas", params)
+                .decodeList<CoachCategoriaPortadaRow>()
+        }.getOrNull().orEmpty()
+        if (rpcRows.isEmpty()) return
+        for (row in rpcRows) {
+            mergeCategoriaDesdeNube(dao, row.nombre, row.categoriaId, row.portadaUrl)
+        }
+    }
+
+    /**
+     * Tutor en nube: RLS de [categorias] no incluye rol parent; esta RPC (definer) trae nombre + portada_url
+     * de las categorías de los hijos vinculados en [academia_padres_alumnos] (misma forma que el coach vía RPC).
+     */
+    private suspend fun pullCategoriasParentPortadasRpc(academiaId: String, dao: CategoriaDao) {
+        val rpcRows = runCatching {
+            val params = buildJsonObject { put("p_academia_id", academiaId) }
+            client.postgrest.rpc("list_my_parent_categorias_portadas", params)
                 .decodeList<CoachCategoriaPortadaRow>()
         }.getOrNull().orEmpty()
         if (rpcRows.isEmpty()) return

@@ -102,8 +102,8 @@ fun CategoriaSelectionScreen(
             (coincidentes + sinteticas).sortedBy { normalizarClaveCategoriaNombre(it.nombre) }
         }
     }
-    val ocultarTodasLasCategorias =
-        categoriasPermitidasCoach != null && categoriasPermitidasCoach.isNotEmpty()
+    /** Si no es null, el selector está restringido (coach con lista, coach sin categorías, o padre con conjunto vacío): no mostrar «Todas las categorías». */
+    val ocultarTodasLasCategorias = categoriasPermitidasCoach != null
     val puedeEditarCategoriasUi = config.puedeEditarCategoriasEnSelector()
     val ctx = LocalContext.current
     var dialogoNueva by remember { mutableStateOf(false) }

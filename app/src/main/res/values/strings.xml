@@ -203,6 +203,13 @@
     <string name="category_clear_cover_cd">Quitar portada de la categoría</string>
     <string name="change_category">Cambiar categoría</string>
     <string name="working_in">Categoría: %1$s</string>
+    <string name="home_parent_scope_badge">Vista familia</string>
+    <string name="home_parent_portada_label">Portada</string>
+    <string name="home_parent_portada_dropdown_cd">Elegir hijo para la portada de categoría en Inicio</string>
+    <string name="home_parent_quick_hint_padres">Gestiona hijos, asistencia y pagos en «Padres».</string>
+    <string name="role_route_blocked_title">No disponible para tu rol</string>
+    <string name="role_route_blocked_body">Esta sección es solo para el personal del club.</string>
+    <string name="academy_parent_cloud_tab_intro">Con tu rol de padre o tutor no puedes gestionar códigos de invitación, personal del club ni ajustes internos. Para tus hijos usa la pestaña «Padres».</string>
     <string name="no_players_in_category">No hay jugadores en esta categoría.</string>
     <string name="add_category">Añadir categoría</string>
     <string name="add_category_title">Nueva categoría</string>
@@ -218,6 +225,40 @@
     <string name="competitions_list_intro_parent">Competencias y partidos de la categoría seleccionada. Solo consulta: no puedes crear ni editar desde aquí.</string>
     <string name="competitions_detail_read_only_banner">Solo lectura. Los cambios los gestiona el club.</string>
     <string name="competitions_empty">No hay competencias que coincidan con el filtro actual.</string>
+    <string name="competitions_parent_filter_all">Todas mis categorías</string>
+    <string name="competitions_parent_categories_in_row">Categorías: %1$s</string>
+    <string name="competitions_parent_empty_no_cloud_links">No tienes hijos vinculados. En «Padres» puedes vincular alumnos para ver sus competencias aquí.</string>
+    <string name="competitions_parent_empty_sync_local">Tienes hijos vinculados, pero aquí aún no aparecen sus categorías. Actualiza la información con el icono de arriba o revisa la conexión.</string>
+    <string name="competitions_parent_detail_empty_filtered">No hay información disponible para las categorías de tus hijos en esta competencia.</string>
+    <string name="competitions_parent_empty_no_matches">No hay competencias en las categorías de tus hijos con el filtro actual. Prueba «Todas mis categorías» o actualiza con el icono de arriba.</string>
+    <string name="competitions_parent_inscriptions_intro">Tu hijo juega en:</string>
+    <string name="competitions_parent_inscriptions_team">Equipo</string>
+    <string name="competitions_parent_inscriptions_category">Categoría</string>
+    <string name="competitions_parent_inscriptions_league">Liga o competencia</string>
+    <string name="competitions_parent_inscriptions_value_unknown">Sin indicar</string>
+    <string name="competitions_parent_inscriptions_fallback_title">Inscripción en esta competencia</string>
+    <string name="competitions_parent_inscriptions_fallback_hint">No pudimos enlazar estos datos con un hijo en este dispositivo (p. ej. categoría distinta a la del alumno). Revisa la categoría del alumno o sincroniza.</string>
+    <string name="parent_perf_next_match_title">Próximo partido</string>
+    <string name="parent_perf_vs_rival">vs %1$s</string>
+    <string name="parent_perf_goals_label">Goles (ligas)</string>
+    <string name="parent_perf_training_pct_label">Entrenamientos</string>
+    <string name="parent_perf_training_pct_value">%1$d%%</string>
+    <string name="parent_perf_no_training_data">—</string>
+    <string name="parent_perf_recent_team_results">Últimos resultados del equipo</string>
+    <string name="parent_perf_scored_in_window">Marcó en %1$d de los últimos %2$d partidos.</string>
+    <string name="parent_perf_scored_last_yes">Marcó en el último partido.</string>
+    <string name="parent_perf_scored_last_no">No marcó en el último partido.</string>
+    <string name="parent_perf_results_legend">G = victoria · E = empate · P = derrota (tu equipo en la liga)</string>
+    <string name="parent_perf_no_comp_data">Aún no hay datos de ligas para su categoría, o no pudimos cargarlos.</string>
+    <string name="parent_perf_attendance_hist_pct">%1$d%% de asistencia a entrenamientos (histórico en este dispositivo)</string>
+    <string name="parent_section_competitions_title">Competiciones</string>
+    <string name="parent_section_competitions_subtitle">Ligas: goles de tu hijo y rendimiento reciente del equipo</string>
+    <string name="parent_section_training_title">Entrenamientos en la academia</string>
+    <string name="parent_section_training_subtitle">Asistencia a entrenamientos (datos guardados en este dispositivo)</string>
+    <string name="parent_section_payments_title">Pagos</string>
+    <string name="parent_section_payments_subtitle">Mensualidades vencidas según los registros del club</string>
+    <string name="parent_payment_none_child">Sin mensualidades vencidas para este alumno.</string>
+    <string name="parent_perf_no_recent_results">Aún no hay partidos con resultado reciente del equipo.</string>
     <string name="competitions_row_sport">Deporte: %1$s</string>
     <string name="competitions_row_season">Temporada: %1$s</string>
     <string name="competitions_dialog_new_title">Nueva competencia</string>
@@ -241,9 +282,15 @@
     <string name="competitions_detail_loading">Competencia</string>
     <string name="competitions_add_match">Registrar partido</string>
     <string name="competitions_no_matches">Aún no hay partidos registrados.</string>
-    <string name="competitions_match_row_title">Jornada %1$s · %2$s · Rival: %3$s</string>
+    <string name="competitions_match_header_round">Jornada %1$d</string>
+    <string name="competitions_match_header_date_vs">%1$s · vs %2$s</string>
+    <!-- Un solo formato con espacio literal entre «vs» y el rival (evita trim de espacio final al partir en dos Text). -->
+    <string name="competitions_match_header_one_line">Jornada %1$d · vs %2$s · %3$s</string>
+    <string name="competitions_match_status_chip_played">Jugado</string>
+    <string name="competitions_match_status_chip_scheduled">Programado</string>
+    <string name="competitions_match_status_chip_cancelled">Cancelado</string>
+    <string name="competitions_match_status_chip_postponed">Pospuesto</string>
     <string name="competitions_match_pending">Pendiente</string>
-    <string name="competitions_match_state">Estado: %1$s</string>
     <string name="competitions_match_toggle_scorers_cd">Mostrar u ocultar anotadores</string>
     <string name="competitions_match_edit_result_cd">Editar resultado del partido</string>
     <string name="competitions_match_scorers_empty_detail">No hay anotadores en el detalle de este partido.</string>
@@ -265,6 +312,7 @@
     <string name="competitions_offense_leaders_section_generic">Líderes ofensivos</string>
     <string name="competitions_offense_leaders_subtitle">Totales en partidos con anotadores coherentes con el marcador.</string>
     <string name="competitions_scorer_ball_cd">Icono de balón junto al anotador</string>
+    <string name="competitions_scorer_list_avatar_none_cd">Sin foto disponible</string>
     <string name="competitions_offense_leaders_empty">Aún no hay anotaciones individuales registradas en partidos jugados.</string>
     <string name="competitions_offense_leaders_empty_coherent_unavailable">Ningún partido jugado tiene todavía un desglose individual completo (las anotaciones suman el marcador a favor de tu equipo), así que no mostramos un ranking acumulado.</string>
     <string name="competitions_offense_leaders_empty_inconsistent_scorers">Hay al menos un partido jugado donde las anotaciones del detalle no cuadran con el marcador propio. Revisa y corrige esos partidos para habilitar el ranking acumulado.</string>
@@ -303,6 +351,7 @@
     <string name="competitions_scorer_amount">Cantidad</string>
     <string name="competitions_scorer_qty_label">Nº</string>
     <string name="competitions_scorer_name_manual">Nombre</string>
+    <string name="competitions_scorer_name_unlisted">Anotador</string>
     <string name="competitions_scorer_remove_cd">Quitar anotación</string>
     <string name="competitions_scorer_sum_hint">La suma de anotaciones (%1$d) no coincide con el marcador propio (%2$d). Puedes guardar igualmente.</string>
     <string name="competitions_scorers_fallback_label">anotaciones</string>
@@ -667,7 +716,7 @@
     <string name="parent_payment_child_owed">Subtotal de este alumno: %1$s</string>
     <string name="parent_payment_month_line">• %1$s: %2$s</string>
     <string name="parent_payment_no_deadline_hint">El club no ha configurado un día límite de pago; no se muestran avisos automáticos de adeudo.</string>
-    <string name="parent_attendance_recent">Asistencia reciente</string>
+    <string name="parent_attendance_recent">Últimos entrenamientos (hasta 5)</string>
     <string name="parent_attendance_line">%1$s · %2$s</string>
     <string name="parent_attendance_present">Presente</string>
     <string name="parent_attendance_absent">Ausente</string>
@@ -691,11 +740,23 @@
     <string name="msg_type_admin">Administrativo</string>
     <string name="msg_type_otro">Otro</string>
     <string name="parent_inbox_title">Avisos del club</string>
-    <string name="parent_inbox_subtitle">Solo verás mensajes de las categorías de tus hijos vinculados.</string>
+    <string name="parent_inbox_subtitle">Mensajes de tus categorías</string>
     <string name="parent_inbox_filter_all">Todos</string>
-    <string name="parent_inbox_empty">No hay avisos recientes.</string>
+    <string name="parent_inbox_refresh_cd">Actualizar avisos</string>
+    <string name="parent_inbox_loading">Cargando avisos…</string>
+    <string name="parent_inbox_empty_title">No hay avisos por ahora</string>
+    <string name="parent_inbox_empty_subtitle">Cuando el club publique mensajes, aparecerán aquí.</string>
     <string name="parent_inbox_updated">Lista actualizada</string>
     <string name="push_default_title">Aviso del club</string>
     <string name="push_channel_name">Avisos academia</string>
     <string name="push_channel_desc">Mensajes del cuerpo técnico y administración</string>
+
+    <plurals name="competitions_match_goals_total">
+        <item quantity="one">%d gol</item>
+        <item quantity="other">%d goles</item>
+    </plurals>
+    <plurals name="competitions_match_scoring_players">
+        <item quantity="one">%d anotador</item>
+        <item quantity="other">%d anotadores</item>
+    </plurals>
 </resources>

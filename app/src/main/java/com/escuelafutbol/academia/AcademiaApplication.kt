@@ -2,6 +2,7 @@ package com.escuelafutbol.academia
 
 import android.app.Application
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
+import com.escuelafutbol.academia.session.AcademiaSessionManager
 import com.google.firebase.FirebaseApp
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 class AcademiaApplication : Application() {
 
     val database: AcademiaDatabase by lazy { AcademiaDatabase.create(this) }
+
+    val sessionManager: AcademiaSessionManager by lazy { AcademiaSessionManager(this) }
 
     /** null si faltan `SUPABASE_URL` y `SUPABASE_ANON_KEY` en local.properties al compilar. */
     val supabaseClient: SupabaseClient? by lazy {

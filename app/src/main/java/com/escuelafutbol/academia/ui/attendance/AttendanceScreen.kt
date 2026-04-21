@@ -56,13 +56,34 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.formatearFechaAsistenciaTitulo
 import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AttendanceScreen(viewModel: AttendanceViewModel, categoriaFiltro: String?) {
+fun AttendanceScreen(
+    viewModel: AttendanceViewModel,
+    categoriaFiltro: String?,
+    configAcademia: AcademiaConfig,
+) {
+    if (configAcademia.esPadreMembresiaNube()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                stringResource(R.string.role_route_blocked_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(24.dp),
+            )
+        }
+        return
+    }
     val filas by viewModel.filas.collectAsState()
     val fechaDia by viewModel.fechaDia.collectAsState()
     val resumen by viewModel.resumenAsistencia.collectAsState()

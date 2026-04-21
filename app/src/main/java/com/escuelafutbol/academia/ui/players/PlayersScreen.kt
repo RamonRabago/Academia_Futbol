@@ -104,12 +104,14 @@ import com.escuelafutbol.academia.ui.util.formatearFechaCalendarioUtc
 import com.escuelafutbol.academia.ui.util.formatearFechaDiaLocal
 import com.escuelafutbol.academia.ui.util.formatearFechaHoraLocal
 import com.escuelafutbol.academia.R
+import androidx.compose.ui.text.style.TextAlign
 import com.escuelafutbol.academia.ui.SessionViewModel
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.rolDispositivoEfectivo
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
+import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.local.model.JugadorHistorialTipo
 import java.io.File
 import java.text.NumberFormat
@@ -214,6 +216,21 @@ fun PlayersScreen(
     configAcademia: AcademiaConfig,
     sessionAuthUserId: String = "",
 ) {
+    if (configAcademia.esPadreMembresiaNube()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                stringResource(R.string.role_route_blocked_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(24.dp),
+            )
+        }
+        return
+    }
     val uidSesion = sessionAuthUserId.takeIf { it.isNotBlank() }
     val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo(uidSesion)
     val jugadores by viewModel.jugadores.collectAsState()

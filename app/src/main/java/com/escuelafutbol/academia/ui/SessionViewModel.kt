@@ -4,12 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.data.local.AcademiaDatabase
 import com.escuelafutbol.academia.data.local.entity.SessionCategoriaReciente
+import com.escuelafutbol.academia.data.local.entity.SessionParentPortadaJugador
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Referencia mínima para reconciliar la portada de Inicio del padre (sin acoplar a Room/UI de Padres). */
+data class HijoPortadaPadreRef(
+    val jugadorRemoteId: String,
+    val nombre: String,
+)
 
 class SessionViewModel(
     private val database: AcademiaDatabase,
@@ -18,6 +26,7 @@ class SessionViewModel(
 ) : ViewModel() {
 
     private val prefsDao get() = database.sessionCategoriaRecienteDao()
+    private val portadaPadreDao get() = database.sessionParentPortadaJugadorDao()
 
     private val _filtroCategoria = MutableStateFlow<String?>(null)
     val filtroCategoria: StateFlow<String?> = _filtroCategoria.asStateFlow()
@@ -37,13 +46,25 @@ class SessionViewModel(
     val esperandoMembresiaNubeParaSelector: StateFlow<Boolean> =
         _esperandoMembresiaNubeParaSelector.asStateFlow()
 
+    /**
+     * Padre en nube: `jugador_remote_id` del hijo cuya categoría determina la portada de Inicio.
+     * Se hidrata desde Room en [init] y se persiste con [setParentInicioPortadaJugadorRemoteId] / [reconciliarPortadaPadreConHijos].
+     */
+    private val _parentInicioPortadaJugadorRemoteId = MutableStateFlow<String?>(null)
+    val parentInicioPortadaJugadorRemoteId: StateFlow<String?> =
+        _parentInicioPortadaJugadorRemoteId.asStateFlow()
+
     init {
         if (authUserId.isNotBlank()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val row = prefsDao.getForUser(authUserId)
                 val saved = row?.categoriaNombre?.trim()?.takeIf { it.isNotEmpty() }
+                val rowPortada = portadaPadreDao.getForUser(authUserId)
+                val savedPortada =
+                    normalizarJugadorRemoteIdParaPortada(rowPortada?.jugadorRemoteId)
                 withContext(Dispatchers.Main) {
                     _filtroCategoria.value = saved
+                    _parentInicioPortadaJugadorRemoteId.value = savedPortada
                 }
             }
         }
@@ -89,6 +110,37 @@ class SessionViewModel(
         _enMenuPrincipal.value = true
     }
 
+    private fun persistirPortadaPadreJugadorRemoteId(remoteId: String?) {
+        if (authUserId.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            portadaPadreDao.upsert(
+                SessionParentPortadaJugador(
+                    userId = authUserId,
+                    jugadorRemoteId = remoteId,
+                ),
+            )
+        }
+    }
+
+    fun setParentInicioPortadaJugadorRemoteId(remoteId: String?) {
+        val v = normalizarJugadorRemoteIdParaPortada(remoteId)
+        _parentInicioPortadaJugadorRemoteId.value = v
+        persistirPortadaPadreJugadorRemoteId(v)
+    }
+
+    /**
+     * Alinea [parentInicioPortadaJugadorRemoteId] con la lista actual de hijos (orden por [HijoPortadaPadreRef.nombre]).
+     * Si la selección actual no coincide con ningún hijo → primer hijo y **sustituye** el estado y la fila en Room.
+     */
+    fun reconciliarPortadaPadreConHijos(hijos: List<HijoPortadaPadreRef>) {
+        val nuevo = reconciliarPortadaPadreConHijosLogica(
+            seleccionActual = _parentInicioPortadaJugadorRemoteId.value,
+            hijos = hijos,
+        )
+        _parentInicioPortadaJugadorRemoteId.value = nuevo
+        persistirPortadaPadreJugadorRemoteId(nuevo)
+    }
+
     fun actualizarRestriccionOperacionCoach(permitidas: Set<String>?, esperandoMembresiaNube: Boolean) {
         _esperandoMembresiaNubeParaSelector.value = esperandoMembresiaNube
         _categoriasPermitidasOperacion.value = permitidas
@@ -112,4 +164,27 @@ class SessionViewModel(
             }
         }
     }
+}
+
+internal fun normalizarJugadorRemoteIdParaPortada(raw: String?): String? =
+    raw?.trim()?.takeIf { it.isNotEmpty() }
+
+/**
+ * Lógica pura de reconciliación (tests en `SessionParentPortadaReconciliacionTest`).
+ * Devuelve el `jugador_remote_id` que debe quedar tras evaluar la lista actual.
+ */
+internal fun reconciliarPortadaPadreConHijosLogica(
+    seleccionActual: String?,
+    hijos: List<HijoPortadaPadreRef>,
+): String? {
+    val sorted = hijos
+        .mapNotNull { h ->
+            val id = normalizarJugadorRemoteIdParaPortada(h.jugadorRemoteId) ?: return@mapNotNull null
+            HijoPortadaPadreRef(jugadorRemoteId = id, nombre = h.nombre.trim().ifEmpty { "?" })
+        }
+        .sortedBy { it.nombre.lowercase(Locale.ROOT) }
+    if (sorted.isEmpty()) return null
+    val cur = normalizarJugadorRemoteIdParaPortada(seleccionActual) ?: return sorted.first().jugadorRemoteId
+    val match = sorted.firstOrNull { it.jugadorRemoteId.equals(cur, ignoreCase = true) }
+    return match?.jugadorRemoteId ?: sorted.first().jugadorRemoteId
 }
