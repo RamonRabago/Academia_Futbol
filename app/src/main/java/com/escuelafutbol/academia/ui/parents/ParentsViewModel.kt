@@ -12,6 +12,7 @@ import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.remote.AcademiaMensajesCategoriaRepository
 import com.escuelafutbol.academia.data.remote.PadresAlumnosRepository
+import com.escuelafutbol.academia.data.remote.dto.AcademiaPadresAlumnoRow
 import com.escuelafutbol.academia.data.remote.dto.AcademiaMensajeCategoriaRow
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
 import com.escuelafutbol.academia.ui.util.PagoPlazoUtil
@@ -37,6 +38,8 @@ data class MesAdeudoPadreUi(val etiquetaMes: String, val saldoPendiente: Double)
 data class HijoResumenUi(
     val nombre: String,
     val categoria: String,
+    /** Id de fila en `academia_padres_alumnos` para desvincular al tutor actual; null hasta cargar vínculos. */
+    val vinculoId: String? = null,
     val ultimasAsistencias: List<LineaAsistenciaPadreUi>,
     val mesesVencidos: List<MesAdeudoPadreUi> = emptyList(),
     val totalAdeudoHijo: Double = 0.0,
@@ -112,6 +115,8 @@ class ParentsViewModel(
     private val _candidatosVinculoError = MutableStateFlow<String?>(null)
     val candidatosVinculoError: StateFlow<String?> = _candidatosVinculoError.asStateFlow()
 
+    private val _vinculosPadre = MutableStateFlow<List<AcademiaPadresAlumnoRow>>(emptyList())
+
     val categoriasParaMensajesStaff: StateFlow<List<String>> = combine(
         categoriasPermitidasOperacion,
         database.categoriaDao().observeAllOrdered(),
@@ -131,14 +136,40 @@ class ParentsViewModel(
             database.jugadorDao().observeAll(),
             database.asistenciaDao().observeAll(),
             database.cobroMensualDao().observeTodos(),
-        ) { cfgNullable: AcademiaConfig?, jugadores: List<Jugador>, asistencias: List<Asistencia>, cobros: List<CobroMensualAlumno> ->
+            _vinculosPadre,
+        ) { cfgNullable: AcademiaConfig?, jugadores: List<Jugador>, asistencias: List<Asistencia>, cobros: List<CobroMensualAlumno>, vinculos: List<AcademiaPadresAlumnoRow> ->
             val cfg = cfgNullable ?: AcademiaConfig.DEFAULT
             if (!cfg.esPadreMembresiaNube()) {
                 ParentsTabContent.StaffComunicaciones
-            } else if (jugadores.isEmpty()) {
-                ParentsTabContent.PadreSinHijos
             } else {
-                construirPadreConHijos(cfg, jugadores, asistencias, cobros)
+                // Solo alumnos vinculados a ESTE padre en la nube (evita mezclar Room del dueño en el mismo dispositivo).
+                val remotesVinculados = vinculos.map { it.jugadorId }.toSet()
+                val jugadoresHijo = jugadores.filter { j ->
+                    j.activo &&
+                        j.remoteId != null &&
+                        j.remoteId in remotesVinculados
+                }
+                if (jugadoresHijo.isEmpty()) {
+                    ParentsTabContent.PadreSinHijos
+                } else {
+                    construirPadreConHijos(cfg, jugadoresHijo, asistencias, cobros, vinculos)
+                }
+            }
+        }
+    }
+
+    /** Sincroniza ids de vínculo nube ↔ hijos mostrados (desvincular, varios tutores por alumno). */
+    fun refrescarVinculosPadre() {
+        viewModelScope.launch {
+            runCatching {
+                val client = app.supabaseClient ?: return@launch
+                val cfg = database.academiaConfigDao().getActual() ?: return@launch
+                if (!cfg.esPadreMembresiaNube()) return@launch
+                val aid = cfg.remoteAcademiaId?.takeIf { it.isNotBlank() } ?: return@launch
+                val uid = client.auth.currentUserOrNull()?.id?.toString() ?: return@launch
+                _vinculosPadre.value = withContext(Dispatchers.IO) {
+                    PadresAlumnosRepository(client).listVinculos(aid, uid)
+                }
             }
         }
     }
@@ -187,6 +218,31 @@ class ParentsViewModel(
                 AcademiaCloudSync(client, database).syncAll(skipPush = true).getOrThrow()
             }
             if (res.isSuccess) {
+                cargarCandidatosVinculo()
+                refrescarVinculosPadre()
+            }
+            onDone(res)
+        }
+    }
+
+    fun desvincularMiHijo(vinculoId: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val client = app.supabaseClient
+            val cfg = database.academiaConfigDao().getActual()
+            val aid = cfg?.remoteAcademiaId?.takeIf { it.isNotBlank() }
+            val uid = client?.auth?.currentUserOrNull()?.id?.toString()
+            if (client == null || aid == null || uid.isNullOrBlank()) {
+                onDone(Result.failure(IllegalStateException("Sin sesión o academia")))
+                return@launch
+            }
+            val res = runCatching {
+                withContext(Dispatchers.IO) {
+                    PadresAlumnosRepository(client).deleteVinculo(vinculoId)
+                }
+                AcademiaCloudSync(client, database).syncAll(skipPush = true).getOrThrow()
+            }
+            if (res.isSuccess) {
+                refrescarVinculosPadre()
                 cargarCandidatosVinculo()
             }
             onDone(res)
@@ -273,6 +329,7 @@ class ParentsViewModel(
         jugadores: List<Jugador>,
         asistencias: List<Asistencia>,
         cobros: List<CobroMensualAlumno>,
+        vinculos: List<AcademiaPadresAlumnoRow>,
     ): ParentsTabContent.PadreConHijos {
         val hoy = LocalDate.now()
         val diaLimite = cfg.diaLimitePagoMes
@@ -280,6 +337,7 @@ class ParentsViewModel(
         val jugIds = jugadores.map { it.id }.toSet()
         val cobrosPorJugador = cobros.filter { it.jugadorId in jugIds }.groupBy { it.jugadorId }
         val porJug = asistencias.groupBy { it.jugadorId }
+        val vinculoIdPorJugadorRemoto = vinculos.associateBy({ it.jugadorId }, { it.id })
         val hijos = jugadores.sortedBy { it.nombre }.map { j ->
             val lineas = (porJug[j.id] ?: emptyList())
                 .sortedByDescending { it.fechaDia }
@@ -299,7 +357,15 @@ class ParentsViewModel(
                     }
             }
             val totalHijo = mesesVencidos.sumOf { it.saldoPendiente }
-            HijoResumenUi(j.nombre, j.categoria, lineas, mesesVencidos, totalHijo)
+            val vid = j.remoteId?.let { rid -> vinculoIdPorJugadorRemoto[rid] }
+            HijoResumenUi(
+                nombre = j.nombre,
+                categoria = j.categoria,
+                vinculoId = vid,
+                ultimasAsistencias = lineas,
+                mesesVencidos = mesesVencidos,
+                totalAdeudoHijo = totalHijo,
+            )
         }
         val totalGlobal = hijos.sumOf { it.totalAdeudoHijo }
         return ParentsTabContent.PadreConHijos(hijos, totalGlobal, reglaActiva)

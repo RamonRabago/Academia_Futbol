@@ -3,12 +3,12 @@ package com.escuelafutbol.academia.ui.attendance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Person
@@ -63,94 +63,95 @@ fun AttendanceAlumnoResumenPicker(
         jugadorSel?.coilFotoModel(context)
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(
             stringResource(R.string.attendance_student_picker_label),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 108.dp),
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (jugadorSel != null) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (modeloFoto != null) {
-                        AsyncImage(
-                            model = modeloFoto,
-                            contentDescription = stringResource(R.string.player_photo_cd),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        Icon(
-                            Icons.Outlined.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+        if (jugadorSel != null) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (modeloFoto != null) {
+                    AsyncImage(
+                        model = modeloFoto,
+                        contentDescription = stringResource(R.string.player_photo_cd),
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Icon(
+                        Icons.Outlined.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-            ExposedDropdownMenuBox(
+        }
+        ExposedDropdownMenuBox(
+            expanded = expandido && puedeAbrir,
+            onExpandedChange = { if (puedeAbrir) expandido = it },
+            modifier = Modifier.weight(1f),
+        ) {
+            OutlinedTextField(
+                value = texto,
+                onValueChange = {},
+                readOnly = true,
+                enabled = puedeAbrir,
+                singleLine = true,
+                label = null,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido && puedeAbrir) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = puedeAbrir),
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            )
+            ExposedDropdownMenu(
                 expanded = expandido && puedeAbrir,
-                onExpandedChange = { if (puedeAbrir) expandido = it },
-                modifier = Modifier.weight(1f),
+                onDismissRequest = { expandido = false },
             ) {
-                OutlinedTextField(
-                    value = texto,
-                    onValueChange = {},
-                    readOnly = true,
-                    enabled = puedeAbrir,
-                    singleLine = true,
-                    label = null,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido && puedeAbrir) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = puedeAbrir),
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                DropdownMenuItem(
+                    text = { Text(todos) },
+                    onClick = {
+                        onFocoChange(null)
+                        expandido = false
+                    },
                 )
-                ExposedDropdownMenu(
-                    expanded = expandido && puedeAbrir,
-                    onDismissRequest = { expandido = false },
-                ) {
+                lista.forEach { j ->
                     DropdownMenuItem(
-                        text = { Text(todos) },
+                        text = {
+                            Text(
+                                j.nombre,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = if (j.id == focoJugadorId) {
+                                    MaterialTheme.typography.bodyLarge.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                } else {
+                                    MaterialTheme.typography.bodyLarge
+                                },
+                            )
+                        },
                         onClick = {
-                            onFocoChange(null)
+                            onFocoChange(j.id)
                             expandido = false
                         },
                     )
-                    lista.forEach { j ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    j.nombre,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = if (j.id == focoJugadorId) {
-                                        MaterialTheme.typography.bodyLarge.copy(
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    } else {
-                                        MaterialTheme.typography.bodyLarge
-                                    },
-                                )
-                            },
-                            onClick = {
-                                onFocoChange(j.id)
-                                expandido = false
-                            },
-                        )
-                    }
                 }
             }
         }

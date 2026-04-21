@@ -1,16 +1,22 @@
 package com.escuelafutbol.academia.ui.finanzas
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -27,12 +33,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,6 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,12 +84,20 @@ fun FinanzasScreen(
     }
 
     if (!puedeVerFinanzas) {
-        Scaffold(
-            topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_finances)) }) },
-        ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                stringResource(R.string.tab_finances),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
             Text(
                 stringResource(R.string.finance_no_permission_hint),
-                modifier = Modifier.padding(padding).padding(16.dp),
                 style = MaterialTheme.typography.bodyLarge,
             )
         }
@@ -97,61 +110,89 @@ fun FinanzasScreen(
         if (mostrarTabNomina) add(stringResource(R.string.finance_tab_payroll))
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_finances)) }) },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                IconButton(onClick = { viewModel.periodoAnterior() }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = stringResource(R.string.finance_month_prev_cd))
-                }
                 Text(
-                    state.periodoTitulo.ifEmpty { state.periodoYyyyMm },
-                    style = MaterialTheme.typography.titleMedium,
+                    stringResource(R.string.tab_finances),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
-                IconButton(onClick = { viewModel.periodoSiguiente() }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.finance_month_next_cd))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = { viewModel.periodoAnterior() }) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = stringResource(R.string.finance_month_prev_cd))
+                    }
+                    Text(
+                        state.periodoTitulo.ifEmpty { state.periodoYyyyMm },
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    IconButton(onClick = { viewModel.periodoSiguiente() }) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.finance_month_next_cd))
+                    }
                 }
             }
 
             FilledTonalButton(
                 onClick = { viewModel.prellenarMesConCuotasAlumnos() },
                 modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                Text(stringResource(R.string.finance_fill_month_button))
+                Text(
+                    stringResource(R.string.finance_fill_month_button),
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-
-            Spacer(Modifier.padding(top = 4.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilterChip(
                     selected = state.alcance is FinanzasAlcance.GeneralAcademia,
                     onClick = { viewModel.setAlcanceGeneral() },
-                    label = { Text(stringResource(R.string.finance_scope_all_academy)) },
+                    label = {
+                        Text(
+                            stringResource(R.string.finance_scope_all_academy),
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    modifier = Modifier.heightIn(min = 36.dp),
                 )
                 if (state.categoriasDisponibles.isNotEmpty()) {
                     OutlinedButton(
                         onClick = { dialogoCategorias = true },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 36.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         Text(
                             when (val a = state.alcance) {
                                 is FinanzasAlcance.SoloCategoria -> a.nombre
                                 else -> stringResource(R.string.finance_scope_category_placeholder)
                             },
+                            style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -159,28 +200,19 @@ fun FinanzasScreen(
                 }
             }
 
-            Spacer(Modifier.padding(bottom = 8.dp))
-
-            TabRow(selectedTabIndex = tabIndex) {
-                tabTitles.forEachIndexed { i, title ->
-                    Tab(
-                        selected = tabIndex == i,
-                        onClick = { tabIndex = i },
-                        text = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    )
-                }
-            }
-
-            HorizontalDivider()
+            FinanzasCompactTabRow(
+                titles = tabTitles,
+                selectedIndex = tabIndex,
+                onSelect = { tabIndex = it },
+            )
 
             when (tabIndex) {
                 0 -> Column(
                     Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Spacer(Modifier.padding(top = 4.dp))
                     BalanceMesCompactCard(
                         titulo = when (val a = state.alcance) {
                             is FinanzasAlcance.SoloCategoria ->
@@ -233,13 +265,13 @@ fun FinanzasScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.padding(bottom = 24.dp))
+                    Spacer(Modifier.padding(bottom = 8.dp))
                 }
                 1 -> LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 0.dp, bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    item { Spacer(Modifier.padding(top = 8.dp)) }
                     if (state.lineas.isEmpty()) {
                         item {
                             Text(
@@ -257,15 +289,13 @@ fun FinanzasScreen(
                             onRegistrar = { lineaNuevo = linea.jugador },
                         )
                     }
-                    item { Spacer(Modifier.padding(bottom = 24.dp)) }
                 }
                 2 -> Column(
                     Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Spacer(Modifier.padding(top = 8.dp))
                     ResumenCard(
                         titulo = stringResource(R.string.finance_staff_total_monthly),
                         valor = formatMoney(state.totalSueldosStaff),
@@ -302,10 +332,9 @@ fun FinanzasScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.padding(bottom = 24.dp))
+                    Spacer(Modifier.padding(bottom = 8.dp))
                 }
             }
-        }
     }
 
     if (dialogoCategorias && state.categoriasDisponibles.isNotEmpty()) {
@@ -367,6 +396,60 @@ fun FinanzasScreen(
 }
 
 @Composable
+private fun FinanzasCompactTabRow(
+    titles: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+    ) {
+        titles.forEachIndexed { i, title ->
+            val selected = selectedIndex == i
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onSelect(i) }
+                    .padding(top = 4.dp, bottom = 2.dp, start = 2.dp, end = 2.dp),
+            ) {
+                Text(
+                    title,
+                    style = if (selected) {
+                        MaterialTheme.typography.labelLarge
+                    } else {
+                        MaterialTheme.typography.labelMedium
+                    },
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .height(2.dp)
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            RoundedCornerShape(1.dp),
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun BalanceMesCompactCard(
     titulo: String,
     adeudoHistorico: Double,
@@ -378,7 +461,7 @@ private fun BalanceMesCompactCard(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(titulo, style = MaterialTheme.typography.titleSmall)
             Text(
                 stringResource(R.string.finance_balance_historic_short) + " · " + formatMoney(adeudoHistorico),
@@ -432,7 +515,10 @@ private fun AlumnoCobroRow(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -471,8 +557,14 @@ private fun AlumnoCobroRow(
                                 color = MaterialTheme.colorScheme.error,
                             )
                         }
-                        TextButton(onClick = onEditar) {
-                            Text(stringResource(R.string.player_edit))
+                        TextButton(
+                            onClick = onEditar,
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.player_edit),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
                         }
                     }
                     j.becado -> Text(

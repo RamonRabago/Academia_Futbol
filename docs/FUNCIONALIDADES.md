@@ -94,7 +94,7 @@ Lógica central de visibilidad: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt`.
 ## Padres (avisos y vínculos)
 
 - **Avisos por categoría** desde la nube (mensajes a familias).
-- **Vínculo tutor ↔ alumno:** staff puede gestionar miembros; tutores pueden vincular hijos según flujos implementados (incl. candidatos por **correo tutor** en nube cuando aplica).
+- **Vínculo tutor ↔ alumno:** staff puede gestionar miembros; tutores pueden vincular hijos según flujos implementados (incl. candidatos por **correo tutor** en nube cuando aplica). **Varios tutores** pueden estar vinculados al mismo alumno; **sin límite** de tutores por alumno en esta fase. El tutor puede **desvincular solo su propia cuenta** del alumno (deja de ver su información); no puede quitar vínculos de otros padres (RLS `padres_alumnos_delete_parent_own`).
 - Auto-vínculo o listas desde RPC/RLS según migraciones desplegadas.
 
 ---

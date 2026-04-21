@@ -332,11 +332,6 @@ fun AcademiaScreen(
                                 style = MaterialTheme.typography.titleSmall,
                             )
                             Text(
-                                stringResource(R.string.academy_readonly_family_body),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
                                 config.nombreAcademia,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary,

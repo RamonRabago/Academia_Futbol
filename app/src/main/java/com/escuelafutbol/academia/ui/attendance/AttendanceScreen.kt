@@ -7,18 +7,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,11 +30,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,7 +49,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
 import coil.compose.AsyncImage
@@ -82,70 +83,110 @@ fun AttendanceScreen(viewModel: AttendanceViewModel, categoriaFiltro: String?) {
     }
 
     var mostrarCalendario by remember { mutableStateOf(false) }
+    var ayudaDiaEntreno by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.tab_attendance)) },
-            )
-        },
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
+    if (ayudaDiaEntreno) {
+        AlertDialog(
+            onDismissRequest = { ayudaDiaEntreno = false },
+            title = { Text(stringResource(R.string.attendance_help_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.attendance_training_day_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        stringResource(R.string.attendance_training_day_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        stringResource(R.string.attendance_training_day_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { ayudaDiaEntreno = false }) {
+                    Text(stringResource(R.string.ok))
+                }
+            },
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
             item {
+                val cdCalendario = stringResource(R.string.attendance_date_open_calendar_cd)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
+                    Text(
+                        stringResource(R.string.tab_attendance),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
                     IconButton(onClick = { viewModel.diaAnterior(zone) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Día anterior")
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = stringResource(R.string.attendance_day_prev_cd),
+                        )
                     }
-                    val cdCalendario = stringResource(R.string.attendance_date_open_calendar_cd)
                     Text(
                         etiquetaFecha,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
-                            .weight(1f)
+                            .widthIn(max = 200.dp)
                             .clickable { mostrarCalendario = true }
-                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                             .semantics { contentDescription = cdCalendario },
                     )
                     IconButton(onClick = { viewModel.diaSiguiente(zone) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Día siguiente")
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = stringResource(R.string.attendance_day_next_cd),
+                        )
                     }
                 }
             }
             item {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            stringResource(R.string.attendance_training_day_title),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Text(
-                            stringResource(R.string.attendance_training_day_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text(
+                        stringResource(R.string.attendance_training_day_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = { ayudaDiaEntreno = true },
+                        modifier = Modifier.padding(0.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Info,
+                            contentDescription = stringResource(R.string.attendance_help_training_cd),
                         )
                     }
                     Switch(
@@ -181,13 +222,12 @@ fun AttendanceScreen(viewModel: AttendanceViewModel, categoriaFiltro: String?) {
                 }
                 item {
                     Column(Modifier.fillMaxWidth()) {
-                        Spacer(Modifier.height(4.dp))
+                        HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp))
                         Text(
                             stringResource(R.string.attendance_day_list_title),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
                 items(filas, key = { it.jugador.id }) { fila ->
@@ -237,7 +277,6 @@ fun AttendanceScreen(viewModel: AttendanceViewModel, categoriaFiltro: String?) {
                     DatePicker(state = pickerState)
                 }
             }
-        }
     }
 }
 
@@ -257,7 +296,7 @@ private fun AttendanceListaDiaFila(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

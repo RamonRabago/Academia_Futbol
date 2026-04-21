@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,7 +33,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -63,13 +61,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -94,6 +90,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -278,76 +275,78 @@ fun PlayersScreen(
     BackHandler(enabled = formularioAbierto && !awaitingExternalActivityResult) {
         viewModel.cerrarFormularioJugador()
     }
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.tab_players)) },
-                windowInsets = WindowInsets.statusBars,
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            Text(
+                stringResource(R.string.tab_players),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 4.dp),
             )
-        },
-        floatingActionButton = {
-            if (!formularioAbierto) {
-                FloatingActionButton(
-                    onClick = { viewModel.abrirAltaJugador() },
+            if (jugadores.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 72.dp),
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
-                }
-            }
-        },
-    ) { padding ->
-        if (jugadores.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-            ) {
-                if (!puedeVerMensualidad) {
-                    MensualidadVisibilidadAviso(configAcademia, uidSesion)
-                    Spacer(Modifier.height(12.dp))
-                }
-                Text(
-                    if (categoriaFiltro != null) {
-                        stringResource(R.string.no_players_in_category)
-                    } else {
-                        stringResource(R.string.no_players_yet)
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (!puedeVerMensualidad) {
-                    item(key = "aviso_mensualidad") {
+                    if (!puedeVerMensualidad) {
                         MensualidadVisibilidadAviso(configAcademia, uidSesion)
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(8.dp))
                     }
-                }
-                items(jugadores, key = { it.id }) { j ->
-                    JugadorCard(
-                        jugador = j,
-                        expanded = expandedJugadorId == j.id,
-                        onExpandToggle = {
-                            expandedJugadorId = if (expandedJugadorId == j.id) null else j.id
+                    Text(
+                        if (categoriaFiltro != null) {
+                            stringResource(R.string.no_players_in_category)
+                        } else {
+                            stringResource(R.string.no_players_yet)
                         },
-                        puedeVerMensualidad = puedeVerMensualidad,
-                        etiquetasAltaPorUid = etiquetasAltaPorUid,
-                        onAmpliarFoto = { jugadorFotoAmpliada = j },
-                        onEditar = { viewModel.abrirEdicionJugador(j) },
-                        onHistorial = { jugadorHistorial = j },
-                        onDarBaja = { jugadorBaja = j },
+                        style = MaterialTheme.typography.bodyLarge,
                     )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 72.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (!puedeVerMensualidad) {
+                        item(key = "aviso_mensualidad") {
+                            MensualidadVisibilidadAviso(configAcademia, uidSesion)
+                            Spacer(Modifier.height(4.dp))
+                        }
+                    }
+                    items(jugadores, key = { it.id }) { j ->
+                        JugadorCard(
+                            jugador = j,
+                            expanded = expandedJugadorId == j.id,
+                            onExpandToggle = {
+                                expandedJugadorId = if (expandedJugadorId == j.id) null else j.id
+                            },
+                            puedeVerMensualidad = puedeVerMensualidad,
+                            etiquetasAltaPorUid = etiquetasAltaPorUid,
+                            onAmpliarFoto = { jugadorFotoAmpliada = j },
+                            onEditar = { viewModel.abrirEdicionJugador(j) },
+                            onHistorial = { jugadorHistorial = j },
+                            onDarBaja = { jugadorBaja = j },
+                        )
+                    }
                 }
             }
         }
-    }
+
+        if (!formularioAbierto) {
+            FloatingActionButton(
+                onClick = { viewModel.abrirAltaJugador() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
+            }
+        }
 
     if (formularioAbierto) {
         val jugadorExistente = (formularioJugador as? FormularioJugadorUi.Edicion)?.jugador

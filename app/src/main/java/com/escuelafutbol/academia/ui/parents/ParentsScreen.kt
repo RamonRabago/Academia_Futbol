@@ -2,6 +2,7 @@
 package com.escuelafutbol.academia.ui.parents
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
@@ -35,7 +38,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
 import java.text.DateFormat
@@ -85,17 +88,27 @@ fun ParentsScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.tab_parents)) })
-        },
         snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {},
     ) { padding ->
-        when (val c = contenido) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            Text(
+                stringResource(R.string.tab_parents),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when (val c = contenido) {
             is ParentsTabContent.StaffComunicaciones -> {
                 StaffPadresMensajesContent(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    modifier = Modifier.fillMaxSize(),
                     remoteAcademiaId = remoteAcademiaId,
                     categorias = viewModel.categoriasParaMensajesStaff.collectAsState().value,
                     mensajesState = mensajesState,
@@ -127,8 +140,7 @@ fun ParentsScreen(
                 PadreSinHijosContent(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 24.dp),
+                        .padding(horizontal = 12.dp),
                     viewModel = viewModel,
                     remoteAcademiaId = remoteAcademiaId,
                     snackbar = snackbar,
@@ -138,9 +150,8 @@ fun ParentsScreen(
             }
             is ParentsTabContent.PadreConHijos -> {
                 PadreConHijosContent(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    modifier = Modifier.fillMaxSize(),
+                    viewModel = viewModel,
                     c = c,
                     mensajesState = mensajesState,
                     moneyFmt = moneyFmt,
@@ -153,18 +164,24 @@ fun ParentsScreen(
                     context = context,
                 )
             }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun PadreSinHijosContent(
-    modifier: Modifier,
+private fun PadreSelfLinkCandidatesBody(
     viewModel: ParentsViewModel,
     remoteAcademiaId: String?,
     snackbar: SnackbarHostState,
     scope: CoroutineScope,
     context: android.content.Context,
+    modifier: Modifier = Modifier,
+    /** Menos margen superior cuando la sección va debajo de «Mis hijos» (padre con hijos ya vinculados). */
+    compactLayout: Boolean = false,
+    sectionTitleRes: Int = R.string.parent_self_link_section_title,
+    sectionHintRes: Int = R.string.parent_self_link_hint,
 ) {
     val candidatos by viewModel.candidatosVinculo.collectAsState()
     val cargandoCand by viewModel.candidatosVinculoCargando.collectAsState()
@@ -181,37 +198,21 @@ private fun PadreSinHijosContent(
     }
     LaunchedEffect(remoteAcademiaId) {
         if (!remoteAcademiaId.isNullOrBlank()) {
+            viewModel.refrescarVinculosPadre()
             viewModel.cargarCandidatosVinculo()
         }
     }
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()),
-    ) {
-        Text(
-            stringResource(R.string.parent_my_children_title),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Text(
-            stringResource(R.string.parent_my_children_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        Text(
-            stringResource(R.string.parent_my_children_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 16.dp),
-        )
+    Column(modifier = modifier) {
         if (!remoteAcademiaId.isNullOrBlank()) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(if (compactLayout) 8.dp else 24.dp))
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
             Text(
-                stringResource(R.string.parent_self_link_section_title),
+                stringResource(sectionTitleRes),
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                stringResource(R.string.parent_self_link_hint),
+                stringResource(sectionHintRes),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -326,6 +327,44 @@ private fun PadreSinHijosContent(
             }
         }
         Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun PadreSinHijosContent(
+    modifier: Modifier,
+    viewModel: ParentsViewModel,
+    remoteAcademiaId: String?,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
+    context: android.content.Context,
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+    ) {
+        Text(
+            stringResource(R.string.parent_my_children_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            stringResource(R.string.parent_my_children_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            stringResource(R.string.parent_my_children_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 16.dp),
+        )
+        PadreSelfLinkCandidatesBody(
+            viewModel = viewModel,
+            remoteAcademiaId = remoteAcademiaId,
+            snackbar = snackbar,
+            scope = scope,
+            context = context,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -595,6 +634,7 @@ private fun etiquetaTipo(tipo: String): String = when (tipo) {
 @Composable
 private fun PadreConHijosContent(
     modifier: Modifier,
+    viewModel: ParentsViewModel,
     c: ParentsTabContent.PadreConHijos,
     mensajesState: ParentsMensajesUiState,
     moneyFmt: java.text.NumberFormat,
@@ -607,13 +647,60 @@ private fun PadreConHijosContent(
     context: android.content.Context,
 ) {
     var filtroTipo by remember { mutableStateOf<String?>(null) }
+    var hijoParaDesvincular by remember { mutableStateOf<HijoResumenUi?>(null) }
     val itemsFiltrados = remember(mensajesState.items, filtroTipo) {
         if (filtroTipo == null) mensajesState.items
         else mensajesState.items.filter { it.tipo == filtroTipo }
     }
 
+    LaunchedEffect(remoteAcademiaId) {
+        if (!remoteAcademiaId.isNullOrBlank()) {
+            viewModel.refrescarVinculosPadre()
+            viewModel.cargarCandidatosVinculo()
+        }
+    }
+
+    val hijoDlg = hijoParaDesvincular
+    val vidDesvincular = hijoDlg?.vinculoId
+    if (hijoDlg != null && vidDesvincular != null) {
+        AlertDialog(
+            onDismissRequest = { hijoParaDesvincular = null },
+            title = { Text(stringResource(R.string.parent_unlink_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.parent_unlink_confirm_message, hijoDlg.nombre),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        hijoParaDesvincular = null
+                        viewModel.desvincularMiHijo(vidDesvincular) { r ->
+                            scope.launch {
+                                if (r.isSuccess) {
+                                    snackbar.showSnackbar(context.getString(R.string.parent_unlink_snackbar_ok))
+                                } else {
+                                    snackbar.showSnackbar(
+                                        r.exceptionOrNull()?.message
+                                            ?: context.getString(R.string.parent_unlink_error),
+                                    )
+                                }
+                            }
+                        }
+                    },
+                ) { Text(stringResource(R.string.parent_unlink_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { hijoParaDesvincular = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
     ) {
         if (!remoteAcademiaId.isNullOrBlank()) {
@@ -717,6 +804,21 @@ private fun PadreConHijosContent(
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
             )
         }
+        if (!remoteAcademiaId.isNullOrBlank()) {
+            item {
+                PadreSelfLinkCandidatesBody(
+                    viewModel = viewModel,
+                    remoteAcademiaId = remoteAcademiaId,
+                    snackbar = snackbar,
+                    scope = scope,
+                    context = context,
+                    modifier = Modifier.fillMaxWidth(),
+                    compactLayout = true,
+                    sectionTitleRes = R.string.parent_add_child_section_title,
+                    sectionHintRes = R.string.parent_add_child_section_hint,
+                )
+            }
+        }
         if (c.reglaLimitePagoActiva && c.totalAdeudoVencido > 0.009) {
             item {
                 Card(
@@ -752,7 +854,10 @@ private fun PadreConHijosContent(
                 }
             }
         }
-        items(c.hijos, key = { it.nombre + it.categoria }) { hijo ->
+        items(
+            c.hijos,
+            key = { h -> "${h.nombre}|${h.categoria}|${h.vinculoId.orEmpty()}" },
+        ) { hijo ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -762,12 +867,30 @@ private fun PadreConHijosContent(
                 ),
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(hijo.nombre, style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        hijo.categoria,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(hijo.nombre, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                hijo.categoria,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        if (hijo.vinculoId != null) {
+                            TextButton(
+                                onClick = { hijoParaDesvincular = hijo },
+                                modifier = Modifier.semantics {
+                                    contentDescription = context.getString(R.string.parent_unlink_cd)
+                                },
+                            ) {
+                                Text(stringResource(R.string.parent_unlink))
+                            }
+                        }
+                    }
                     if (hijo.mesesVencidos.isNotEmpty()) {
                         HorizontalDivider(Modifier.padding(vertical = 10.dp))
                         Text(
@@ -840,5 +963,6 @@ private fun PadreConHijosContent(
                 )
             }
         }
+    }
     }
 }

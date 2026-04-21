@@ -12,6 +12,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Área útil en pestañas (cabecera global):** **Finanzas**, **Asistencia**, **Estadísticas**, **Jugadores** y **Padres** dejan de duplicar **`TopAppBar`** respecto a **`AcademiaMainScaffold`**; título compacto en el contenido, menos padding vertical y listas con **`contentPadding`** ajustado (FAB en **Jugadores** alineado en el contenedor). Más filas visibles sin scroll (`FinanzasScreen`, `AttendanceScreen`, `StatsScreen`, `PlayersScreen`, `ParentsScreen`).
+
+- **Finanzas — más lista visible:** en una sola fila **título + navegación de mes**; botón «Prellenar…» y chips con menos aire; pestañas en **fila compacta** sustituyendo `SecondaryTabRow`; menos separación en la lista y en cada tarjeta de alumno (`FinanzasScreen`). **Barra inferior principal** (Inicio / Padres / Academia): sustituye el `NavigationBar` de Material por una barra **más baja** manteniendo icono, etiqueta e insignia de no leídos (`AcademiaRoot`).
+
+- **Academia (modo padre/tutor):** en la tarjeta «Gestión del club» ya no se muestra el párrafo largo de solo lectura; quedan título y nombre de la academia (`AcademiaScreen`).
+
+- **Padres — resumen de adeudos:** en cuenta **padre** ya no se usan todos los jugadores de Room (p. ej. datos previos del dueño en el mismo dispositivo); solo alumnos cuyo `remoteId` está en **`academia_padres_alumnos`** para la sesión actual (`ParentsViewModel`).
+
+- **Padres (Fase 4 — vínculo tutor ↔ alumno):** política RLS **`padres_alumnos_delete_parent_own`** para que el tutor elimine **solo su fila** en `academia_padres_alumnos` (varios tutores por alumno sin límite en esta fase); pantalla **Padres** con **desvincular** por hijo (confirmación), **vincular otro hijo** reutilizando candidatos por email, y refresco de ids de vínculo (`ParentsViewModel`, `ParentsScreen`, `PadresAlumnosRepository`, migración `20260521140000_padres_alumnos_delete_parent_own.sql`, `strings.xml`).
+
+- **Asistencia — más clara y compacta:** cabecera con **título y fecha en una fila**; interruptor de entreno con **icono de ayuda** (textos largos en diálogo); selector **«Ver resumen de»** en línea con el desplegable y avatar más pequeño; **resumen** con chips Mes/Año, **% y barra de progreso en la misma zona visual**, textos de alcance y nota al pie tras **información** en diálogo (`AttendanceScreen`, `AttendanceSummaryCard`, `AttendanceAlumnoResumenPicker`, `strings.xml`).
+
 - **Build release para compartir APK:** el tipo `release` usa la misma **firma *debug*** del SDK (`signingConfig = debug`), de modo que `assembleRelease` genera un **`app-release.apk` firmado** e instalable fuera de Play Store (p. ej. WhatsApp). **No** sustituye un keystore de publicación en tienda (`app/build.gradle.kts`).
 
 - **Competencias — nuevo partido:** **pantalla completa** (`Dialog` + `DialogProperties(usePlatformDefaultWidth = false)`), `Scaffold` con barra superior y **Cancelar / Guardar** abajo; lista con aire; jornada y fecha a **ancho completo**; ayuda de fecha bajo el campo; tarjetas de categoría más amplias; se elimina el párrafo introductorio **redundante** (sin inscripciones no se abre el flujo y la categoría ya se elige en la lista) (`DialogoNuevoPartido`, `CompetenciasScreen`, `strings.xml`).

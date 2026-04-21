@@ -87,6 +87,7 @@ class PadresAlumnosRepository(private val client: SupabaseClient) {
             Unit
         }
 
+    /** Staff (RLS) o padre sobre su propia fila (política `padres_alumnos_delete_parent_own`). */
     suspend fun deleteVinculo(linkId: String) = withContext(Dispatchers.IO) {
         client.from("academia_padres_alumnos").delete {
             filter { eq("id", linkId) }
