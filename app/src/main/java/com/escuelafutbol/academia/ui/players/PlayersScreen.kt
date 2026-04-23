@@ -36,9 +36,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -53,6 +56,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -90,6 +95,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -126,11 +132,33 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** Vacío permitido; si hay texto, formato de correo razonable (local@dominio con punto). */
+private fun emailTutorFormatoSuaveValido(texto: String): Boolean {
+    val t = texto.trim()
+    if (t.isEmpty()) return true
+    val at = t.indexOf('@')
+    if (at <= 0 || at != t.lastIndexOf('@')) return false
+    val local = t.substring(0, at)
+    val domain = t.substring(at + 1)
+    if (local.isBlank() || domain.isBlank() || !domain.contains('.')) return false
+    val tld = domain.substringAfterLast('.')
+    return tld.length >= 2 && domain.none { it.isWhitespace() }
+}
+
 /** Lado máximo (px) al decodificar en uCrop; si es bajo, el zoom mínimo queda muy alto y no se puede alejar. */
 private const val UCROP_DECODE_MAX_SIDE_PX = 4096
 
 private fun formatImporte(valor: Double): String =
     NumberFormat.getCurrencyInstance(Locale.getDefault()).format(valor)
+
+private const val ADEUDO_LISTA_EPS = 0.009
+
+private enum class FiltroEstadoJugadores {
+    TODOS,
+    ADEUDO,
+    PAGADO,
+    BECADOS,
+}
 
 private fun extensionParaActa(context: Context, uri: Uri): String {
     val mime = context.contentResolver.getType(uri)
@@ -233,8 +261,11 @@ fun PlayersScreen(
     }
     val uidSesion = sessionAuthUserId.takeIf { it.isNotBlank() }
     val puedeVerMensualidad = configAcademia.puedeVerMensualidadEnEsteDispositivo(uidSesion)
-    val jugadores by viewModel.jugadores.collectAsState()
+    val jugadoresUi by viewModel.jugadoresUi.collectAsState()
     val etiquetasAltaPorUid by viewModel.etiquetasAltaPorUid.collectAsState()
+    var busquedaNombre by remember { mutableStateOf("") }
+    var categoriaChip by remember { mutableStateOf<String?>(null) }
+    var estadoFiltro by remember { mutableStateOf(FiltroEstadoJugadores.TODOS) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -256,9 +287,59 @@ fun PlayersScreen(
         sessionVm.setImpideVolverASeleccionCategoria(formularioAbierto)
     }
 
-    LaunchedEffect(jugadores) {
+    LaunchedEffect(puedeVerMensualidad) {
+        if (!puedeVerMensualidad) {
+            if (estadoFiltro == FiltroEstadoJugadores.ADEUDO ||
+                estadoFiltro == FiltroEstadoJugadores.PAGADO
+            ) {
+                estadoFiltro = FiltroEstadoJugadores.TODOS
+            }
+        }
+    }
+
+    LaunchedEffect(jugadoresUi) {
         val id = expandedJugadorId ?: return@LaunchedEffect
-        if (jugadores.none { it.id == id }) expandedJugadorId = null
+        if (jugadoresUi.none { it.jugador.id == id }) expandedJugadorId = null
+    }
+
+    val categoriasOrdenadas = remember(jugadoresUi) {
+        jugadoresUi.map { it.jugador.categoria.trim() }.distinct().sorted()
+    }
+
+    val listaFiltrada = remember(
+        jugadoresUi,
+        busquedaNombre,
+        categoriaChip,
+        estadoFiltro,
+        puedeVerMensualidad,
+    ) {
+        val q = busquedaNombre.trim().lowercase(Locale.getDefault())
+        jugadoresUi.filter { ui ->
+            val j = ui.jugador
+            if (q.isNotEmpty() && !j.nombre.lowercase(Locale.getDefault()).contains(q)) {
+                return@filter false
+            }
+            val catSel = categoriaChip?.trim()?.takeIf { it.isNotEmpty() }
+            if (catSel != null && j.categoria.trim() != catSel) {
+                return@filter false
+            }
+            when (estadoFiltro) {
+                FiltroEstadoJugadores.TODOS -> true
+                FiltroEstadoJugadores.BECADOS -> j.becado
+                FiltroEstadoJugadores.ADEUDO ->
+                    !j.becado && puedeVerMensualidad && ui.adeudoTotal > ADEUDO_LISTA_EPS
+                FiltroEstadoJugadores.PAGADO ->
+                    !j.becado && puedeVerMensualidad &&
+                        ui.adeudoTotal <= ADEUDO_LISTA_EPS &&
+                        j.mensualidad != null && j.mensualidad > 0
+            }
+        }
+    }
+
+    val agrupadosPorCategoria = remember(listaFiltrada) {
+        listaFiltrada
+            .groupBy { it.jugador.categoria.trim() }
+            .toSortedMap(naturalOrder())
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -304,7 +385,7 @@ fun PlayersScreen(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
-            if (jugadores.isEmpty()) {
+            if (jugadoresUi.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -327,7 +408,7 @@ fun PlayersScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 72.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (!puedeVerMensualidad) {
                         item(key = "aviso_mensualidad") {
@@ -335,20 +416,140 @@ fun PlayersScreen(
                             Spacer(Modifier.height(4.dp))
                         }
                     }
-                    items(jugadores, key = { it.id }) { j ->
-                        JugadorCard(
-                            jugador = j,
-                            expanded = expandedJugadorId == j.id,
-                            onExpandToggle = {
-                                expandedJugadorId = if (expandedJugadorId == j.id) null else j.id
+                    item(key = "buscador") {
+                        OutlinedTextField(
+                            value = busquedaNombre,
+                            onValueChange = { busquedaNombre = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = {
+                                Text(stringResource(R.string.players_search_placeholder))
                             },
-                            puedeVerMensualidad = puedeVerMensualidad,
-                            etiquetasAltaPorUid = etiquetasAltaPorUid,
-                            onAmpliarFoto = { jugadorFotoAmpliada = j },
-                            onEditar = { viewModel.abrirEdicionJugador(j) },
-                            onHistorial = { jugadorHistorial = j },
-                            onDarBaja = { jugadorBaja = j },
                         )
+                    }
+                    item(key = "filtros") {
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = categoriaChip == null &&
+                                        estadoFiltro == FiltroEstadoJugadores.TODOS,
+                                    onClick = {
+                                        categoriaChip = null
+                                        estadoFiltro = FiltroEstadoJugadores.TODOS
+                                    },
+                                    label = { Text(stringResource(R.string.players_filter_all)) },
+                                )
+                            }
+                            items(categoriasOrdenadas, key = { it }) { cat ->
+                                FilterChip(
+                                    selected = categoriaChip == cat,
+                                    onClick = {
+                                        categoriaChip = if (categoriaChip == cat) null else cat
+                                        estadoFiltro = FiltroEstadoJugadores.TODOS
+                                    },
+                                    label = { Text(cat) },
+                                )
+                            }
+                            if (puedeVerMensualidad) {
+                                item {
+                                    FilterChip(
+                                        selected = estadoFiltro == FiltroEstadoJugadores.ADEUDO,
+                                        onClick = {
+                                            estadoFiltro = if (estadoFiltro == FiltroEstadoJugadores.ADEUDO) {
+                                                FiltroEstadoJugadores.TODOS
+                                            } else {
+                                                FiltroEstadoJugadores.ADEUDO
+                                            }
+                                        },
+                                        label = { Text(stringResource(R.string.players_filter_debt)) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer,
+                                        ),
+                                    )
+                                }
+                                item {
+                                    FilterChip(
+                                        selected = estadoFiltro == FiltroEstadoJugadores.PAGADO,
+                                        onClick = {
+                                            estadoFiltro = if (estadoFiltro == FiltroEstadoJugadores.PAGADO) {
+                                                FiltroEstadoJugadores.TODOS
+                                            } else {
+                                                FiltroEstadoJugadores.PAGADO
+                                            }
+                                        },
+                                        label = { Text(stringResource(R.string.players_filter_paid)) },
+                                    )
+                                }
+                            }
+                            item {
+                                FilterChip(
+                                    selected = estadoFiltro == FiltroEstadoJugadores.BECADOS,
+                                    onClick = {
+                                        estadoFiltro = if (estadoFiltro == FiltroEstadoJugadores.BECADOS) {
+                                            FiltroEstadoJugadores.TODOS
+                                        } else {
+                                            FiltroEstadoJugadores.BECADOS
+                                        }
+                                    },
+                                    label = { Text(stringResource(R.string.players_filter_scholarship)) },
+                                )
+                            }
+                        }
+                    }
+                    if (listaFiltrada.isEmpty()) {
+                        item(key = "sin_coincidencias") {
+                            Text(
+                                stringResource(R.string.players_empty_filter),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
+                        }
+                    } else {
+                        agrupadosPorCategoria.forEach { (categoriaNombre, listaCat) ->
+                            item(key = "grp_$categoriaNombre") {
+                                val cdGrupo = stringResource(
+                                    R.string.players_group_category_cd,
+                                    categoriaNombre,
+                                )
+                                Text(
+                                    categoriaNombre,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp, bottom = 2.dp)
+                                        .semantics { contentDescription = cdGrupo },
+                                )
+                            }
+                            items(
+                                items = listaCat,
+                                key = { it.jugador.id },
+                            ) { ui ->
+                                JugadorCard(
+                                    jugador = ui.jugador,
+                                    adeudoTotal = ui.adeudoTotal,
+                                    expanded = expandedJugadorId == ui.jugador.id,
+                                    onExpandToggle = {
+                                        expandedJugadorId =
+                                            if (expandedJugadorId == ui.jugador.id) null else ui.jugador.id
+                                    },
+                                    puedeVerMensualidad = puedeVerMensualidad,
+                                    etiquetasAltaPorUid = etiquetasAltaPorUid,
+                                    onAmpliarFoto = { jugadorFotoAmpliada = ui.jugador },
+                                    onEditar = { viewModel.abrirEdicionJugador(ui.jugador) },
+                                    onHistorial = { jugadorHistorial = ui.jugador },
+                                    onDarBaja = { jugadorBaja = ui.jugador },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -540,6 +741,56 @@ fun PlayersScreen(
 }
 
 @Composable
+private fun JugadorEstadoResumenBadges(
+    jugador: Jugador,
+    adeudoTotal: Double,
+    puedeVerMensualidad: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val deuda = adeudoTotal > ADEUDO_LISTA_EPS
+    val chipText: String
+    val container: Color
+    val onLabel: Color
+    when {
+        jugador.becado -> {
+            chipText = stringResource(R.string.players_badge_scholarship_short)
+            container = MaterialTheme.colorScheme.tertiaryContainer
+            onLabel = MaterialTheme.colorScheme.onTertiaryContainer
+        }
+        !puedeVerMensualidad -> return
+        deuda -> {
+            chipText = stringResource(R.string.players_badge_debt) + " · " + formatImporte(adeudoTotal)
+            container = MaterialTheme.colorScheme.errorContainer
+            onLabel = MaterialTheme.colorScheme.onErrorContainer
+        }
+        jugador.mensualidad != null && jugador.mensualidad > 0 -> {
+            chipText = stringResource(R.string.players_badge_paid)
+            container = MaterialTheme.colorScheme.primaryContainer
+            onLabel = MaterialTheme.colorScheme.onPrimaryContainer
+        }
+        else -> {
+            chipText = stringResource(R.string.players_badge_fee_undefined)
+            container = MaterialTheme.colorScheme.surfaceVariant
+            onLabel = MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = container,
+    ) {
+        Text(
+            chipText,
+            style = MaterialTheme.typography.labelSmall,
+            color = onLabel,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
 private fun JugadorAltaPorTexto(
     jugador: Jugador,
     style: TextStyle,
@@ -569,6 +820,7 @@ private fun JugadorAltaPorTexto(
 @Composable
 private fun JugadorCard(
     jugador: Jugador,
+    adeudoTotal: Double = 0.0,
     expanded: Boolean,
     onExpandToggle: () -> Unit,
     puedeVerMensualidad: Boolean,
@@ -608,12 +860,12 @@ private fun JugadorCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val fotoModel = jugador.coilFotoModel(context)
-                val avatarSize = 40.dp
+                val avatarSize = 36.dp
                 if (fotoModel != null) {
                     AsyncImage(
                         model = fotoModel,
@@ -654,65 +906,34 @@ private fun JugadorCard(
                     Column(Modifier.weight(1f)) {
                         Text(
                             jugador.nombre,
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             jugador.categoria,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (!expanded) {
-                            Text(
-                                stringResource(
-                                    R.string.player_joined_date,
-                                    formatearFechaDiaLocal(jugador.fechaAltaMillis),
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
                     }
-                    if (puedeVerMensualidad && !expanded) {
-                        Column(
-                            modifier = Modifier.widthIn(max = 88.dp),
-                            horizontalAlignment = Alignment.End,
-                        ) {
-                            when {
-                                jugador.becado -> Text(
-                                    stringResource(R.string.player_scholarship),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                jugador.mensualidad != null && jugador.mensualidad > 0 -> Text(
-                                    formatImporte(jugador.mensualidad),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                else -> Text(
-                                    stringResource(R.string.player_fee_undefined),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
+                    if (!expanded &&
+                        (jugador.becado || puedeVerMensualidad)
+                    ) {
+                        JugadorEstadoResumenBadges(
+                            jugador = jugador,
+                            adeudoTotal = adeudoTotal,
+                            puedeVerMensualidad = puedeVerMensualidad,
+                            modifier = Modifier.widthIn(max = 120.dp),
+                        )
                     }
                     Icon(
                         imageVector = Icons.Default.ExpandMore,
                         contentDescription = stringResource(R.string.player_card_expand_icon_cd),
                         modifier = Modifier
-                            .size(22.dp)
+                            .size(20.dp)
                             .rotate(chevronRotation),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -774,6 +995,15 @@ private fun JugadorCard(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 6.dp),
+                                )
+                            }
+                            if (!jugador.becado && adeudoTotal > ADEUDO_LISTA_EPS) {
+                                Text(
+                                    stringResource(R.string.players_badge_debt) + ": " +
+                                        formatImporte(adeudoTotal),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 4.dp),
                                 )
                             }
                         }
@@ -1445,10 +1675,28 @@ private fun JugadorFormDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    val emailTutorOk = emailTutorFormatoSuaveValido(email)
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
                         label = { Text(stringResource(R.string.parent_email)) },
+                        placeholder = { Text(stringResource(R.string.parent_email_placeholder)) },
+                        supportingText = {
+                            Text(
+                                if (emailTutorOk) {
+                                    stringResource(R.string.parent_email_hint)
+                                } else {
+                                    stringResource(R.string.parent_email_error_format)
+                                },
+                                color = if (emailTutorOk) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                },
+                            )
+                        },
+                        isError = !emailTutorOk,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -1514,7 +1762,7 @@ private fun JugadorFormDialog(
                                 categoria,
                                 fechaNacMs,
                                 tel,
-                                email,
+                                email.trim(),
                                 notas,
                                 fotoPath,
                                 curpTxt.trim().takeIf { it.isNotEmpty() },
@@ -1524,7 +1772,9 @@ private fun JugadorFormDialog(
                                 menFinal,
                             )
                         },
-                        enabled = nombre.isNotBlank() && categoria.isNotBlank(),
+                        enabled = nombre.isNotBlank() &&
+                            categoria.isNotBlank() &&
+                            emailTutorFormatoSuaveValido(email),
                     ) { Text(stringResource(R.string.save)) }
                 }
             }

@@ -64,6 +64,11 @@ data class AcademiaConfig(
      * 0 = aún no fijada; la primera carga del listado la inicializa para no marcar todo el histórico como no leído.
      */
     val recursosUltimaVistaAtMillis: Long = 0L,
+    /**
+     * JSON array de enteros ISO-8601 `DayOfWeek` (lunes=1 … domingo=7), p. ej. `[2,4]` martes y jueves.
+     * Sirve para detectar automáticamente si el día del calendario es habitual de entreno.
+     */
+    val diasEntrenoSemanaIsoJson: String = "[2,4]",
 ) {
     companion object {
         val DEFAULT = AcademiaConfig(
@@ -91,6 +96,7 @@ data class AcademiaConfig(
             cloudCoachCategoriasJson = null,
             diaLimitePagoMes = null,
             recursosUltimaVistaAtMillis = 0L,
+            diasEntrenoSemanaIsoJson = "[2,4]",
         )
     }
 }

@@ -41,13 +41,36 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.github.jan.supabase.auth.auth
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+/** Tono del último resultado en tarjetas de lista (solo presentación). */
+enum class CompetenciaListaTonResultado {
+    Ninguno,
+    Victoria,
+    Empate,
+    Derrota,
+}
 
 data class CompetenciaListaItemUi(
     val competencia: AcademiaCompetenciaRow,
     val deporteNombre: String,
     /** Padre con varias categorías: nombres de categoría (inscripciones) visibles en esta competencia. */
     val categoriasRelacionadas: List<String> = emptyList(),
+    /** Partidos con marcador en categorías consideradas para la fila (lista staff/padre). */
+    val partidosJugados: Int = 0,
+    val numCategoriasInscritas: Int = 0,
+    /** Staff: nombres de categoría inscritas (lista ordenada) para chips en la tarjeta de lista. */
+    val categoriasInscritasNombres: List<String> = emptyList(),
+    val proximoRival: String? = null,
+    val proximoFechaCorta: String? = null,
+    val padreUltimoRival: String? = null,
+    val padreUltimoGolesPropio: Int? = null,
+    val padreUltimoGolesRival: Int? = null,
+    val padreUltimoTono: CompetenciaListaTonResultado = CompetenciaListaTonResultado.Ninguno,
+    val padreCategoriaTexto: String? = null,
+    val padreEquipoTexto: String? = null,
 )
 
 data class CompetenciasListaUi(
@@ -286,6 +309,61 @@ class CompetenciasViewModel(
         viewModelScope.launch { refrescarDetalleInterno(id) }
     }
 
+    private data class MetricasPartidosLista(
+        val partidosJugados: Int,
+        val proximo: AcademiaCompetenciaPartidoRow?,
+        val ultimoJugado: AcademiaCompetenciaPartidoRow?,
+    )
+
+    private fun parseFechaPartidoValor(iso: String): LocalDate? {
+        val s = iso.trim()
+        if (s.length < 10) return null
+        return runCatching { LocalDate.parse(s.substring(0, 10)) }.getOrNull()
+    }
+
+    private fun esPartidoCanceladoLista(p: AcademiaCompetenciaPartidoRow): Boolean =
+        p.estado.equals(CompetenciaPartidoEstado.CANCELADO, ignoreCase = true)
+
+    private fun esPartidoJugadoConMarcadorLista(p: AcademiaCompetenciaPartidoRow): Boolean =
+        !esPartidoCanceladoLista(p) && p.jugado && p.scorePropio != null && p.scoreRival != null
+
+    private fun calcularMetricasPartidosLista(partidos: List<AcademiaCompetenciaPartidoRow>): MetricasPartidosLista {
+        val jugados = partidos.filter { esPartidoJugadoConMarcadorLista(it) }
+        val ultimo = jugados.maxWithOrNull(
+            compareBy<AcademiaCompetenciaPartidoRow>({ parseFechaPartidoValor(it.fecha) ?: LocalDate.MIN })
+                .thenBy { it.jornada },
+        )
+        val hoy = LocalDate.now()
+        val pendientes = partidos.filter { !esPartidoCanceladoLista(it) && !esPartidoJugadoConMarcadorLista(it) }
+        val ord = pendientes.sortedWith(
+            compareBy<AcademiaCompetenciaPartidoRow>({ parseFechaPartidoValor(it.fecha) ?: LocalDate.MAX })
+                .thenBy { it.jornada },
+        )
+        val proximo = ord.firstOrNull { p ->
+            val d = parseFechaPartidoValor(p.fecha)
+            d == null || !d.isBefore(hoy)
+        } ?: ord.firstOrNull()
+        return MetricasPartidosLista(jugados.size, proximo, ultimo)
+    }
+
+    private fun tonoUltimoPartidoLista(p: AcademiaCompetenciaPartidoRow?): CompetenciaListaTonResultado {
+        if (p == null || !esPartidoJugadoConMarcadorLista(p)) return CompetenciaListaTonResultado.Ninguno
+        val a = p.scorePropio!!
+        val b = p.scoreRival!!
+        return when {
+            a > b -> CompetenciaListaTonResultado.Victoria
+            a < b -> CompetenciaListaTonResultado.Derrota
+            else -> CompetenciaListaTonResultado.Empate
+        }
+    }
+
+    private val formatterFechaLista = DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es", "ES"))
+
+    private fun formatearFechaListaCorta(fechaIso: String): String {
+        val d = parseFechaPartidoValor(fechaIso)
+        return if (d != null) d.format(formatterFechaLista) else fechaIso.trim()
+    }
+
     private suspend fun refrescarListaInterno() {
         val r = repo ?: run {
             _listaUi.value = CompetenciasListaUi(
@@ -347,32 +425,86 @@ class CompetenciasViewModel(
                         .distinctBy { normalizarClaveCategoriaNombre(it) }
                         .sortedWith(compareBy { it.lowercase(Locale.ROOT) })
                         .toList()
+                    val inscRows = insc.filter {
+                        normalizarClaveCategoriaNombre(it.categoriaNombre) in efectivoNorm
+                    }
+                    val ids = inscRows.map { it.id }.toSet()
+                    val partidos = runCatching { r.listarPartidos(comp.id) }.getOrElse { emptyList() }
+                    val partidosVis = partidos.filter { it.categoriaEnCompetenciaId in ids }
+                    val m = calcularMetricasPartidosLista(partidosVis)
+                    val ultimo = m.ultimoJugado
+                    val equipos = inscRows
+                        .mapNotNull { it.nombreEquipoMostrado?.trim()?.takeIf { s -> s.isNotEmpty() } }
+                        .distinct()
                     CompetenciaListaItemUi(
                         competencia = comp,
                         deporteNombre = deportesMap[comp.deporteId]?.nombre ?: "—",
                         categoriasRelacionadas = categoriasEtiqueta,
+                        partidosJugados = m.partidosJugados,
+                        numCategoriasInscritas = inscRows.distinctBy { it.id }.size,
+                        proximoRival = m.proximo?.rival?.trim()?.takeIf { it.isNotEmpty() },
+                        proximoFechaCorta = m.proximo?.let { formatearFechaListaCorta(it.fecha) },
+                        padreUltimoRival = ultimo?.rival?.trim()?.takeIf { it.isNotEmpty() },
+                        padreUltimoGolesPropio = ultimo?.scorePropio,
+                        padreUltimoGolesRival = ultimo?.scoreRival,
+                        padreUltimoTono = tonoUltimoPartidoLista(ultimo),
+                        padreCategoriaTexto = categoriasEtiqueta.joinToString(" · ").takeIf { it.isNotBlank() },
+                        padreEquipoTexto = when {
+                            equipos.isEmpty() -> null
+                            equipos.size == 1 -> equipos.first()
+                            else -> equipos.joinToString(" · ")
+                        },
                     )
                 }
         } else {
             val catFiltro = filtroCategoria.value?.trim()?.takeIf { it.isNotEmpty() }
             val permitidas = categoriasPermitidasOperacion.value?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()
-            raw.filter { comp ->
-                val insc = runCatching { r.listarInscripciones(comp.id) }.getOrElse { emptyList() }
-                if (insc.isEmpty()) {
+            raw.mapNotNull { c ->
+                val insc = runCatching { r.listarInscripciones(c.id) }.getOrElse { emptyList() }
+                val pasaFiltroLista = if (insc.isEmpty()) {
                     // Quién ve borradores lo decide RLS (coach: solo sin inscripciones activas, etc.).
-                    return@filter true
+                    true
+                } else {
+                    insc.any { row ->
+                        val okCat = catFiltro == null || row.categoriaNombre.trim().equals(catFiltro, ignoreCase = true)
+                        val okCoach = permitidas == null || permitidas.any { p ->
+                            row.categoriaNombre.trim().equals(p, ignoreCase = true)
+                        }
+                        okCat && okCoach
+                    }
                 }
-                insc.any { row ->
+                if (!pasaFiltroLista) return@mapNotNull null
+                val inscFiltradas = insc.filter { row ->
                     val okCat = catFiltro == null || row.categoriaNombre.trim().equals(catFiltro, ignoreCase = true)
                     val okCoach = permitidas == null || permitidas.any { p ->
                         row.categoriaNombre.trim().equals(p, ignoreCase = true)
                     }
                     okCat && okCoach
                 }
-            }.map { c ->
+                val inscForMetrics = if (inscFiltradas.isNotEmpty()) inscFiltradas else insc
+                val partidos = runCatching { r.listarPartidos(c.id) }.getOrElse { emptyList() }
+                val ids = inscForMetrics.map { it.id }.toSet()
+                val partidosVis = if (ids.isNotEmpty()) {
+                    partidos.filter { it.categoriaEnCompetenciaId in ids }
+                } else {
+                    partidos
+                }
+                val m = calcularMetricasPartidosLista(partidosVis)
+                val nombresCatsStaff = inscForMetrics
+                    .asSequence()
+                    .map { it.categoriaNombre.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinctBy { normalizarClaveCategoriaNombre(it) }
+                    .sortedWith(compareBy { it.lowercase(Locale.ROOT) })
+                    .toList()
                 CompetenciaListaItemUi(
                     competencia = c,
                     deporteNombre = deportesMap[c.deporteId]?.nombre ?: "—",
+                    partidosJugados = m.partidosJugados,
+                    numCategoriasInscritas = inscForMetrics.distinctBy { it.id }.size,
+                    categoriasInscritasNombres = nombresCatsStaff,
+                    proximoRival = m.proximo?.rival?.trim()?.takeIf { it.isNotEmpty() },
+                    proximoFechaCorta = m.proximo?.let { formatearFechaListaCorta(it.fecha) },
                 )
             }
         }

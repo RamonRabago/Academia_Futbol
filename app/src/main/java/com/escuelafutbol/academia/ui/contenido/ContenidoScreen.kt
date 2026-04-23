@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
@@ -88,13 +89,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -178,7 +179,7 @@ fun ContenidoScreen(
         ) {
             LazyColumn(
                 state = listState,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
@@ -187,13 +188,15 @@ fun ContenidoScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             stringResource(R.string.resources_title),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 8.dp, end = 4.dp),
                         )
                         IconButton(onClick = { filtrosSheetAbierto = true }) {
                             Icon(
@@ -204,6 +207,13 @@ fun ContenidoScreen(
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
+                            )
+                        }
+                        IconButton(onClick = { viewModel.refrescar() }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.resources_refresh_cd),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -234,23 +244,6 @@ fun ContenidoScreen(
                                 .padding(horizontal = 16.dp)
                                 .padding(bottom = 4.dp),
                         )
-                    }
-                }
-                item(key = "heading") {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            stringResource(R.string.resources_list_heading),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        TextButton(onClick = { viewModel.refrescar() }) {
-                            Text(stringResource(R.string.resources_reload))
-                        }
                     }
                 }
                 val errorLista = ui.error
@@ -293,59 +286,53 @@ fun ContenidoScreen(
                     itemsIndexed(
                         items,
                         key = { _, item -> item.id },
-                    ) { index, item ->
-                        Column(Modifier.fillMaxWidth()) {
-                            TarjetaContenidoFeed(
-                                item = item,
-                                mostrarCategoria = categoriaFiltro == null,
-                                puedeGestionar = puedePublicarAlguna &&
-                                    viewModel.puedeGestionarRecursosPublicacion(config, item),
-                                puedeModerar = viewModel.puedeModerarPublicacion(config, item),
-                                onOpen = { detalle = item },
-                                onArchivar = { confirmarArchivar = item },
-                                onAprobar = {
-                                    viewModel.aprobarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
-                                        scope.launch {
-                                            if (r.isFailure) {
-                                                snack.showSnackbar(
-                                                    r.exceptionOrNull()?.message
-                                                        ?: context.getString(R.string.resources_moderation_error),
-                                                )
-                                            } else {
-                                                snack.showSnackbar(context.getString(R.string.resources_approved_done))
-                                            }
+                    ) { _, item ->
+                        TarjetaContenidoFeed(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 0.dp, vertical = 4.dp),
+                            item = item,
+                            mostrarCategoria = categoriaFiltro == null,
+                            puedeGestionar = puedePublicarAlguna &&
+                                viewModel.puedeGestionarRecursosPublicacion(config, item),
+                            puedeModerar = viewModel.puedeModerarPublicacion(config, item),
+                            onOpen = { detalle = item },
+                            onArchivar = { confirmarArchivar = item },
+                            onAprobar = {
+                                viewModel.aprobarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
+                                    scope.launch {
+                                        if (r.isFailure) {
+                                            snack.showSnackbar(
+                                                r.exceptionOrNull()?.message
+                                                    ?: context.getString(R.string.resources_moderation_error),
+                                            )
+                                        } else {
+                                            snack.showSnackbar(context.getString(R.string.resources_approved_done))
                                         }
                                     }
-                                },
-                                onRechazar = {
-                                    viewModel.rechazarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
-                                        scope.launch {
-                                            if (r.isFailure) {
-                                                snack.showSnackbar(
-                                                    r.exceptionOrNull()?.message
-                                                        ?: context.getString(R.string.resources_moderation_error),
-                                                )
-                                            } else {
-                                                snack.showSnackbar(context.getString(R.string.resources_rejected_done))
-                                            }
+                                }
+                            },
+                            onRechazar = {
+                                viewModel.rechazarDesdeUi(item.idsFilasParaAccionesRemotas()) { r ->
+                                    scope.launch {
+                                        if (r.isFailure) {
+                                            snack.showSnackbar(
+                                                r.exceptionOrNull()?.message
+                                                    ?: context.getString(R.string.resources_moderation_error),
+                                            )
+                                        } else {
+                                            snack.showSnackbar(context.getString(R.string.resources_rejected_done))
                                         }
                                     }
-                                },
-                                onReaccionar = { tipo ->
-                                    viewModel.alternarReaccionDesdeUi(item.id, tipo)
-                                },
-                                onAbrirImagenGrande = { url ->
-                                    visorImagenContenido = url to item.titulo
-                                },
-                            )
-                            if (index < items.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    thickness = 1.dp,
-                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                                )
-                            }
-                        }
+                                }
+                            },
+                            onReaccionar = { tipo ->
+                                viewModel.alternarReaccionDesdeUi(item.id, tipo)
+                            },
+                            onAbrirImagenGrande = { url ->
+                                visorImagenContenido = url to item.titulo
+                            },
+                        )
                     }
                 }
                 if (ui.cargando && items.isNotEmpty()) {
@@ -1304,6 +1291,47 @@ private fun temaLabel(wire: String): String = stringResource(
 )
 
 @Composable
+private fun ChipTemaContenido(temaWire: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Text(
+            temaLabel(temaWire),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+}
+
+@Composable
+private fun TituloYPreviewTarjetaFeed(item: ContenidoItemUi) {
+    val tit = item.titulo.trim()
+    val cue = item.cuerpo.trim()
+    val mismoInicio = tit.isNotEmpty() &&
+        (cue.startsWith(tit) || tit == cue.take(tit.length.coerceAtMost(cue.length)).trim())
+    if (tit.isNotEmpty() && !mismoInicio) {
+        Text(
+            item.titulo,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(6.dp))
+    }
+    Text(
+        item.cuerpo,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
 private fun CabeceraFeedContenido(
     item: ContenidoItemUi,
     mostrarCategoria: Boolean,
@@ -1357,8 +1385,7 @@ private fun CarruselMediaContenido(
             state = pagerState,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
-                .clip(RectangleShape),
+                .height(268.dp),
         ) { page ->
             val url = urls[page]
             AsyncImage(
@@ -1442,27 +1469,42 @@ private fun BarraReaccionesContenido(
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .semantics { contentDescription = reaccionesCd },
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         chips.forEach { (wire, emoji, count) ->
             val selected = reacciones.miTipo == wire
-            FilterChip(
-                selected = selected,
-                onClick = { onReaccionar(wire) },
-                label = {
+            Row(
+                modifier = Modifier
+                    .clickable { onReaccionar(wire) }
+                    .padding(horizontal = 2.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    emoji,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (count > 0) {
                     Text(
-                        if (count > 0) "$emoji $count" else emoji,
-                        style = MaterialTheme.typography.labelLarge,
+                        count.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        },
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     )
-                },
-            )
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun TarjetaContenidoFeed(
+    modifier: Modifier = Modifier,
     item: ContenidoItemUi,
     mostrarCategoria: Boolean,
     puedeGestionar: Boolean,
@@ -1475,91 +1517,110 @@ private fun TarjetaContenidoFeed(
     onAbrirImagenGrande: (String) -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(0.dp),
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
     ) {
-        Column {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    CabeceraFeedContenido(
-                        item = item,
-                        mostrarCategoria = mostrarCategoria,
-                        mostrarTema = true,
-                    )
-                    if (item.estadoPublicacion == ContenidoEstadoPublicacion.PENDING) {
-                        Text(
-                            stringResource(R.string.resources_state_pending),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary,
-                        )
-                    } else if (item.estadoPublicacion == ContenidoEstadoPublicacion.REJECTED) {
-                        Text(
-                            stringResource(R.string.resources_state_rejected),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                if (puedeGestionar || puedeModerar) {
-                    Box {
-                        IconButton(onClick = { menu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.resources_item_menu_cd))
-                        }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            if (puedeModerar) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.resources_approve_action)) },
-                                    onClick = {
-                                        menu = false
-                                        onAprobar()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.resources_reject_action)) },
-                                    onClick = {
-                                        menu = false
-                                        onRechazar()
-                                    },
-                                )
-                            }
-                            if (puedeGestionar) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.resources_archive_action)) },
-                                    onClick = {
-                                        menu = false
-                                        onArchivar()
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        Column(Modifier.fillMaxWidth()) {
+            CarruselMediaContenido(
+                item = item,
+                onAbrirImagenGrande = onAbrirImagenGrande,
+            )
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clickable { onOpen() },
+                    .clickable { onOpen() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CarruselMediaContenido(
-                    item = item,
-                    onAbrirImagenGrande = onAbrirImagenGrande,
-                )
-                Column(
-                    Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextoPublicacionFeed(item = item, maxLinesCuerpo = 6)
+                    ChipTemaContenido(item.tema)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        tiempoRelativoEspañol(item.createdAtMillis),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.85f),
+                        maxLines = 1,
+                    )
+                    if (puedeGestionar || puedeModerar) {
+                        Box {
+                            IconButton(
+                                onClick = { menu = true },
+                                modifier = Modifier.size(40.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.resources_item_menu_cd),
+                                )
+                            }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                if (puedeModerar) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.resources_approve_action)) },
+                                        onClick = {
+                                            menu = false
+                                            onAprobar()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.resources_reject_action)) },
+                                        onClick = {
+                                            menu = false
+                                            onRechazar()
+                                        },
+                                    )
+                                }
+                                if (puedeGestionar) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.resources_archive_action)) },
+                                        onClick = {
+                                            menu = false
+                                            onArchivar()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
+                if (mostrarCategoria) {
+                    Text(
+                        item.categoriaNombre,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (item.estadoPublicacion == ContenidoEstadoPublicacion.PENDING) {
+                    Text(
+                        stringResource(R.string.resources_state_pending),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                } else if (item.estadoPublicacion == ContenidoEstadoPublicacion.REJECTED) {
+                    Text(
+                        stringResource(R.string.resources_state_rejected),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                TituloYPreviewTarjetaFeed(item = item)
             }
             if (item.estadoPublicacion == ContenidoEstadoPublicacion.PUBLISHED) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+                HorizontalDivider(
+                    modifier = Modifier.fillMaxWidth(),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+                Column(
+                    Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp),
+                ) {
                     BarraReaccionesContenido(
                         reacciones = item.reacciones,
                         onReaccionar = onReaccionar,

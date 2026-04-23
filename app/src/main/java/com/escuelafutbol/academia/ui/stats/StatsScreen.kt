@@ -3,6 +3,7 @@ package com.escuelafutbol.academia.ui.stats
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -11,16 +12,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +42,7 @@ import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
 import java.text.NumberFormat
+import java.time.YearMonth
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,16 +68,25 @@ fun StatsScreen(
         return
     }
     val stats by viewModel.stats.collectAsState()
+    val mesEconomia by viewModel.mesEconomia.collectAsState()
     val uidSesion = sessionAuthUserId.takeIf { it.isNotBlank() }
     val puedeCuotas = configAcademia.puedeVerMensualidadEnEsteDispositivo(uidSesion)
     var mostrarDetalleCuotas by remember { mutableStateOf(false) }
+    var mostrarElegirMesEconomia by remember { mutableStateOf(false) }
+    var ordenEconomia by remember { mutableStateOf(EconomiaOrden.Estimado) }
+    var filtroEconomia by remember { mutableStateOf(EconomiaFiltro.Todas) }
+    var categoriasExpandidas by remember { mutableStateOf(emptySet<String>()) }
+
+    LaunchedEffect(mesEconomia) {
+        categoriasExpandidas = emptySet()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             stringResource(R.string.tab_stats),
@@ -79,88 +94,156 @@ fun StatsScreen(
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
         )
-        Text(stringResource(R.string.stats_summary), style = MaterialTheme.typography.titleSmall)
-            StatCard(
-                title = stringResource(R.string.total_players),
+        StatsCardHero(
+            value = stats.porcentajeAsistenciaGlobal?.let { pct ->
+                String.format(Locale.getDefault(), "%.1f%%", pct)
+            } ?: "—",
+            label = stringResource(R.string.avg_attendance),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatsCardMedium(
                 value = stats.totalJugadores.toString(),
+                label = stringResource(R.string.total_players),
+                modifier = Modifier.weight(1f),
             )
-            StatCard(
-                title = stringResource(R.string.avg_attendance),
-                value = stats.porcentajeAsistenciaGlobal?.let { pct ->
-                    String.format(Locale.getDefault(), "%.1f%%", pct)
-                } ?: "—",
-            )
-            StatCard(
-                title = stringResource(R.string.days_with_records),
+            StatsCardMedium(
                 value = stats.diasConRegistro.toString(),
+                label = stringResource(R.string.days_with_records),
+                modifier = Modifier.weight(1f),
             )
-            if (stats.hayMarcasSinDiaEntreno) {
+        }
+        if (stats.hayMarcasSinDiaEntreno) {
+            Text(
+                stringResource(R.string.stats_training_day_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+
+        if (puedeCuotas) {
+            val c = stats.cuotasResumen
+            val eco = stats.economiaPorCategoria
+
+            Text(
+                stringResource(R.string.stats_economy_section_title),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 4.dp),
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            val enMesCorriente = mesEconomia == YearMonth.now()
+            val puedeIrMesSiguiente = mesEconomia.isBefore(YearMonth.now())
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+            Text(
+                stringResource(R.string.stats_economy_heading_cobros),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            StatsEconomiaSelectorMesFila(
+                puedeIrMesSiguiente = puedeIrMesSiguiente,
+                habilitarBotonMesActual = !enMesCorriente,
+                etiquetaMes = etiquetaMesAnio(mesEconomia),
+                onAnterior = { viewModel.irMesEconomiaAnterior() },
+                onSiguiente = { viewModel.irMesEconomiaSiguiente() },
+                onMesActual = { viewModel.irMesEconomiaActual() },
+                onElegirMes = { mostrarElegirMesEconomia = true },
+            )
+            Text(
+                eco.etiquetaPeriodoHumano,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!eco.hayCobrosRegistradosEnSistema) {
                 Text(
-                    stringResource(R.string.stats_training_day_hint),
-                    style = MaterialTheme.typography.bodySmall,
+                    stringResource(R.string.stats_economy_no_cobros_short),
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.tertiary,
                 )
             }
 
-            if (puedeCuotas) {
-                val c = stats.cuotasResumen
-                Text(
-                    stringResource(R.string.stats_fees_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                Text(
-                    stringResource(R.string.stats_fees_disclaimer),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                StatCard(
-                    title = stringResource(R.string.stats_fees_total_monthly),
-                    value = formatImporte(c.totalMensual),
-                )
-                StatCard(
-                    title = stringResource(R.string.stats_fees_scholarship_count),
-                    value = c.nBecados.toString(),
-                )
-                StatCard(
-                    title = stringResource(R.string.stats_fees_paying_count),
-                    value = c.nConCuota.toString(),
-                )
-                StatCard(
-                    title = stringResource(R.string.stats_fees_undefined_count),
-                    value = c.nSinCuota.toString(),
-                )
-                Text(
-                    stringResource(R.string.stats_fees_by_category),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                c.porCategoria.forEach { cat ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    ) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(cat.categoria, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                stringResource(
-                                    R.string.stats_fees_cat_line,
-                                    cat.alumnosConCuota,
-                                    cat.becados,
-                                    cat.sinCuotaDefinida,
-                                    formatImporte(cat.totalMensual),
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-                OutlinedButton(
-                    onClick = { mostrarDetalleCuotas = true },
+            StatsEconomiaCategoriasDashboard(
+                eco = eco,
+                orden = ordenEconomia,
+                onOrdenChange = { ordenEconomia = it },
+                filtro = filtroEconomia,
+                onFiltroChange = { filtroEconomia = it },
+                categoriasExpandidas = categoriasExpandidas,
+                onToggleCategoria = { cat ->
+                    categoriasExpandidas =
+                        if (cat in categoriasExpandidas) categoriasExpandidas - cat
+                        else categoriasExpandidas + cat
+                },
+                formatImporte = ::formatImporte,
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+            Text(
+                stringResource(R.string.stats_fees_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(stringResource(R.string.stats_fees_detail_button))
+                    StatsCardMedium(
+                        value = formatImporte(c.totalMensual),
+                        label = stringResource(R.string.stats_fees_total_monthly),
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatsCardMedium(
+                        value = c.nBecados.toString(),
+                        label = stringResource(R.string.stats_fees_scholarship_count),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StatsCardMedium(
+                        value = c.nConCuota.toString(),
+                        label = stringResource(R.string.stats_fees_paying_count),
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatsCardMedium(
+                        value = c.nSinCuota.toString(),
+                        label = stringResource(R.string.stats_fees_undefined_count),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
+            OutlinedButton(
+                onClick = { mostrarDetalleCuotas = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.stats_fees_detail_button))
+            }
+        }
+    }
+
+    if (mostrarElegirMesEconomia) {
+        StatsEconomiaMonthPickerDialog(
+            mesSeleccionado = mesEconomia,
+            onElegir = { ym ->
+                viewModel.setMesEconomia(ym)
+                mostrarElegirMesEconomia = false
+            },
+            onDismiss = { mostrarElegirMesEconomia = false },
+        )
     }
 
     if (mostrarDetalleCuotas && puedeCuotas) {
@@ -212,14 +295,108 @@ private fun formatImporte(valor: Double): String =
     NumberFormat.getCurrencyInstance(Locale.getDefault()).format(valor)
 
 @Composable
-private fun StatCard(title: String, value: String) {
-    Card(
+private fun StatsEconomiaSelectorMesFila(
+    puedeIrMesSiguiente: Boolean,
+    habilitarBotonMesActual: Boolean,
+    etiquetaMes: String,
+    onAnterior: () -> Unit,
+    onSiguiente: () -> Unit,
+    onMesActual: () -> Unit,
+    onElegirMes: () -> Unit,
+) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
-            Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+        IconButton(onClick = onAnterior) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = stringResource(R.string.stats_economy_month_previous_cd),
+            )
+        }
+        TextButton(
+            onClick = onElegirMes,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(
+                etiquetaMes,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+        }
+        IconButton(
+            onClick = onSiguiente,
+            enabled = puedeIrMesSiguiente,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.stats_economy_month_next_cd),
+            )
+        }
+        TextButton(
+            onClick = onMesActual,
+            enabled = habilitarBotonMesActual,
+        ) {
+            Text(
+                stringResource(R.string.stats_economy_month_this_month),
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
     }
 }
+
+@Composable
+private fun StatsEconomiaMonthPickerDialog(
+    mesSeleccionado: YearMonth,
+    onElegir: (YearMonth) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val hoy = YearMonth.now()
+    val opciones = remember(hoy) {
+        buildList {
+            var m = hoy
+            repeat(48) {
+                add(m)
+                m = m.minusMonths(1)
+            }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.stats_economy_month_pick_title)) },
+        text = {
+            LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                items(opciones, key = { it.toString() }) { ym ->
+                    val sel = ym == mesSeleccionado
+                    TextButton(
+                        onClick = { onElegir(ym) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            etiquetaMesAnio(ym),
+                            style = if (sel) {
+                                MaterialTheme.typography.titleSmall
+                            } else {
+                                MaterialTheme.typography.bodyLarge
+                            },
+                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (sel) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        },
+    )
+}
+

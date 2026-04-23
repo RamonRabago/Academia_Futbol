@@ -2,11 +2,51 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). Las fechas usan el calendario del equipo.
 
+## [Sin publicar]
+
+### Añadido
+
+- **Competencias — lista por rol:** tarjetas **staff** (partidos jugados, próximo rival y fecha, categorías inscritas) y **padre** (hijos, categoría, equipo, último resultado con tono victoria/empate/derrota); **resumen** superior para staff; selector **«Ver como»** entre hijos si hay varios; textos y vacíos más claros; botón **Nueva competencia** integrado en la columna (`CompetenciaListaCards`, `CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
+
+- **Estadísticas — economía por categoría:** bloque con **ingreso mensual estimado (ficha)**, orden por estimado, barra comparativa, resumen de **cuatro categorías destacadas** (mayor estimado, mayor cobrado del mes, mayor adeudo del mes, más becados) y textos que distinguen estimado vs cobros reales; si no hay filas en `cobros_mensuales_alumno`, aviso claro y sin columnas de cobrado/adeudo (`StatsViewModel`, `StatsEconomia`, `StatsScreen`, `strings.xml`).
+
+### Cambiado
+
+- **Competencias — detalle partidos:** bloque superior con **categoría activa** (chip destacado o selector **Todas** + categorías), **resumen** (jugados / victorias / empates / derrotas / pendientes) y **Registrar partido** como `Button` principal; lista filtrada **solo en UI** por categoría; mensaje si el filtro no tiene partidos (`CompetenciasScreen`, `strings.xml`).
+
+- **Competencias — categorías en lista:** chips con **hasta 5 nombres** o **4 + «+N»** y **expansión** para ver todas; mismo bloque en **tarjeta padre**; resumen superior con **tres celdas alineadas** (icono, cifra, etiqueta, misma altura y `weight(1f)`) (`CompetenciaListaCards`, `CompetenciasViewModel` solo relleno de nombres ya cargados, `strings.xml`).
+
+- **Competencias — alta de competencia:** el flujo pasa de **diálogo** a **pantalla completa** (formulario con scroll, secciones, tarjetas para elegir deporte, validación en campos y **Guardar** fijo abajo con estado de carga; sin cambios en ViewModel ni backend) (`CompetenciasScreen`, `strings.xml`).
+
+- **Estadísticas — mes del bloque económico:** `YearMonth` en `StatsViewModel` (anterior / siguiente / mes actual / lista de meses, sin meses futuros); **cobrado y adeudo** y tops asociados recalculan con el mes elegido; **ficha** (estimado y conteos) sin cambio al cambiar mes; UI con secciones «Según ficha actual» vs «Cobros del mes elegido» y colores más claros (`StatsScreen`, `strings.xml`).
+
+- **Estadísticas — selector de mes:** «Mes actual» y flecha a mes siguiente deshabilitados si ya estás en el mes corriente; divisores y tipografía para jerarquizar ficha vs cobros (`StatsScreen`).
+
+- **Estadísticas — dashboard por categoría:** lista compacta expandible, chips de orden (estimado / cobrado / adeudo) y filtros (todas / con adeudo / top ingreso), resumen global de totales y colores verde/rojo suave para cobrado y adeudo (`StatsEconomiaDashboard`, `StatsScreen`, `strings.xml`).
+
+- **Estadísticas — dashboard económico:** totales y «tops» solo sobre categorías visibles; texto «Mostrando X de Y»; % cobranza y barra verde/rojo por fila; alertas por cobranza baja y adeudo alto; sección compacta mayor estimado / mayor cobrado / peor cobranza (`StatsEconomiaDashboard`, `strings.xml`).
+
+- **Asistencia — día de entrenamiento inteligente:** detección automática según **días de la semana** en `AcademiaConfig.diasEntrenoSemanaIsoJson` (por defecto martes y jueves, ISO 1–7); prioridad **override manual** por día y filtro de categoría en tabla **`dias_entreno_override`**; migración Room **v33**; textos «Hoy es un día habitual de entrenamiento» / «Detectado automáticamente» cuando no hay override (`AttendanceViewModel`, `AttendanceScreen`, `DiaEntrenamientoReglas`, `strings.xml`).
+
 ## [1.0.1] — 2026-04-21
 
 Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`) con firma *debug* del SDK (instalable fuera de Play Store; ver `app/build.gradle.kts`). Para **portadas de categoría en cuenta padre**, desplegar en Supabase la migración **`20260422180000_list_my_parent_categorias_portadas_rpc.sql`**.
 
 ### Cambiado
+
+- **Nombre visible de la app:** `app_name` pasa a **«Mi Academia»** (inicio del sistema, login y `AndroidManifest`) (`strings.xml`).
+
+- **Asistencia (entrenador):** flujo tipo check-in: **fecha** + **Marcar todos / Limpiar** + **buscador y chips** compactos; **barra contextual** «Es día de entrenamiento» **encima de la lista** (no antes de los botones); **lista** con fila ancha pulsable + **Switch** visible y colores presente/ausente; **resumen** más discreto (**colapsado** por defecto con línea y barra fina; detalle al expandir) (`AttendanceScreen`, `AttendanceSummaryCard`, `strings.xml`).
+
+- **Academia (dueño / gestión):** en el menú de ajustes con tarjetas se **omite la segunda barra** «Academia» (ya existe cabecera global con logo y nombre del club); **lista más densa** (padding, separación y filas compactas); **texto de ayuda corto**; **cabecera de bienvenida** «Bienvenido a tu academia» + nombre del club para dueño de dispositivo (`AcademiaScreen`, `strings.xml`).
+
+- **Identidad del club:** vista **compacta tipo editor** (tres `OutlinedCard`, 8–10 dp entre bloques, menos padding superior de lista); portada con vista previa más baja y **Elegir / Quitar en una fila**; logo **64 dp** con acciones en **fila**; nombre con **Guardar** al lado; textos de ayuda **cortos** (`AcademiaIdentidadClubSeccionCompacta`, `strings.xml`).
+
+- **Mensualidad y privacidad:** mismo **padding compacto** del `LazyColumn` que identidad; **sin título duplicado**; dos **`OutlinedCard`** (permisos + PIN / día límite); textos de ayuda **cortos**; menos espacio entre interruptores y bloques (`AcademiaMensualidadPrivacidadSeccionCompacta`, `strings.xml`).
+
+- **Jugadores:** **buscador** por nombre; **chips** (Todos, por categoría en lista, Adeudo, Pagado, Becados); **agrupación** por categoría con encabezados; tarjeta más **compacta** (avatar 36 dp, menos padding) y **badge** de estado; deuda total por alumno en **solo lectura** desde `cobros_mensuales_alumno` (`PlayersScreen`, `PlayersViewModel.JugadorListaUi`, `strings.xml`).
+
+- **Binding / Supabase:** reintentos automáticos (hasta 3, con espera breve) en lecturas PostgREST críticas de **academias** / **academia_miembros** ante **timeout** u otros fallos de red transitorios (`AcademiaCloudSync.withPostgrestNetworkRetry`).
 
 - **Inicio (padre en nube) — portada por categoría del hijo:** la imagen ancha usa la misma resolución que staff (`categoriaPortadaParaFiltro`) con hijos ordenados por nombre y preferencia por **`jugador_remote_id`** en **`SessionViewModel`** (`parentInicioPortadaJugadorRemoteId`, `reconciliarPortadaPadreConHijos`); reconciliación al cambiar la lista; **`HijoResumenUi.jugadorRemoteId`**; tests de lógica en `SessionParentPortadaReconciliacionTest` (`ParentInicioPortada.kt`, `ParentsViewModel`, `SessionViewModel`, `AcademiaRoot`). **Persistencia Room:** tabla **`session_parent_portada_jugador`** + DAO; migración v**32**; lectura/escritura en `SessionViewModel`; borrado en `signOut` (`AuthViewModel`).
 
@@ -29,6 +69,12 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 - **Competencias — Inscripciones (padre):** pestaña con **tarjetas por hijo** vinculado: nombre del alumno, texto «Tu hijo juega en:», **equipo**, **categoría** y **liga o competencia** con etiquetas claras; **staff** conserva la lista técnica anterior. Asociación hijo ↔ inscripción solo por **presentación**: categoría del `Jugador` en Room normalizada = `categoria_nombre` de la inscripción (`CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
 
 ### Corregido
+
+- **Asistencia — «Día de entrenamiento» al volver a una fecha:** si la marca se guardó con **categoría concreta** en el menú y después el filtro global pasa a **«todas las categorías»**, el interruptor y el resumen ignoraban filas con `scopeKey` no vacío. Ahora la vista «todas» trata como entreno cualquier marca de ese día de calendario (`DiaEntrenamientoReglas.diaMarcadoComoEntrenamiento`, `AttendanceViewModel.esDiaEntrenamientoMarcado`).
+
+- **Asistencia — resumen al final y aviso:** la lista y el resumen van en **un solo** `LazyColumn` (scroll continuo), `navigationBarsPadding` y aviso si hay **presentes** pero el día **no** está como entreno; **«Marcar todos presentes»** (y variante visible) **activa también** el día de entrenamiento para que el resumen cuente (`AttendanceScreen`, `AttendanceViewModel`, `strings.xml`).
+
+- **Logo del club en la cabecera tras binding con reintentos:** Coil podía no volver a descargar la misma URL si la primera petición falló o quedó «atascada» hasta un pull manual. Tras cada binding exitoso se incrementa una generación y la petición del logo usa otra clave de memoria (`AcademiaBrandingImageReload`, `CoilAcademyImages.kt`, `AcademiaBindingViewModel`).
 
 - **Inicio (padre) — portada de categoría sin imagen:** el rol **parent** no pasa RLS de `categorias` (`academia_staff_data_access`), así que el pull dejaba Room **sin `portada_url`** aunque existiera en Supabase. Nueva RPC **`list_my_parent_categorias_portadas`** (categorías de hijos vinculados) y llamada en **`AcademiaCloudSync.pullCategorias`** junto al refuerzo del coach (`20260422180000_list_my_parent_categorias_portadas_rpc.sql`).
 
@@ -374,6 +420,16 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 ## [Sin publicar]
 
 Cambios posteriores a la revisión **1.0.1** (2026-04-21).
+
+### Cambiado
+
+- **Jugadores (staff) — correo tutor:** en el formulario de alta/edición, **ayuda** al vínculo con la app padres, **teclado de correo** y **validación suave** (si hay texto, debe parecer un email con @ y dominio con punto; hasta entonces el botón Guardar queda deshabilitado) (`PlayersScreen`, `strings.xml`). Fase 4 ticket 10.
+
+- **Padres — vincular hijo:** antes de crear el vínculo en nube, **diálogo de confirmación** con nombre y categoría del alumno; botón de acción con estado de carga (`ParentsLinkChildPanel`, `strings.xml`). Complementa la Fase 4 (ticket confirmación al vincular).
+
+### Documentación / Supabase (Fase 4)
+
+- **RLS `padres_alumnos_delete_parent_own`:** verificado en **producción** (proyecto `escuela-futbol-correcaminos`): al intentar crear la política desde el SQL Editor, Postgres respondió que **ya existía** (`42710`) — alineado con `supabase/migrations/20260521140000_padres_alumnos_delete_parent_own.sql`. Registro en `docs/FASE4_PADRES_PROGRESO.md` §Registro de acciones.
 
 ---
 

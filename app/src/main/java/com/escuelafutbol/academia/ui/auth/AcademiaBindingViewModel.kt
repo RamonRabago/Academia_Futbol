@@ -7,6 +7,7 @@ import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.sync.AcademiaBindingOption
 import com.escuelafutbol.academia.data.sync.AcademiaBindingResult
 import com.escuelafutbol.academia.data.sync.AcademiaCloudSync
+import com.escuelafutbol.academia.ui.util.AcademiaBrandingImageReload
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,7 +56,10 @@ class AcademiaBindingViewModel(
             }.fold(
                 onSuccess = { r ->
                     _uiState.value = when (r) {
-                        is AcademiaBindingResult.Ok -> AcademiaBindingUiState.Ready
+                        is AcademiaBindingResult.Ok -> {
+                            AcademiaBrandingImageReload.bumpAfterBindingSuccess()
+                            AcademiaBindingUiState.Ready
+                        }
                         AcademiaBindingResult.NeedsOnboarding -> AcademiaBindingUiState.NeedsOnboarding
                         is AcademiaBindingResult.PickAcademy ->
                             if (r.options.isEmpty()) {
@@ -86,6 +90,7 @@ class AcademiaBindingViewModel(
             val result = AcademiaCloudSync(client, app.database).createOwnedAcademia(uid)
             result.fold(
                 onSuccess = {
+                    AcademiaBrandingImageReload.bumpAfterBindingSuccess()
                     _uiState.value = AcademiaBindingUiState.Ready
                     onDone(Result.success(Unit))
                 },
@@ -106,6 +111,7 @@ class AcademiaBindingViewModel(
             val result = AcademiaCloudSync(client, app.database).joinAcademiaByInviteCode(codeNorm)
             result.fold(
                 onSuccess = {
+                    AcademiaBrandingImageReload.bumpAfterBindingSuccess()
                     _uiState.value = AcademiaBindingUiState.Ready
                     onDone(Result.success(Unit))
                 },
@@ -133,6 +139,7 @@ class AcademiaBindingViewModel(
                 AcademiaCloudSync(client, app.database).bindAcademiaIdAndPullConfig(academiaId)
             }.fold(
                 onSuccess = {
+                    AcademiaBrandingImageReload.bumpAfterBindingSuccess()
                     _uiState.value = AcademiaBindingUiState.Ready
                     onDone(Result.success(Unit))
                 },

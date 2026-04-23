@@ -12,6 +12,7 @@ import com.escuelafutbol.academia.data.local.dao.SessionParentPortadaJugadorDao
 import com.escuelafutbol.academia.data.local.dao.SessionOperationalMirrorDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoDao
+import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoOverrideDao
 import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.dao.CobroMensualDao
@@ -22,6 +23,7 @@ import com.escuelafutbol.academia.data.local.entity.SessionCategoriaReciente
 import com.escuelafutbol.academia.data.local.entity.SessionParentPortadaJugador
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.DiaEntrenamiento
+import com.escuelafutbol.academia.data.local.entity.DiaEntrenamientoOverride
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.local.entity.JugadorHistorial
@@ -35,6 +37,7 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         JugadorHistorial::class,
         Asistencia::class,
         DiaEntrenamiento::class,
+        DiaEntrenamientoOverride::class,
         Categoria::class,
         AcademiaConfig::class,
         SessionCategoriaReciente::class,
@@ -43,7 +46,7 @@ import com.escuelafutbol.academia.data.local.entity.StaffCategoria
         StaffCategoria::class,
         CobroMensualAlumno::class,
     ],
-    version = 32,
+    version = 33,
     exportSchema = false,
 )
 abstract class AcademiaDatabase : RoomDatabase() {
@@ -51,6 +54,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
     abstract fun asistenciaDao(): AsistenciaDao
 
     abstract fun diaEntrenamientoDao(): DiaEntrenamientoDao
+    abstract fun diaEntrenamientoOverrideDao(): DiaEntrenamientoOverrideDao
     abstract fun categoriaDao(): CategoriaDao
     abstract fun academiaConfigDao(): AcademiaConfigDao
     abstract fun sessionCategoriaRecienteDao(): SessionCategoriaRecienteDao
@@ -413,6 +417,31 @@ abstract class AcademiaDatabase : RoomDatabase() {
                 }
             }
 
+        private val MIGRATION_32_33 =
+            object : Migration(32, 33) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "ALTER TABLE academia_config ADD COLUMN diasEntrenoSemanaIsoJson TEXT NOT NULL DEFAULT '[2,4]'",
+                    )
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `dias_entreno_override` (
+                          `fechaDia` INTEGER NOT NULL,
+                          `scopeKey` TEXT NOT NULL,
+                          `valorForzado` INTEGER NOT NULL,
+                          PRIMARY KEY(`fechaDia`, `scopeKey`)
+                        )
+                        """.trimIndent().replace("\n", " "),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT OR IGNORE INTO `dias_entreno_override` (`fechaDia`, `scopeKey`, `valorForzado`)
+                        SELECT `fechaDia`, `scopeKey`, 1 FROM `dias_entrenamiento`
+                        """.trimIndent().replace("\n", " "),
+                    )
+                }
+            }
+
         private val MIGRATION_19_20 =
             object : Migration(19, 20) {
                 override fun migrate(db: SupportSQLiteDatabase) {
@@ -483,6 +512,7 @@ abstract class AcademiaDatabase : RoomDatabase() {
                     MIGRATION_29_30,
                     MIGRATION_30_31,
                     MIGRATION_31_32,
+                    MIGRATION_32_33,
                 )
                 .build()
     }

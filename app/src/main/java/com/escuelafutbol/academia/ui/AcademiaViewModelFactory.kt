@@ -80,6 +80,8 @@ class AcademiaViewModelFactory(
                     database.jugadorDao(),
                     database.asistenciaDao(),
                     database.diaEntrenamientoDao(),
+                    database.diaEntrenamientoOverrideDao(),
+                    database.academiaConfigDao(),
                     s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
                 ) as T
@@ -88,6 +90,7 @@ class AcademiaViewModelFactory(
                     database.jugadorDao(),
                     database.asistenciaDao(),
                     database.diaEntrenamientoDao(),
+                    database.cobroMensualDao(),
                     s.filtroCategoria,
                     s.categoriasPermitidasOperacion,
                 ) as T

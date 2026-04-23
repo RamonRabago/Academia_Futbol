@@ -50,8 +50,8 @@ android {
         applicationId = "com.escuelafutbol.academia"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
         val supabaseUrl = localSupabaseProps.getProperty("SUPABASE_URL", "").trim()
         val supabaseKey = localSupabaseProps.getProperty("SUPABASE_ANON_KEY", "").trim()
         buildConfigField(

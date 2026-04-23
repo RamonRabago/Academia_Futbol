@@ -5,8 +5,8 @@ import androidx.room.Entity
 /**
  * Día de calendario que el staff declara como **sesión de entrenamiento** para el resumen.
  *
- * [scopeKey] vacío = marcado con el filtro «todas las categorías» (vale para cualquier vista de categoría).
- * Valor concreto = solo aplica con ese filtro de categoría activo.
+ * [scopeKey] vacío = marcado con el filtro «todas las categorías» (marca «universal» para esa categoría al ver una sola categoría).
+ * Valor concreto = se guardó con ese filtro de categoría en el menú; la vista «todas» también reconoce el día si hay cualquier marca.
  */
 @Entity(
     tableName = "dias_entrenamiento",

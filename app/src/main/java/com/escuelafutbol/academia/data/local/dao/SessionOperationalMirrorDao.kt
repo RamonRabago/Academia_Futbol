@@ -23,6 +23,9 @@ interface SessionOperationalMirrorDao {
     @Query("DELETE FROM dias_entrenamiento")
     suspend fun deleteAllDiasEntrenamiento()
 
+    @Query("DELETE FROM dias_entreno_override")
+    suspend fun deleteAllDiasEntrenoOverride()
+
     @Query("DELETE FROM jugadores")
     suspend fun deleteAllJugadores()
 
@@ -41,6 +44,7 @@ interface SessionOperationalMirrorDao {
         deleteAllAsistencias()
         deleteAllCobrosMensuales()
         deleteAllDiasEntrenamiento()
+        deleteAllDiasEntrenoOverride()
         deleteAllJugadores()
         deleteAllStaffCategorias()
         deleteAllStaff()

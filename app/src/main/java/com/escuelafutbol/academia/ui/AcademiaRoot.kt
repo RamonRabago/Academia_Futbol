@@ -1121,6 +1121,16 @@ private fun AcademiaMainScaffold(
                     staffVm = stf,
                     viewModelFactory = factory,
                     sessionAuthUserId = sessionAuthUserId,
+                    parentsVm = parentsVmShared,
+                    onNavigateToRoute = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onSignOut = { authVm.signOut() },
                 )
             }

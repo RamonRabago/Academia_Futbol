@@ -26,4 +26,9 @@ interface DiaEntrenamientoDao {
     /** Quita cualquier marca de entreno para ese día (global y por categoría). */
     @Query("DELETE FROM dias_entrenamiento WHERE fechaDia = :fechaDia")
     suspend fun deleteAllForDay(fechaDia: Long)
+
+    @Query(
+        "DELETE FROM dias_entrenamiento WHERE fechaDia = :fechaDia AND scopeKey = :scopeKey",
+    )
+    suspend fun deleteByFechaYScope(fechaDia: Long, scopeKey: String)
 }

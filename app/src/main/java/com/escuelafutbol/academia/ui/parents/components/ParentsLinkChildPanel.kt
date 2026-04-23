@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.parents.ParentVinculoCandidatoUi
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
 import androidx.compose.material3.SnackbarHostState
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +68,8 @@ fun ParentsLinkChildPanel(
         mutableStateOf(hijosVinculadosCount == 0)
     }
     var usuarioOcultoPanel by remember { mutableStateOf(false) }
+    var candidatoParaVincular by remember { mutableStateOf<ParentVinculoCandidatoUi?>(null) }
+    var vinculoEnProgreso by remember { mutableStateOf(false) }
     val candidatosFirma = remember(candidatos) {
         candidatos.joinToString("\u0001") { it.remoteId }
     }
@@ -86,6 +90,65 @@ fun ParentsLinkChildPanel(
         if (cargandoCand || candidatos.isEmpty()) return@LaunchedEffect
         if (!usuarioOcultoPanel) expanded = true
     }
+    val candDlg = candidatoParaVincular
+    if (candDlg != null) {
+        AlertDialog(
+            onDismissRequest = { if (!vinculoEnProgreso) candidatoParaVincular = null },
+            title = { Text(stringResource(R.string.parent_self_link_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.parent_self_link_confirm_message,
+                        candDlg.nombre,
+                        candDlg.categoria,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (vinculoEnProgreso) return@TextButton
+                        vinculoEnProgreso = true
+                        viewModel.vincularMiHijo(candDlg.remoteId) { r ->
+                            vinculoEnProgreso = false
+                            candidatoParaVincular = null
+                            scope.launch {
+                                if (r.isSuccess) {
+                                    snackbar.showSnackbar(
+                                        context.getString(R.string.parent_self_link_ok),
+                                    )
+                                } else {
+                                    snackbar.showSnackbar(
+                                        r.exceptionOrNull()?.message
+                                            ?: context.getString(R.string.parent_self_link_error),
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    enabled = !vinculoEnProgreso,
+                ) {
+                    if (vinculoEnProgreso) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(stringResource(R.string.parent_self_link_confirm_action))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { candidatoParaVincular = null },
+                    enabled = !vinculoEnProgreso,
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     Column(modifier = modifier) {
         if (!remoteAcademiaId.isNullOrBlank()) {
             Spacer(Modifier.height(if (compactLayout) 4.dp else 8.dp))
@@ -202,22 +265,7 @@ fun ParentsLinkChildPanel(
                                                     )
                                                 }
                                                 TextButton(
-                                                    onClick = {
-                                                        viewModel.vincularMiHijo(c.remoteId) { r ->
-                                                            scope.launch {
-                                                                if (r.isSuccess) {
-                                                                    snackbar.showSnackbar(
-                                                                        context.getString(R.string.parent_self_link_ok),
-                                                                    )
-                                                                } else {
-                                                                    snackbar.showSnackbar(
-                                                                        r.exceptionOrNull()?.message
-                                                                            ?: context.getString(R.string.parent_self_link_error),
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                    },
+                                                    onClick = { candidatoParaVincular = c },
                                                 ) {
                                                     Text(stringResource(R.string.parent_self_link_vincular))
                                                 }

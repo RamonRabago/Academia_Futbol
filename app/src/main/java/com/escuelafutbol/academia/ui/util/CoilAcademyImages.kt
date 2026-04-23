@@ -1,6 +1,7 @@
 package com.escuelafutbol.academia.ui.util
 
 import android.content.Context
+import coil.memory.MemoryCache
 import coil.request.ImageRequest
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
@@ -10,7 +11,12 @@ import java.io.File
 
 fun AcademiaConfig.coilLogoModel(context: Context): Any? {
     logoUrlSupabase?.trim()?.takeIf { it.isNotEmpty() }?.let { url ->
-        return ImageRequest.Builder(context).data(url).crossfade(true).build()
+        val gen = AcademiaBrandingImageReload.generation()
+        return ImageRequest.Builder(context)
+            .data(url)
+            .memoryCacheKey(MemoryCache.Key("${url}|branding|$gen"))
+            .crossfade(true)
+            .build()
     }
     val path = logoRutaAbsoluta ?: return null
     val f = File(path)

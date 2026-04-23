@@ -7,6 +7,7 @@ import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.CobroMensualDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
+import com.escuelafutbol.academia.data.local.entity.CobroMensualAlumno
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.data.remote.AcademiaMiembrosRepository
 import com.escuelafutbol.academia.data.remote.JugadorRemoteRepository
@@ -35,6 +36,13 @@ sealed class FormularioJugadorUi {
     data object Alta : FormularioJugadorUi()
     data class Edicion(val jugador: Jugador) : FormularioJugadorUi()
 }
+
+/** Fila de lista con deuda agregada (solo lectura desde cobros locales). */
+data class JugadorListaUi(
+    val jugador: Jugador,
+    /** Suma de max(0, importeEsperado − importePagado) en todos los periodos del alumno. */
+    val adeudoTotal: Double,
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayersViewModel(
@@ -105,7 +113,20 @@ class PlayersViewModel(
         }
     }
 
-    val jugadores = jugadoresFlow
+    private val jugadoresUiFlow = combine(
+        jugadoresFlow,
+        cobroMensualDao.observeTodos(),
+    ) { lista: List<Jugador>, cobros: List<CobroMensualAlumno> ->
+        val porJugador = cobros.groupBy { it.jugadorId }
+        lista.map { j ->
+            val adeudo = porJugador[j.id]?.sumOf { c ->
+                (c.importeEsperado - c.importePagado).coerceAtLeast(0.0)
+            } ?: 0.0
+            JugadorListaUi(jugador = j, adeudoTotal = adeudo)
+        }
+    }
+
+    val jugadoresUi = jugadoresUiFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _etiquetasAltaPorUid = MutableStateFlow<Map<String, String>>(emptyMap())

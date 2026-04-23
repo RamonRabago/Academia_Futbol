@@ -2,11 +2,15 @@ package com.escuelafutbol.academia.ui.attendance
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.escuelafutbol.academia.data.local.dao.AcademiaConfigDao
 import com.escuelafutbol.academia.data.local.dao.AsistenciaDao
 import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoDao
+import com.escuelafutbol.academia.data.local.dao.DiaEntrenamientoOverrideDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
+import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.DiaEntrenamiento
+import com.escuelafutbol.academia.data.local.entity.DiaEntrenamientoOverride
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.ui.util.DayMillis
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
@@ -22,7 +26,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,6 +43,8 @@ class AttendanceViewModel(
     private val jugadorDao: JugadorDao,
     private val asistenciaDao: AsistenciaDao,
     private val diaEntrenoDao: DiaEntrenamientoDao,
+    private val diaEntrenoOverrideDao: DiaEntrenamientoOverrideDao,
+    private val academiaConfigDao: AcademiaConfigDao,
     private val filtroCategoria: StateFlow<String?>,
     private val categoriasPermitidasOperacion: StateFlow<Set<String>?>,
 ) : ViewModel() {
@@ -159,22 +168,60 @@ class AttendanceViewModel(
         )
     }
 
-    private val marcasDiaActualLista = fechaDia.flatMapLatest { dia ->
-        diaEntrenoDao.observeForDay(dia)
-    }
+    private data class DiaEntrenoReconcile(
+        val fecha: Long,
+        val scope: String,
+        val efectivo: Boolean,
+        val automatico: Boolean,
+        val hayOverride: Boolean,
+    )
 
-    val esDiaEntrenamientoMarcado = combine(
-        marcasDiaActualLista,
+    private val diaEntrenoReconcileShared = combine(
+        fechaDia,
         filtroCategoria,
-    ) { list, cat ->
+        academiaConfigDao.observe(),
+        fechaDia.flatMapLatest { día -> diaEntrenoOverrideDao.observeForDay(día) },
+    ) { fecha, cat, cfgOrNull, overrides ->
+        val cfg = cfgOrNull ?: AcademiaConfig.DEFAULT
         val scope = scopeKeyAsistencia(cat)
-        list.any { d ->
-            when {
-                scope.isEmpty() -> d.scopeKey.isEmpty()
-                else -> d.scopeKey == scope || d.scopeKey.isEmpty()
+        val o = overrides.find { it.scopeKey == scope }
+        val auto = esDiaSemanaHabitualEntreno(
+            fecha,
+            zonaResumen,
+            cfg.diasEntrenoSemanaIsoJson,
+        )
+        DiaEntrenoReconcile(
+            fecha = fecha,
+            scope = scope,
+            efectivo = o?.valorForzado ?: auto,
+            automatico = auto,
+            hayOverride = o != null,
+        )
+    }.distinctUntilChanged()
+        .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
+
+    init {
+        viewModelScope.launch {
+            diaEntrenoReconcileShared.collect { r ->
+                persistDiaEntrenoEfectivo(r.fecha, r.scope, r.efectivo)
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    }
+
+    val esDiaEntrenamientoMarcado = diaEntrenoReconcileShared.map { it.efectivo }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val diaEntrenoBarraUi = diaEntrenoReconcileShared.map { r ->
+        DiaEntrenoBarraUi(
+            interruptorOn = r.efectivo,
+            hayOverrideManual = r.hayOverride,
+            esDiaSemanaHabitual = r.automatico,
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        DiaEntrenoBarraUi(false, false, false),
+    )
 
     val resumenAsistencia = combine(
         resumenBaseParams,
@@ -246,11 +293,22 @@ class AttendanceViewModel(
         val día = fechaDia.value
         val scope = scopeKeyAsistencia(filtroCategoria.value)
         viewModelScope.launch {
-            if (marcado) {
-                diaEntrenoDao.upsert(DiaEntrenamiento(fechaDia = día, scopeKey = scope))
+            val cfg = academiaConfigDao.getActual() ?: AcademiaConfig.DEFAULT
+            val auto = esDiaSemanaHabitualEntreno(
+                día,
+                zonaResumen,
+                cfg.diasEntrenoSemanaIsoJson,
+            )
+            if (marcado == auto) {
+                diaEntrenoOverrideDao.deleteByFechaYScope(día, scope)
             } else {
-                // Quitar todas las marcas del día (p. ej. "" de la migración + una categoría).
-                diaEntrenoDao.deleteAllForDay(día)
+                diaEntrenoOverrideDao.upsert(
+                    DiaEntrenamientoOverride(
+                        fechaDia = día,
+                        scopeKey = scope,
+                        valorForzado = marcado,
+                    ),
+                )
             }
         }
     }
@@ -302,42 +360,88 @@ class AttendanceViewModel(
     fun marcarAsistencia(jugadorId: Long, presente: Boolean) {
         val día = fechaDia.value
         viewModelScope.launch {
-            val prev = asistenciaDao.getPorJugadorYDia(jugadorId, día)
-            val next = if (prev != null) {
-                prev.copy(presente = presente, needsCloudPush = true)
-            } else {
-                Asistencia(
-                    jugadorId = jugadorId,
-                    fechaDia = día,
-                    presente = presente,
-                    needsCloudPush = true,
-                )
+            upsertPresenteJugadorDia(jugadorId, día, presente)
+        }
+    }
+
+    /** Marca presentes solo a los jugadores indicados (p. ej. lista filtrada en pantalla). */
+    fun marcarPresentesVisibles(jugadorIds: List<Long>) {
+        if (jugadorIds.isEmpty()) return
+        val día = fechaDia.value
+        viewModelScope.launch {
+            for (id in jugadorIds) {
+                upsertPresenteJugadorDia(id, día, true)
             }
-            asistenciaDao.upsert(next)
+            val scope = scopeKeyAsistencia(filtroCategoria.value)
+            diaEntrenoOverrideDao.upsert(
+                DiaEntrenamientoOverride(
+                    fechaDia = día,
+                    scopeKey = scope,
+                    valorForzado = true,
+                ),
+            )
+        }
+    }
+
+    /** Quita la marca de presente (lista del día) para los jugadores indicados. */
+    fun limpiarAsistenciasVisibles(jugadorIds: List<Long>) {
+        if (jugadorIds.isEmpty()) return
+        val día = fechaDia.value
+        viewModelScope.launch {
+            for (id in jugadorIds) {
+                upsertPresenteJugadorDia(id, día, false)
+            }
         }
     }
 
     fun marcarTodosPresentes() {
-        val día = fechaDia.value
         viewModelScope.launch {
             val lista = jugadoresActivosSnapshot(
                 jugadorDao,
                 filtroCategoria.value,
                 categoriasPermitidasOperacion.value,
             )
+            val día = fechaDia.value
             for (j in lista) {
-                val prev = asistenciaDao.getPorJugadorYDia(j.id, día)
-                val next = if (prev != null) {
-                    prev.copy(presente = true, needsCloudPush = true)
-                } else {
-                    Asistencia(
-                        jugadorId = j.id,
+                upsertPresenteJugadorDia(j.id, día, true)
+            }
+            if (lista.isNotEmpty()) {
+                val scope = scopeKeyAsistencia(filtroCategoria.value)
+                diaEntrenoOverrideDao.upsert(
+                    DiaEntrenamientoOverride(
                         fechaDia = día,
-                        presente = true,
-                        needsCloudPush = true,
-                    )
-                }
-                asistenciaDao.upsert(next)
+                        scopeKey = scope,
+                        valorForzado = true,
+                    ),
+                )
+            }
+        }
+    }
+
+    private suspend fun upsertPresenteJugadorDia(jugadorId: Long, día: Long, presente: Boolean) {
+        val prev = asistenciaDao.getPorJugadorYDia(jugadorId, día)
+        val next = if (prev != null) {
+            prev.copy(presente = presente, needsCloudPush = true)
+        } else {
+            Asistencia(
+                jugadorId = jugadorId,
+                fechaDia = día,
+                presente = presente,
+                needsCloudPush = true,
+            )
+        }
+        asistenciaDao.upsert(next)
+    }
+
+    private suspend fun persistDiaEntrenoEfectivo(fecha: Long, scope: String, effective: Boolean) {
+        if (effective) {
+            diaEntrenoDao.upsert(DiaEntrenamiento(fechaDia = fecha, scopeKey = scope))
+        } else {
+            if (scope.isEmpty()) {
+                diaEntrenoDao.deleteAllForDay(fecha)
+            } else {
+                diaEntrenoDao.deleteByFechaYScope(fecha, scope)
+                diaEntrenoDao.deleteByFechaYScope(fecha, "")
             }
         }
     }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import android.view.HapticFeedbackConstants
+import android.view.View
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,20 +41,26 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -87,17 +95,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,13 +130,22 @@ import com.escuelafutbol.academia.ui.auth.AuthProfileSnapshot
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
 import com.escuelafutbol.academia.ui.util.coilFotoModel
+import com.escuelafutbol.academia.ui.util.coilFotoJugadorModel
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.InviteClubIntentHelper
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Staff
+import com.escuelafutbol.academia.data.local.model.RolDispositivo
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
+import com.escuelafutbol.academia.data.local.model.esSesionDueñoCuentaAcademiaRemota
+import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
+import com.escuelafutbol.academia.ui.parents.HijoResumenUi
+import com.escuelafutbol.academia.ui.parents.HijoRendimientoCompPadreUi
+import com.escuelafutbol.academia.ui.parents.ParentsTabContent
+import com.escuelafutbol.academia.ui.parents.ParentsViewModel
+import com.escuelafutbol.academia.ui.parents.ProximoPartidoPadreUi
 import com.escuelafutbol.academia.data.local.model.rolDispositivoEfectivo
 import com.escuelafutbol.academia.data.local.model.puedeMutarDiaLimitePagoMes
 import com.escuelafutbol.academia.data.local.model.RolStaff
@@ -127,8 +153,12 @@ import com.escuelafutbol.academia.ui.theme.normalizeBrandColorHex
 import com.escuelafutbol.academia.ui.theme.parseBrandColorOrNull
 import java.io.File
 import java.text.NumberFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -179,12 +209,18 @@ fun AcademiaScreen(
     staffVm: StaffViewModel,
     viewModelFactory: ViewModelProvider.Factory,
     sessionAuthUserId: String = "",
+    parentsVm: ParentsViewModel? = null,
+    onNavigateToRoute: ((String) -> Unit)? = null,
     onSignOut: (() -> Unit)? = null,
 ) {
     val config by configVm.config.collectAsState()
     if (config.esPadreMembresiaNube()) {
         AcademiaPadreNubeSimpleScreen(
             config = config,
+            viewModelFactory = viewModelFactory,
+            parentsVm = parentsVm,
+            onNavigateToRoute = onNavigateToRoute,
+            sessionAuthUserId = sessionAuthUserId,
             onSignOut = onSignOut,
         )
         return
@@ -194,6 +230,8 @@ fun AcademiaScreen(
     val esPersonalClub = rolDispositivo.esPersonalClub()
     val puedeGestionarAcademiaCabecera =
         config.remoteAcademiaId == null || config.academiaGestionNubePermitida
+    val esDueñoNube =
+        config.cloudMembresiaRol?.equals("owner", ignoreCase = true) == true
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -225,19 +263,16 @@ fun AcademiaScreen(
     var invitacionesSub by remember { mutableStateOf<InvitacionesSubPantalla?>(null) }
     var brandingImageViewer by remember { mutableStateOf<AcademiaBrandingImageViewer?>(null) }
     var dialogoPerfil by remember { mutableStateOf(false) }
-    var perfilNombre by remember { mutableStateOf("") }
-    var perfilApellido by remember { mutableStateOf("") }
-    var perfilEmail by remember { mutableStateOf<String?>(null) }
     val perfilGuardadoMsg = stringResource(R.string.auth_profile_saved)
-
-    LaunchedEffect(dialogoPerfil) {
-        if (dialogoPerfil) {
-            val s = authVm.editableProfileSnapshot()
-            perfilNombre = s?.nombre.orEmpty()
-            perfilApellido = s?.apellido.orEmpty()
-            perfilEmail = s?.email
-        }
-    }
+    /** Menú de tarjetas de ajustes: sin segunda barra (la cabecera global ya da contexto). */
+    val hubMenuGestion =
+        destinoAjusteAcademia == null && esPersonalClub && puedeGestionarAcademiaCabecera
+    val uidSesionAuth = sessionAuthUserId.takeIf { it.isNotBlank() }
+    val mostrarCabeceraBienvenidaDueno = hubMenuGestion &&
+        rolDispositivo == RolDispositivo.DUENO_ACADEMIA &&
+        (esDueñoNube ||
+            config.remoteAcademiaId == null ||
+            config.esSesionDueñoCuentaAcademiaRemota(uidSesionAuth))
 
     LaunchedEffect(destinoAjusteAcademia) {
         if (destinoAjusteAcademia != AcademiaDestinoAjuste.InvitacionesYAcceso) {
@@ -280,49 +315,68 @@ fun AcademiaScreen(
         }
     Scaffold(
         topBar = {
-            if (destinoAjusteAcademia != null && esPersonalClub && puedeGestionarAcademiaCabecera) {
-                val tituloInvSub = tituloInvitacionesSubRes(invitacionesSub)
-                val tituloRes = if (
-                    destinoAjusteAcademia == AcademiaDestinoAjuste.InvitacionesYAcceso &&
-                    tituloInvSub != null
-                ) {
-                    tituloInvSub
-                } else {
-                    tituloDestinoAjusteRes(destinoAjusteAcademia)
-                }
-                TopAppBar(
-                    title = { Text(stringResource(tituloRes)) },
-                    navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                when {
-                                    destinoAjusteAcademia == AcademiaDestinoAjuste.InvitacionesYAcceso &&
-                                        invitacionesSub != null -> {
-                                        invitacionesSub = null
+            when {
+                destinoAjusteAcademia != null && esPersonalClub && puedeGestionarAcademiaCabecera -> {
+                    val tituloInvSub = tituloInvitacionesSubRes(invitacionesSub)
+                    val tituloRes = if (
+                        destinoAjusteAcademia == AcademiaDestinoAjuste.InvitacionesYAcceso &&
+                        tituloInvSub != null
+                    ) {
+                        tituloInvSub
+                    } else {
+                        tituloDestinoAjusteRes(destinoAjusteAcademia)
+                    }
+                    TopAppBar(
+                        title = { Text(stringResource(tituloRes)) },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = {
+                                    when {
+                                        destinoAjusteAcademia == AcademiaDestinoAjuste.InvitacionesYAcceso &&
+                                            invitacionesSub != null -> {
+                                            invitacionesSub = null
+                                        }
+                                        else -> destinoAjusteAcademia = null
                                     }
-                                    else -> destinoAjusteAcademia = null
-                                }
-                            },
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.nav_back_cd),
-                            )
-                        }
-                    },
-                )
-            } else {
-                TopAppBar(title = { Text(stringResource(R.string.tab_academy)) })
+                                },
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.nav_back_cd),
+                                )
+                            }
+                        },
+                    )
+                }
+                hubMenuGestion -> {}
+                else -> {
+                    TopAppBar(title = { Text(stringResource(R.string.tab_academy)) })
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        val contenidoAcademiaDetalleCompacto =
+            destinoAjusteAcademia == AcademiaDestinoAjuste.IdentidadClub ||
+                destinoAjusteAcademia == AcademiaDestinoAjuste.PagosPrivacidad
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = when {
+                hubMenuGestion ->
+                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp)
+                contenidoAcademiaDetalleCompacto ->
+                    PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp)
+                else -> PaddingValues(16.dp)
+            },
+            verticalArrangement = Arrangement.spacedBy(
+                when {
+                    hubMenuGestion -> 10.dp
+                    contenidoAcademiaDetalleCompacto -> 10.dp
+                    else -> 16.dp
+                },
+            ),
         ) {
             val puedeGestionarAcademia =
                 config.remoteAcademiaId == null || config.academiaGestionNubePermitida
@@ -375,9 +429,20 @@ fun AcademiaScreen(
                 }
             } else {
                 if (destinoAjusteAcademia == null) {
+                    if (mostrarCabeceraBienvenidaDueno) {
+                        item {
+                            AcademiaDuenoBienvenidaCabecera(nombreClub = config.nombreAcademia)
+                        }
+                    }
                     item {
                         Text(
-                            stringResource(R.string.academy_settings_hub_intro),
+                            stringResource(
+                                if (hubMenuGestion) {
+                                    R.string.academy_settings_hub_intro_short
+                                } else {
+                                    R.string.academy_settings_hub_intro
+                                },
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -388,6 +453,7 @@ fun AcademiaScreen(
                                 icon = Icons.Filled.Share,
                                 titulo = stringResource(R.string.academy_club_code_section),
                                 subtitulo = stringResource(R.string.academy_club_code_hint),
+                                compact = hubMenuGestion,
                                 onClick = { destinoAjusteAcademia = AcademiaDestinoAjuste.InvitacionesYAcceso },
                             )
                         }
@@ -396,6 +462,7 @@ fun AcademiaScreen(
                                 icon = Icons.Filled.Group,
                                 titulo = stringResource(R.string.members_manage_button),
                                 subtitulo = stringResource(R.string.members_manage_menu_subtitle),
+                                compact = hubMenuGestion,
                                 onClick = {
                                     destinoAjusteAcademia = null
                                     pantallaMiembros = true
@@ -408,6 +475,7 @@ fun AcademiaScreen(
                             icon = Icons.Filled.Image,
                             titulo = stringResource(R.string.academy_branding_section),
                             subtitulo = stringResource(R.string.academy_branding_hint),
+                            compact = hubMenuGestion,
                             onClick = { destinoAjusteAcademia = AcademiaDestinoAjuste.IdentidadClub },
                         )
                     }
@@ -416,6 +484,7 @@ fun AcademiaScreen(
                             icon = Icons.Filled.Edit,
                             titulo = stringResource(R.string.academy_theme_section),
                             subtitulo = stringResource(R.string.academy_theme_hint),
+                            compact = hubMenuGestion,
                             onClick = { destinoAjusteAcademia = AcademiaDestinoAjuste.TemaColores },
                         )
                     }
@@ -424,6 +493,7 @@ fun AcademiaScreen(
                             icon = Icons.Filled.Lock,
                             titulo = stringResource(R.string.academy_fee_privacy_title),
                             subtitulo = stringResource(R.string.academy_fee_privacy_hint),
+                            compact = hubMenuGestion,
                             onClick = { destinoAjusteAcademia = AcademiaDestinoAjuste.PagosPrivacidad },
                         )
                     }
@@ -432,6 +502,7 @@ fun AcademiaScreen(
                             icon = Icons.Filled.ManageAccounts,
                             titulo = stringResource(R.string.staff_section),
                             subtitulo = stringResource(R.string.staff_section_hint),
+                            compact = hubMenuGestion,
                             onClick = { destinoAjusteAcademia = AcademiaDestinoAjuste.EquipoTecnico },
                         )
                     }
@@ -441,6 +512,7 @@ fun AcademiaScreen(
                                 icon = Icons.Filled.Email,
                                 titulo = stringResource(R.string.auth_account_section),
                                 subtitulo = stringResource(R.string.auth_account_hint),
+                                compact = hubMenuGestion,
                                 onClick = { destinoAjusteAcademia = AcademiaDestinoAjuste.CuentaUsuario },
                             )
                         }
@@ -617,169 +689,45 @@ fun AcademiaScreen(
                             }
                         }
                         AcademiaDestinoAjuste.IdentidadClub -> {
-                item {
-                    Text(
-                        stringResource(R.string.academy_branding_section),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        stringResource(R.string.academy_branding_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            item {
-                Text(
-                    stringResource(R.string.academy_cover_section),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    stringResource(R.string.academy_cover_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val portadaModel = config.coilPortadaModel(context)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .height(120.dp),
-                ) {
-                    if (portadaModel != null) {
-                        AsyncImage(
-                            model = portadaModel,
-                            contentDescription = stringResource(R.string.academy_cover),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clickable {
-                                    brandingImageViewer = AcademiaBrandingImageViewer.Portada
-                                },
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                stringResource(R.string.academy_cover_empty),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(onClick = { elegirPortada.launch("image/*") }) {
-                        Text(stringResource(R.string.academy_pick_cover))
-                    }
-                    if (config.portadaRutaAbsoluta != null || !config.portadaUrlSupabase.isNullOrBlank()) {
-                        TextButton(onClick = { configVm.quitarPortada() }) {
-                            Text(stringResource(R.string.academy_remove_cover))
-                        }
-                    }
-                }
-            }
-            item {
-                Text(
-                    stringResource(R.string.academy_logo_section),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Text(
-                    stringResource(R.string.academy_logo_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                ) {
-                    val logoModel = config.coilLogoModel(context)
-                    if (logoModel != null) {
-                        AsyncImage(
-                            model = logoModel,
-                            contentDescription = stringResource(R.string.academy_logo_profile),
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(CircleShape)
-                                .clickable {
-                                    brandingImageViewer = AcademiaBrandingImageViewer.Logo
-                                },
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        Card(
-                            modifier = Modifier.size(88.dp),
-                            shape = CircleShape,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
-                        ) {
-                            Column(
-                                Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                Text(
-                                    stringResource(R.string.academy_logo_placeholder_short),
-                                    style = MaterialTheme.typography.labelSmall,
+                            item {
+                                AcademiaIdentidadClubSeccionCompacta(
+                                    config = config,
+                                    nombreAcademia = nombreAcademiaEdit,
+                                    onNombreChange = { nombreAcademiaEdit = it },
+                                    onElegirPortada = { elegirPortada.launch("image/*") },
+                                    onQuitarPortada = { configVm.quitarPortada() },
+                                    onElegirLogo = { elegirLogo.launch("image/*") },
+                                    onQuitarLogo = { configVm.quitarLogo() },
+                                    onTapPortada = {
+                                        brandingImageViewer = AcademiaBrandingImageViewer.Portada
+                                    },
+                                    onTapLogo = {
+                                        brandingImageViewer = AcademiaBrandingImageViewer.Logo
+                                    },
+                                    onGuardarNombre = {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                        configVm.guardarNombre(nombreAcademiaEdit) { ok ->
+                                            if (ok) {
+                                                viewRoot.performHapticFeedback(
+                                                    HapticFeedbackConstants.CONFIRM,
+                                                )
+                                            }
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = if (ok) {
+                                                        nombreGuardadoMsg
+                                                    } else {
+                                                        nombreDenegadoMsg
+                                                    },
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                            }
+                                        }
+                                    },
+                                    puedeGuardarNombre = nombreAcademiaEdit.isNotBlank(),
                                 )
                             }
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        OutlinedButton(
-                            onClick = { elegirLogo.launch("image/*") },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.academy_pick_logo_profile))
-                        }
-                        if (config.logoRutaAbsoluta != null || !config.logoUrlSupabase.isNullOrBlank()) {
-                            TextButton(onClick = { configVm.quitarLogo() }) {
-                                Text(stringResource(R.string.academy_remove_logo))
-                            }
-                        }
-                    }
-                }
-            }
-            item {
-                OutlinedTextField(
-                    value = nombreAcademiaEdit,
-                    onValueChange = { nombreAcademiaEdit = it },
-                    label = { Text(stringResource(R.string.academy_name_label)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Button(
-                    onClick = {
-                        keyboardController?.hide()
-                        focusManager.clearFocus()
-                        configVm.guardarNombre(nombreAcademiaEdit) { ok ->
-                            if (ok) {
-                                viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                            }
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    message = if (ok) nombreGuardadoMsg else nombreDenegadoMsg,
-                                    duration = SnackbarDuration.Short,
-                                )
-                            }
-                        }
-                    },
-                    enabled = nombreAcademiaEdit.isNotBlank(),
-                    modifier = Modifier.padding(top = 8.dp),
-                ) {
-                    Text(stringResource(R.string.save_academy_name))
-                }
-            }
                         }
                         AcademiaDestinoAjuste.TemaColores -> {
             item {
@@ -948,223 +896,29 @@ fun AcademiaScreen(
             }
                         }
                         AcademiaDestinoAjuste.PagosPrivacidad -> {
-            item {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    stringResource(R.string.academy_fee_privacy_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    stringResource(R.string.academy_fee_privacy_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                Text(
-                    stringResource(R.string.academy_fee_pin_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Text(
-                    stringResource(R.string.academy_fee_who_sees),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(stringResource(R.string.academy_fee_switch_profesor))
-                    Switch(
-                        checked = config.mensualidadVisibleProfesor,
-                        onCheckedChange = {
-                            solicitarCambioPermisos(
-                                it,
-                                config.mensualidadVisibleCoordinador,
-                                config.mensualidadVisibleDueno,
-                            )
-                        },
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(stringResource(R.string.academy_fee_switch_coordinador))
-                    Switch(
-                        checked = config.mensualidadVisibleCoordinador,
-                        onCheckedChange = {
-                            solicitarCambioPermisos(
-                                config.mensualidadVisibleProfesor,
-                                it,
-                                config.mensualidadVisibleDueno,
-                            )
-                        },
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(stringResource(R.string.academy_fee_switch_dueno))
-                    Switch(
-                        checked = config.mensualidadVisibleDueno,
-                        onCheckedChange = {
-                            solicitarCambioPermisos(
-                                config.mensualidadVisibleProfesor,
-                                config.mensualidadVisibleCoordinador,
-                                it,
-                            )
-                        },
-                    )
-                }
-                if (config.pinStaffHash != null && rolDispositivo.esPersonalClub()) {
-                    TextButton(
-                        onClick = {
-                            pendienteTrasPin = null
-                            modoDialogoPin = ModoDialogoPin.CAMBIAR
-                        },
-                        modifier = Modifier.padding(top = 8.dp),
-                    ) {
-                        Text(stringResource(R.string.pin_change_action))
-                    }
-                }
-                val puedeEditarDiaLimite = config.puedeMutarDiaLimitePagoMes(
-                    sessionAuthUserId.takeIf { it.isNotBlank() },
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    stringResource(R.string.academy_payment_deadline_title),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    stringResource(R.string.academy_payment_deadline_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                if (!puedeEditarDiaLimite) {
-                    Text(
-                        stringResource(R.string.academy_payment_deadline_owner_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 10.dp),
-                    )
-                    Text(
-                        run {
-                            val dia = config.diaLimitePagoMes
-                            if (dia != null) {
-                                stringResource(R.string.academy_payment_deadline_readonly_value, dia)
-                            } else {
-                                stringResource(R.string.academy_payment_deadline_readonly_none)
+                            item {
+                                AcademiaMensualidadPrivacidadSeccionCompacta(
+                                    config = config,
+                                    rolDispositivo = rolDispositivo,
+                                    sessionAuthUserId = sessionAuthUserId,
+                                    configVm = configVm,
+                                    onSolicitarCambioPermisos = { p, c, d ->
+                                        solicitarCambioPermisos(p, c, d)
+                                    },
+                                    onCambiarPin = {
+                                        pendienteTrasPin = null
+                                        modoDialogoPin = ModoDialogoPin.CAMBIAR
+                                    },
+                                    snackbarHostState = snackbarHostState,
+                                    scope = scope,
+                                    keyboardController = keyboardController,
+                                    focusManager = focusManager,
+                                    viewRoot = viewRoot,
+                                    diaLimiteGuardadoMsg = diaLimiteGuardadoMsg,
+                                    diaLimiteQuitadoMsg = diaLimiteQuitadoMsg,
+                                    diaLimiteDenegadoMsg = diaLimiteDenegadoMsg,
+                                )
                             }
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                } else {
-                    var diaLimiteTxt by remember { mutableStateOf("") }
-                    LaunchedEffect(config.diaLimitePagoMes) {
-                        diaLimiteTxt = config.diaLimitePagoMes?.toString().orEmpty()
-                    }
-                    OutlinedTextField(
-                        value = diaLimiteTxt,
-                        onValueChange = { v -> diaLimiteTxt = v.filter { it.isDigit() }.take(2) },
-                        label = { Text(stringResource(R.string.academy_payment_deadline_label)) },
-                        supportingText = { Text(stringResource(R.string.academy_payment_deadline_support)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp),
-                    )
-                    Row(
-                        modifier = Modifier.padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        TextButton(
-                            onClick = {
-                                keyboardController?.hide()
-                                focusManager.clearFocus()
-                                diaLimiteTxt = ""
-                                configVm.guardarDiaLimitePagoMes(null) { ok ->
-                                    if (ok) {
-                                        viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                    }
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = if (ok) diaLimiteQuitadoMsg else diaLimiteDenegadoMsg,
-                                            duration = SnackbarDuration.Short,
-                                        )
-                                    }
-                                }
-                            },
-                        ) {
-                            Text(stringResource(R.string.academy_payment_deadline_clear))
-                        }
-                        Button(
-                            onClick = {
-                                keyboardController?.hide()
-                                focusManager.clearFocus()
-                                when {
-                                    diaLimiteTxt.isBlank() -> {
-                                        configVm.guardarDiaLimitePagoMes(null) { ok ->
-                                            if (ok) {
-                                                viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                            }
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar(
-                                                    message = if (ok) {
-                                                        diaLimiteQuitadoMsg
-                                                    } else {
-                                                        diaLimiteDenegadoMsg
-                                                    },
-                                                    duration = SnackbarDuration.Short,
-                                                )
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        val d = diaLimiteTxt.toIntOrNull()
-                                        if (d != null && d in 1..28) {
-                                            configVm.guardarDiaLimitePagoMes(d) { ok ->
-                                                if (ok) {
-                                                    viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                                }
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        message = if (ok) {
-                                                            diaLimiteGuardadoMsg
-                                                        } else {
-                                                            diaLimiteDenegadoMsg
-                                                        },
-                                                        duration = SnackbarDuration.Short,
-                                                    )
-                                                }
-                                            }
-                                        } else {
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar(
-                                                    message = context.getString(R.string.academy_payment_deadline_invalid),
-                                                    duration = SnackbarDuration.Short,
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                        ) {
-                            Text(stringResource(R.string.academy_payment_deadline_save))
-                        }
-                    }
-                }
-            }
                         }
                         AcademiaDestinoAjuste.EquipoTecnico -> {
             item {
@@ -1256,93 +1010,19 @@ fun AcademiaScreen(
                 )
             }
         }
-        if (dialogoPerfil) {
-            AlertDialog(
-                onDismissRequest = { if (!authBusy) dialogoPerfil = false },
-                title = { Text(stringResource(R.string.auth_edit_profile_title)) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (!perfilEmail.isNullOrBlank()) {
-                            Text(
-                                perfilEmail.orEmpty(),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.auth_edit_profile_email_hint),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        OutlinedTextField(
-                            value = perfilNombre,
-                            onValueChange = { perfilNombre = it },
-                            label = { Text(stringResource(R.string.auth_given_name)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Text,
-                                capitalization = KeyboardCapitalization.Words,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedTextField(
-                            value = perfilApellido,
-                            onValueChange = { perfilApellido = it },
-                            label = { Text(stringResource(R.string.auth_family_name)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Text,
-                                capitalization = KeyboardCapitalization.Words,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            if (authBusy) return@TextButton
-                            authVm.updateProfile(perfilNombre, perfilApellido) { r ->
-                                r.onSuccess {
-                                    dialogoPerfil = false
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(perfilGuardadoMsg)
-                                    }
-                                }
-                                r.onFailure { e ->
-                                    Toast.makeText(
-                                        context,
-                                        e.message ?: context.getString(R.string.auth_error_unexpected),
-                                        Toast.LENGTH_LONG,
-                                    ).show()
-                                }
-                            }
-                        },
-                        enabled = perfilNombre.isNotBlank() && perfilApellido.isNotBlank(),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            if (authBusy) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            }
-                            Text(stringResource(R.string.auth_profile_save))
-                        }
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { dialogoPerfil = false },
-                        enabled = !authBusy,
-                    ) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                },
-            )
-        }
+        AcademiaPerfilEditDialog(
+            open = dialogoPerfil,
+            onDismissRequest = { if (!authBusy) dialogoPerfil = false },
+            authVm = authVm,
+            authBusy = authBusy,
+            context = context,
+            onProfileSaveSuccess = {
+                dialogoPerfil = false
+                scope.launch {
+                    snackbarHostState.showSnackbar(perfilGuardadoMsg)
+                }
+            },
+        )
     }
 
     if (dialogoStaff || staffEditar != null) {
@@ -1465,45 +1145,609 @@ fun AcademiaScreen(
 }
 
 @Composable
+private fun AcademiaIdentidadClubSeccionCompacta(
+    config: AcademiaConfig,
+    nombreAcademia: String,
+    onNombreChange: (String) -> Unit,
+    onElegirPortada: () -> Unit,
+    onQuitarPortada: () -> Unit,
+    onElegirLogo: () -> Unit,
+    onQuitarLogo: () -> Unit,
+    onTapPortada: () -> Unit,
+    onTapLogo: () -> Unit,
+    onGuardarNombre: () -> Unit,
+    puedeGuardarNombre: Boolean,
+) {
+    val context = LocalContext.current
+    val portadaModel = config.coilPortadaModel(context)
+    val logoModel = config.coilLogoModel(context)
+    val tienePortada =
+        config.portadaRutaAbsoluta != null || !config.portadaUrlSupabase.isNullOrBlank()
+    val tieneLogo =
+        config.logoRutaAbsoluta != null || !config.logoUrlSupabase.isNullOrBlank()
+    val padTarjeta = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+    val padBoton = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                Modifier.padding(padTarjeta),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.academy_cover_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    stringResource(R.string.academy_cover_hint_compact),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(96.dp),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    if (portadaModel != null) {
+                        AsyncImage(
+                            model = portadaModel,
+                            contentDescription = stringResource(R.string.academy_cover),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(onClick = onTapPortada),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                stringResource(R.string.academy_cover_empty),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedButton(
+                        onClick = onElegirPortada,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = padBoton,
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_pick_cover_short),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (tienePortada) {
+                        TextButton(
+                            onClick = onQuitarPortada,
+                            modifier = Modifier.weight(1f),
+                            contentPadding = padBoton,
+                        ) {
+                            Text(
+                                stringResource(R.string.academy_remove_cover_short),
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Row(
+                Modifier.padding(padTarjeta),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (logoModel != null) {
+                    AsyncImage(
+                        model = logoModel,
+                        contentDescription = stringResource(R.string.academy_logo_profile),
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onTapLogo),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Card(
+                        modifier = Modifier.size(64.dp),
+                        shape = CircleShape,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                    ) {
+                        Column(
+                            Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                stringResource(R.string.academy_logo_placeholder_short),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.academy_logo_section),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        stringResource(R.string.academy_logo_hint_compact),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = onElegirLogo,
+                            modifier = Modifier.weight(1f),
+                            contentPadding = padBoton,
+                        ) {
+                            Text(
+                                stringResource(R.string.academy_pick_logo_profile_short),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (tieneLogo) {
+                            TextButton(
+                                onClick = onQuitarLogo,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = padBoton,
+                            ) {
+                                Text(stringResource(R.string.academy_remove_logo_short))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Row(
+                Modifier.padding(padTarjeta),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = nombreAcademia,
+                    onValueChange = onNombreChange,
+                    label = { Text(stringResource(R.string.academy_name_label)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+                Button(
+                    onClick = onGuardarNombre,
+                    enabled = puedeGuardarNombre,
+                    contentPadding = padBoton,
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcademiaMensualidadPrivacidadSeccionCompacta(
+    config: AcademiaConfig,
+    rolDispositivo: RolDispositivo,
+    sessionAuthUserId: String,
+    configVm: AcademiaConfigViewModel,
+    onSolicitarCambioPermisos: (Boolean, Boolean, Boolean) -> Unit,
+    onCambiarPin: () -> Unit,
+    snackbarHostState: SnackbarHostState,
+    scope: CoroutineScope,
+    keyboardController: SoftwareKeyboardController?,
+    focusManager: FocusManager,
+    viewRoot: View,
+    diaLimiteGuardadoMsg: String,
+    diaLimiteQuitadoMsg: String,
+    diaLimiteDenegadoMsg: String,
+) {
+    val context = LocalContext.current
+    val puedeEditarDiaLimite = config.puedeMutarDiaLimitePagoMes(
+        sessionAuthUserId.takeIf { it.isNotBlank() },
+    )
+    val padTarjeta = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+    val padBoton = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                Modifier.padding(padTarjeta),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.academy_fee_privacy_hint_compact),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.academy_fee_pin_hint_compact),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    stringResource(R.string.academy_fee_who_sees),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_fee_switch_profesor),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Switch(
+                            checked = config.mensualidadVisibleProfesor,
+                            onCheckedChange = {
+                                onSolicitarCambioPermisos(
+                                    it,
+                                    config.mensualidadVisibleCoordinador,
+                                    config.mensualidadVisibleDueno,
+                                )
+                            },
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_fee_switch_coordinador),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Switch(
+                            checked = config.mensualidadVisibleCoordinador,
+                            onCheckedChange = {
+                                onSolicitarCambioPermisos(
+                                    config.mensualidadVisibleProfesor,
+                                    it,
+                                    config.mensualidadVisibleDueno,
+                                )
+                            },
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_fee_switch_dueno),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Switch(
+                            checked = config.mensualidadVisibleDueno,
+                            onCheckedChange = {
+                                onSolicitarCambioPermisos(
+                                    config.mensualidadVisibleProfesor,
+                                    config.mensualidadVisibleCoordinador,
+                                    it,
+                                )
+                            },
+                        )
+                    }
+                }
+                if (config.pinStaffHash != null && rolDispositivo.esPersonalClub()) {
+                    TextButton(
+                        onClick = onCambiarPin,
+                        contentPadding = padBoton,
+                        modifier = Modifier.padding(top = 2.dp),
+                    ) {
+                        Text(stringResource(R.string.pin_change_action))
+                    }
+                }
+            }
+        }
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                Modifier.padding(padTarjeta),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    stringResource(R.string.academy_payment_deadline_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    stringResource(R.string.academy_payment_deadline_hint_compact),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (!puedeEditarDiaLimite) {
+                    Text(
+                        stringResource(R.string.academy_payment_deadline_owner_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    Text(
+                        run {
+                            val dia = config.diaLimitePagoMes
+                            if (dia != null) {
+                                stringResource(R.string.academy_payment_deadline_readonly_value, dia)
+                            } else {
+                                stringResource(R.string.academy_payment_deadline_readonly_none)
+                            }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                } else {
+                    var diaLimiteTxt by remember { mutableStateOf("") }
+                    LaunchedEffect(config.diaLimitePagoMes) {
+                        diaLimiteTxt = config.diaLimitePagoMes?.toString().orEmpty()
+                    }
+                    OutlinedTextField(
+                        value = diaLimiteTxt,
+                        onValueChange = { v -> diaLimiteTxt = v.filter { it.isDigit() }.take(2) },
+                        label = { Text(stringResource(R.string.academy_payment_deadline_label)) },
+                        supportingText = {
+                            Text(stringResource(R.string.academy_payment_deadline_support_compact))
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                    )
+                    Row(
+                        modifier = Modifier.padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        TextButton(
+                            onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                diaLimiteTxt = ""
+                                configVm.guardarDiaLimitePagoMes(null) { ok ->
+                                    if (ok) {
+                                        viewRoot.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    }
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = if (ok) {
+                                                diaLimiteQuitadoMsg
+                                            } else {
+                                                diaLimiteDenegadoMsg
+                                            },
+                                            duration = SnackbarDuration.Short,
+                                        )
+                                    }
+                                }
+                            },
+                            contentPadding = padBoton,
+                        ) {
+                            Text(stringResource(R.string.academy_payment_deadline_clear))
+                        }
+                        Button(
+                            onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                when {
+                                    diaLimiteTxt.isBlank() -> {
+                                        configVm.guardarDiaLimitePagoMes(null) { ok ->
+                                            if (ok) {
+                                                viewRoot.performHapticFeedback(
+                                                    HapticFeedbackConstants.CONFIRM,
+                                                )
+                                            }
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = if (ok) {
+                                                        diaLimiteQuitadoMsg
+                                                    } else {
+                                                        diaLimiteDenegadoMsg
+                                                    },
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    else -> {
+                                        val d = diaLimiteTxt.toIntOrNull()
+                                        if (d != null && d in 1..28) {
+                                            configVm.guardarDiaLimitePagoMes(d) { ok ->
+                                                if (ok) {
+                                                    viewRoot.performHapticFeedback(
+                                                        HapticFeedbackConstants.CONFIRM,
+                                                    )
+                                                }
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        message = if (ok) {
+                                                            diaLimiteGuardadoMsg
+                                                        } else {
+                                                            diaLimiteDenegadoMsg
+                                                        },
+                                                        duration = SnackbarDuration.Short,
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = context.getString(
+                                                        R.string.academy_payment_deadline_invalid,
+                                                    ),
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            contentPadding = padBoton,
+                        ) {
+                            Text(stringResource(R.string.academy_payment_deadline_save))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcademiaDuenoBienvenidaCabecera(
+    nombreClub: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+    ) {
+        Column(
+            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                stringResource(R.string.academy_owner_welcome_prefix),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+            )
+            Text(
+                nombreClub.ifBlank { stringResource(R.string.academy_owner_welcome_club_fallback) },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AcademiaAjusteNavegacionFila(
     icon: ImageVector,
     titulo: String,
     subtitulo: String,
     onClick: () -> Unit,
+    compact: Boolean = false,
 ) {
     OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
     ) {
-        ListItem(
-            headlineContent = {
-                Text(titulo, style = MaterialTheme.typography.titleSmall)
-            },
-            supportingContent = {
-                Text(
-                    subtitulo,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
-            },
-            leadingContent = {
+        if (compact) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 52.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Icon(
                     icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(24.dp),
                 )
-            },
-            trailingContent = {
+                Column(Modifier.weight(1f)) {
+                    Text(titulo, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        subtitulo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            },
-        )
+            }
+        } else {
+            ListItem(
+                headlineContent = {
+                    Text(titulo, style = MaterialTheme.typography.titleSmall)
+                },
+                supportingContent = {
+                    Text(
+                        subtitulo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp),
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+        }
     }
 }
 
@@ -2285,61 +2529,664 @@ private fun InviteRoleCodeRow(
     }
 }
 
+@Composable
+private fun AcademiaPerfilEditDialog(
+    open: Boolean,
+    onDismissRequest: () -> Unit,
+    authVm: AuthViewModel,
+    authBusy: Boolean,
+    context: android.content.Context,
+    onProfileSaveSuccess: () -> Unit,
+) {
+    var perfilNombre by remember { mutableStateOf("") }
+    var perfilApellido by remember { mutableStateOf("") }
+    var perfilEmail by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(open) {
+        if (open) {
+            val s = authVm.editableProfileSnapshot()
+            perfilNombre = s?.nombre.orEmpty()
+            perfilApellido = s?.apellido.orEmpty()
+            perfilEmail = s?.email
+        }
+    }
+
+    if (open) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(stringResource(R.string.auth_edit_profile_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (!perfilEmail.isNullOrBlank()) {
+                        Text(
+                            perfilEmail.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.auth_edit_profile_email_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = perfilNombre,
+                        onValueChange = { perfilNombre = it },
+                        label = { Text(stringResource(R.string.auth_given_name)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            capitalization = KeyboardCapitalization.Words,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = perfilApellido,
+                        onValueChange = { perfilApellido = it },
+                        label = { Text(stringResource(R.string.auth_family_name)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            capitalization = KeyboardCapitalization.Words,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (authBusy) return@TextButton
+                        authVm.updateProfile(perfilNombre, perfilApellido) { r ->
+                            r.onSuccess {
+                                onProfileSaveSuccess()
+                            }
+                            r.onFailure { e ->
+                                Toast.makeText(
+                                    context,
+                                    e.message ?: context.getString(R.string.auth_error_unexpected),
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = perfilNombre.isNotBlank() && perfilApellido.isNotBlank(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (authBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                        Text(stringResource(R.string.auth_profile_save))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = onDismissRequest,
+                    enabled = !authBusy,
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+private fun academyParentFormatFechaPartido(iso: String): String {
+    val d = runCatching { LocalDate.parse(iso.trim()) }.getOrNull() ?: return iso.trim()
+    return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        .withLocale(Locale.getDefault())
+        .format(d)
+}
+
+private fun academyParentTextoProximoPartido(p: ProximoPartidoPadreUi): String {
+    val fecha = academyParentFormatFechaPartido(p.fechaIso)
+    val hora = p.hora?.trim()?.takeIf { it.isNotEmpty() }
+    return buildString {
+        append(p.rival.trim().ifEmpty { "—" })
+        append(" · ")
+        append(fecha)
+        if (hora != null) {
+            append(" · ")
+            append(hora)
+        }
+        p.sede?.trim()?.takeIf { it.isNotEmpty() }?.let { sede ->
+            append(" · ")
+            append(sede)
+        }
+    }
+}
+
+@Composable
+private fun AcademiaPadreNubeAccesoRapidoBoton(
+    modifier: Modifier,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    icon: ImageVector,
+    label: String,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 80.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AcademiaPadreNubeAccesosRapidosRow(
+    modifier: Modifier = Modifier,
+    config: AcademiaConfig,
+    sessionAuthUserId: String,
+    onNavigateToRoute: ((String) -> Unit)?,
+) {
+    val uid = sessionAuthUserId.takeIf { it.isNotBlank() }
+    val navPartidos = onNavigateToRoute != null &&
+        rutaPrincipalVisible("competencias", config, uid)
+    val navPadres = onNavigateToRoute != null &&
+        rutaPrincipalVisible("padres", config, uid)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        AcademiaPadreNubeAccesoRapidoBoton(
+            modifier = Modifier.weight(1f),
+            enabled = navPartidos,
+            onClick = { onNavigateToRoute?.invoke("competencias") },
+            icon = Icons.Filled.EmojiEvents,
+            label = stringResource(R.string.academy_parent_quick_matches),
+        )
+        AcademiaPadreNubeAccesoRapidoBoton(
+            modifier = Modifier.weight(1f),
+            enabled = navPadres,
+            onClick = { onNavigateToRoute?.invoke("padres") },
+            icon = Icons.Filled.MailOutline,
+            label = stringResource(R.string.academy_parent_quick_notices),
+        )
+        AcademiaPadreNubeAccesoRapidoBoton(
+            modifier = Modifier.weight(1f),
+            enabled = navPadres,
+            onClick = { onNavigateToRoute?.invoke("padres") },
+            icon = Icons.Filled.Payments,
+            label = stringResource(R.string.academy_parent_quick_payments),
+        )
+    }
+}
+
+@Composable
+private fun AcademiaPadreHijoEstadoCard(
+    hijo: HijoResumenUi,
+    rendimiento: HijoRendimientoCompPadreUi?,
+    moneyFmt: NumberFormat,
+) {
+    val context = LocalContext.current
+    val modeloFoto = remember(hijo.fotoUrlSupabase, hijo.fotoRutaAbsoluta) {
+        coilFotoJugadorModel(context, hijo.fotoUrlSupabase, hijo.fotoRutaAbsoluta)
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (modeloFoto != null) {
+                    AsyncImage(
+                        model = modeloFoto,
+                        contentDescription = stringResource(R.string.player_photo_cd),
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Icon(
+                        Icons.Outlined.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(30.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    hijo.nombre,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    hijo.categoria,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            stringResource(R.string.academy_parent_child_label_attendance),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val pct = hijo.porcentajeAsistenciaEntrenos
+        val asistenciaText = when {
+            pct != null -> stringResource(R.string.academy_parent_child_attendance_pct, pct)
+            hijo.ultimasAsistencias.isNotEmpty() ->
+                stringResource(R.string.academy_parent_child_attendance_tracking)
+            else -> stringResource(R.string.academy_parent_child_attendance_none)
+        }
+        Text(
+            asistenciaText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            stringResource(R.string.academy_parent_child_label_balance),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (hijo.totalAdeudoHijo > 0.01) {
+            Text(
+                moneyFmt.format(hijo.totalAdeudoHijo),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        } else {
+            Text(
+                stringResource(R.string.academy_parent_child_balance_clear),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        val prox = rendimiento?.proximoPartido
+        if (prox != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.academy_parent_next_match_heading),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                academyParentTextoProximoPartido(prox),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            if (prox.competenciaNombre.isNotBlank() && prox.competenciaNombre != "—") {
+                Text(
+                    prox.competenciaNombre,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
 /** Academia en pestaña inferior para padre/tutor en nube: sin staff, invitaciones ni ajustes del club. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AcademiaPadreNubeSimpleScreen(
     config: AcademiaConfig,
+    viewModelFactory: ViewModelProvider.Factory,
+    parentsVm: ParentsViewModel?,
+    onNavigateToRoute: ((String) -> Unit)?,
+    sessionAuthUserId: String,
     onSignOut: (() -> Unit)?,
 ) {
     val scroll = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val authVm: AuthViewModel = viewModel(factory = viewModelFactory)
+    val authBusy by authVm.busy.collectAsState()
+    val authSession by authVm.sessionStatus.collectAsState()
+    val cuentaPerfil = remember(authSession, authBusy) { authVm.editableProfileSnapshot() }
+    val primerNombre = remember(cuentaPerfil) {
+        cuentaPerfil?.nombre?.trim()?.split(Regex("\\s+"))?.firstOrNull().orEmpty()
+    }
+    val saludo = if (primerNombre.isNotEmpty()) {
+        stringResource(R.string.academy_parent_greeting_hi, primerNombre)
+    } else {
+        stringResource(R.string.academy_parent_greeting_generic)
+    }
+    val logoModel = remember(config, context) { config.coilLogoModel(context) }
+    val perfilGuardadoMsg = stringResource(R.string.auth_profile_saved)
+    var dialogoPerfil by remember { mutableStateOf(false) }
+    val moneyFmt = remember { NumberFormat.getCurrencyInstance(Locale.getDefault()) }
+    val contenidoPadres by produceState<ParentsTabContent>(
+        initialValue = ParentsTabContent.PadreSinHijos,
+        parentsVm,
+    ) {
+        val vm = parentsVm
+        if (vm == null) {
+            value = ParentsTabContent.PadreSinHijos
+            return@produceState
+        }
+        vm.parentsTabContent.collect { value = it }
+    }
+    val rendimientoPadre by produceState<Map<Long, HijoRendimientoCompPadreUi>>(
+        initialValue = emptyMap(),
+        parentsVm,
+    ) {
+        val vm = parentsVm
+        if (vm == null) {
+            value = emptyMap()
+            return@produceState
+        }
+        vm.rendimientoCompPadrePorJugador.collect { value = it }
+    }
+    LaunchedEffect(contenidoPadres, parentsVm) {
+        val vm = parentsVm ?: return@LaunchedEffect
+        if (contenidoPadres is ParentsTabContent.PadreConHijos) {
+            vm.refrescarRendimientoCompetenciasPadre()
+        }
+    }
+
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.tab_academy)) })
-        },
+        /** Sin segunda barra: el título «Academia» ya está en la barra inferior; evita ~56dp de hueco muerto. */
+        topBar = {},
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        /** El `Scaffold` principal ya reserva insets y barra inferior; no duplicar aire (como en Padres). */
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(scroll)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(padding),
         ) {
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.outlinedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                ),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 0.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                Column(Modifier.fillMaxWidth()) {
                     Text(
-                        stringResource(R.string.academy_readonly_family_title),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        config.nombreAcademia,
+                        text = saludo,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        stringResource(R.string.academy_parent_cloud_tab_intro),
-                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        if (logoModel != null) {
+                            AsyncImage(
+                                model = logoModel,
+                                contentDescription = stringResource(R.string.academy_logo),
+                                modifier = Modifier
+                                    .size(88.dp)
+                                    .clip(CircleShape)
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                        shape = CircleShape,
+                                    ),
+                                contentScale = ContentScale.Crop,
+                            )
+                        } else {
+                            Surface(
+                                modifier = Modifier.size(88.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Filled.SportsSoccer,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(44.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        val welcomeTitleStyle = MaterialTheme.typography.headlineLarge
+                        val welcomeSuffixStyle = MaterialTheme.typography.titleLarge
+                        Text(
+                            text = buildAnnotatedString {
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = welcomeTitleStyle.fontSize,
+                                        letterSpacing = welcomeTitleStyle.letterSpacing,
+                                    ),
+                                ) {
+                                    append(stringResource(R.string.academy_parent_welcome_main))
+                                }
+                                append(" ")
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = welcomeSuffixStyle.fontSize,
+                                        letterSpacing = welcomeSuffixStyle.letterSpacing,
+                                    ),
+                                ) {
+                                    append(stringResource(R.string.academy_parent_welcome_secondary))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = welcomeTitleStyle.copy(fontWeight = FontWeight.Bold),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 40.sp,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = stringResource(
+                                R.string.academy_parent_welcome_thanks,
+                                config.nombreAcademia,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = stringResource(R.string.academy_parent_emotional_line),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-            }
-            if (onSignOut != null) {
-                OutlinedButton(
-                    onClick = onSignOut,
+                AcademiaPadreNubeAccesosRapidosRow(
+                    config = config,
+                    sessionAuthUserId = sessionAuthUserId,
+                    onNavigateToRoute = onNavigateToRoute,
+                )
+                OutlinedCard(
                     modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
                 ) {
-                    Text(stringResource(R.string.auth_sign_out))
+                    Column(
+                        Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_parent_cloud_card_title),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            config.nombreAcademia,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            stringResource(R.string.academy_parent_cloud_tab_intro),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 24.sp,
+                        )
+                    }
+                }
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    Column(
+                        Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_parent_section_kids_status),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        when (val c = contenidoPadres) {
+                            is ParentsTabContent.PadreConHijos -> {
+                                c.hijos.forEachIndexed { index, hijo ->
+                                    if (index > 0) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant,
+                                        )
+                                    }
+                                    AcademiaPadreHijoEstadoCard(
+                                        hijo = hijo,
+                                        rendimiento = rendimientoPadre[hijo.jugadorLocalId],
+                                        moneyFmt = moneyFmt,
+                                    )
+                                }
+                            }
+                            else -> {
+                                Text(
+                                    stringResource(R.string.academy_parent_kids_empty_hint),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 22.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    Column(
+                        Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.academy_parent_my_account),
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
+                        )
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    stringResource(R.string.auth_edit_profile),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Filled.ManageAccounts,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                            trailingContent = {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            modifier = Modifier.clickable {
+                                if (!authBusy) dialogoPerfil = true
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                if (onSignOut != null) {
+                    TextButton(
+                        onClick = onSignOut,
+                        enabled = !authBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.outline,
+                        ),
+                    ) {
+                        Text(
+                            stringResource(R.string.auth_sign_out),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
+            AcademiaPerfilEditDialog(
+                open = dialogoPerfil,
+                onDismissRequest = { if (!authBusy) dialogoPerfil = false },
+                authVm = authVm,
+                authBusy = authBusy,
+                context = context,
+                onProfileSaveSuccess = {
+                    dialogoPerfil = false
+                    scope.launch {
+                        snackbarHostState.showSnackbar(perfilGuardadoMsg)
+                    }
+                },
+            )
         }
     }
 }

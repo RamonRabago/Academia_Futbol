@@ -2,23 +2,69 @@ package com.escuelafutbol.academia.ui.attendance
 
 import com.escuelafutbol.academia.data.local.entity.Asistencia
 import com.escuelafutbol.academia.data.local.entity.DiaEntrenamiento
+import java.time.Instant
+import java.time.ZoneId
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 
 fun scopeKeyAsistencia(categoriaFiltro: String?): String =
     categoriaFiltro?.trim().orEmpty()
 
+private val jsonDiasParser = Json { ignoreUnknownKeys = true }
+
+/** Martes y jueves (ISO `DayOfWeek`, lunes=1). */
+private val diasEntrenoSemanaPorDefecto: Set<Int> = setOf(2, 4)
+
+/**
+ * Interpreta [raw] como JSON array de enteros 1–7 (lunes a domingo). Valores inválidos se ignoran.
+ */
+fun parseDiasEntrenoSemanaIsoJson(raw: String): Set<Int> {
+    val s = raw.trim()
+    if (s.isEmpty()) return diasEntrenoSemanaPorDefecto
+    return try {
+        jsonDiasParser.parseToJsonElement(s).jsonArray
+            .mapNotNull { el ->
+                el.jsonPrimitive.intOrNull?.takeIf { it in 1..7 }
+            }
+            .toSet()
+            .takeIf { it.isNotEmpty() }
+            ?: diasEntrenoSemanaPorDefecto
+    } catch (_: Exception) {
+        diasEntrenoSemanaPorDefecto
+    }
+}
+
+fun esDiaSemanaHabitualEntreno(
+    fechaDiaMillis: Long,
+    zone: ZoneId,
+    diasEntrenoSemanaIsoJson: String,
+): Boolean {
+    val isoDow = Instant.ofEpochMilli(fechaDiaMillis).atZone(zone).dayOfWeek.value
+    return isoDow in parseDiasEntrenoSemanaIsoJson(diasEntrenoSemanaIsoJson)
+}
+
 /**
  * Indica si [fechaDia] está marcado como día de entrenamiento para la vista actual ([scopeKeyVista]).
- * Una marca con [DiaEntrenamiento.scopeKey] vacío aplica a cualquier categoría concreta, no a la vista «todas».
+ *
+ * - Vista **«todas las categorías»** (`scopeKeyVista` vacío): cuenta si existe **cualquier** marca
+ *   para ese día de calendario (p. ej. se guardó con una categoría concreta y luego el menú volvió a «todas»).
+ * - Vista con **categoría concreta**: coincide la misma clave, o una marca universal (`scopeKey` vacío).
  */
 fun diaMarcadoComoEntrenamiento(
     fechaDia: Long,
     scopeKeyVista: String,
     marcas: Collection<DiaEntrenamiento>,
-): Boolean = marcas.any { d ->
-    d.fechaDia == fechaDia && (
-        d.scopeKey == scopeKeyVista ||
-            (scopeKeyVista.isNotEmpty() && d.scopeKey.isEmpty())
-        )
+): Boolean {
+    val delDia = marcas.filter { it.fechaDia == fechaDia }
+    if (delDia.isEmpty()) return false
+    if (scopeKeyVista.isEmpty()) {
+        return true
+    }
+    return delDia.any { d ->
+        d.scopeKey == scopeKeyVista || d.scopeKey.isEmpty()
+    }
 }
 
 /**

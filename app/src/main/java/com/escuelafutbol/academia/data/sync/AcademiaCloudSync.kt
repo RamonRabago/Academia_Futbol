@@ -54,6 +54,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -64,6 +65,53 @@ class AcademiaCloudSync(
     private val client: SupabaseClient,
     private val db: AcademiaDatabase,
 ) {
+
+    /**
+     * PostgREST a veces agota el [requestTimeout] (p. ej. 45s en [AcademiaApplication]) en la primera
+     * petición tras abrir la app o cambiar de red; un segundo intento suele responder al instante.
+     */
+    private suspend fun <T> withPostgrestNetworkRetry(
+        attempts: Int = 3,
+        block: suspend () -> T,
+    ): T {
+        require(attempts >= 1)
+        var last: Throwable? = null
+        repeat(attempts) { attempt ->
+            try {
+                return block()
+            } catch (e: Throwable) {
+                last = e
+                if (attempt == attempts - 1) throw e
+                if (!isRetriablePostgrestNetworkFailure(e)) throw e
+                delay((400L shl attempt).coerceAtMost(2500L))
+            }
+        }
+        throw last ?: IllegalStateException("withPostgrestNetworkRetry")
+    }
+
+    private fun isRetriablePostgrestNetworkFailure(e: Throwable): Boolean {
+        val msg = buildString {
+            append(e.message ?: "")
+            append(' ')
+            append(e.cause?.message ?: "")
+            var c: Throwable? = e.cause
+            repeat(4) {
+                c = c?.cause ?: return@repeat
+                append(' ')
+                append(c.message ?: "")
+            }
+        }
+        return msg.contains("timeout", ignoreCase = true) ||
+            msg.contains("SocketTimeout", ignoreCase = true) ||
+            msg.contains("Connect timed out", ignoreCase = true) ||
+            msg.contains("Connection reset", ignoreCase = true) ||
+            msg.contains("Unable to resolve host", ignoreCase = true) ||
+            msg.contains("No address associated", ignoreCase = true) ||
+            msg.contains("SSLHandshake", ignoreCase = true) ||
+            msg.contains("unexpected end of stream", ignoreCase = true) ||
+            e is java.net.SocketTimeoutException ||
+            e is java.net.UnknownHostException
+    }
 
     private val jsonCoachCategorias = Json { ignoreUnknownKeys = true }
     private val coachCatNamesSerializer = ListSerializer(String.serializer())
@@ -131,9 +179,11 @@ class AcademiaCloudSync(
             if (userCanAccessAcademia(uid, cached)) {
                 // Misma academia en caché pero otro usuario (p. ej. cerrar sesión admin → profesor):
                 // hay que volver a fusionar fila academias + membresía; si no, cloudMembresiaRol queda null hasta sync tardío.
-                val row = client.from("academias").select {
-                    filter { eq("id", cached) }
-                }.decodeSingle<AcademiaRow>()
+                val row = withPostgrestNetworkRetry {
+                    client.from("academias").select {
+                        filter { eq("id", cached) }
+                    }.decodeSingle<AcademiaRow>()
+                }
                 val latestCfg = dao.getActual() ?: cfg
                 mergeAcademiaRowIntoLocal(dao, latestCfg, row)
                 return AcademiaBindingResult.Ok(cached)
@@ -153,9 +203,11 @@ class AcademiaCloudSync(
             cfg = dao.getActual() ?: AcademiaConfig.DEFAULT
         }
 
-        val owned = client.from("academias").select {
-            filter { eq("user_id", uid) }
-        }.decodeList<AcademiaRow>()
+        val owned = withPostgrestNetworkRetry {
+            client.from("academias").select {
+                filter { eq("user_id", uid) }
+            }.decodeList<AcademiaRow>()
+        }
 
         if (owned.isNotEmpty()) {
             val row = owned.first()
@@ -163,20 +215,24 @@ class AcademiaCloudSync(
             return AcademiaBindingResult.Ok(row.id)
         }
 
-        val members = client.from("academia_miembros").select {
-            filter {
-                eq("user_id", uid)
-                eq("activo", true)
-            }
-        }.decodeList<AcademiaMiembroRow>()
+        val members = withPostgrestNetworkRetry {
+            client.from("academia_miembros").select {
+                filter {
+                    eq("user_id", uid)
+                    eq("activo", true)
+                }
+            }.decodeList<AcademiaMiembroRow>()
+        }
 
         return when {
             members.isEmpty() -> AcademiaBindingResult.NeedsOnboarding
             members.size == 1 -> {
                 val aid = members.first().academiaId
-                val row = client.from("academias").select {
-                    filter { eq("id", aid) }
-                }.decodeSingle<AcademiaRow>()
+                val row = withPostgrestNetworkRetry {
+                    client.from("academias").select {
+                        filter { eq("id", aid) }
+                    }.decodeSingle<AcademiaRow>()
+                }
                 mergeAcademiaRowIntoLocal(dao, cfg, row)
                 AcademiaBindingResult.Ok(aid)
             }
@@ -362,20 +418,24 @@ class AcademiaCloudSync(
     }
 
     private suspend fun userCanAccessAcademia(uid: String, academiaId: String): Boolean {
-        val asOwner = client.from("academias").select {
-            filter {
-                eq("id", academiaId)
-                eq("user_id", uid)
-            }
-        }.decodeList<AcademiaRow>().isNotEmpty()
+        val asOwner = withPostgrestNetworkRetry {
+            client.from("academias").select {
+                filter {
+                    eq("id", academiaId)
+                    eq("user_id", uid)
+                }
+            }.decodeList<AcademiaRow>().isNotEmpty()
+        }
         if (asOwner) return true
-        return client.from("academia_miembros").select {
-            filter {
-                eq("academia_id", academiaId)
-                eq("user_id", uid)
-                eq("activo", true)
-            }
-        }.decodeList<AcademiaMiembroRow>().isNotEmpty()
+        return withPostgrestNetworkRetry {
+            client.from("academia_miembros").select {
+                filter {
+                    eq("academia_id", academiaId)
+                    eq("user_id", uid)
+                    eq("activo", true)
+                }
+            }.decodeList<AcademiaMiembroRow>().isNotEmpty()
+        }
     }
 
     private suspend fun mergeAcademiaRowIntoLocal(
