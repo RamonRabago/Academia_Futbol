@@ -40,5 +40,6 @@ Documento vivo para alinear **equipo**, **dueños de academias** y **desarrollo*
 
 - Catálogo de funcionalidades (mapa por áreas): [`docs/FUNCIONALIDADES.md`](FUNCIONALIDADES.md)
 - Registro de versiones: `CHANGELOG.md`
+- APK release para compartir (historial de revisiones): [`docs/APK_REVISIONES_WHATSAPP.md`](APK_REVISIONES_WHATSAPP.md)
 - Contratos SQL recientes: `supabase/migrations/`
 - Navegación y visibilidad por rol: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt` (barra inferior: Inicio / Padres / Academia; menú ☰ arriba izquierda con el resto de rutas visibles).

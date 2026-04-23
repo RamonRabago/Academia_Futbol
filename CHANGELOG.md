@@ -6,6 +6,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Añadido
 
+- **Distribución (WhatsApp):** historial de APK release en **`docs/APK_REVISIONES_WHATSAPP.md`**; entrada 2026-04-23 — v1.0.2 (code 3), commit `213593b`, `assembleRelease` (~17,4 MB).
+
 - **Competencias — lista por rol:** tarjetas **staff** (partidos jugados, próximo rival y fecha, categorías inscritas) y **padre** (hijos, categoría, equipo, último resultado con tono victoria/empate/derrota); **resumen** superior para staff; selector **«Ver como»** entre hijos si hay varios; textos y vacíos más claros; botón **Nueva competencia** integrado en la columna (`CompetenciaListaCards`, `CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
 
 - **Estadísticas — economía por categoría:** bloque con **ingreso mensual estimado (ficha)**, orden por estimado, barra comparativa, resumen de **cuatro categorías destacadas** (mayor estimado, mayor cobrado del mes, mayor adeudo del mes, más becados) y textos que distinguen estimado vs cobros reales; si no hay filas en `cobros_mensuales_alumno`, aviso claro y sin columnas de cobrado/adeudo (`StatsViewModel`, `StatsEconomia`, `StatsScreen`, `strings.xml`).
