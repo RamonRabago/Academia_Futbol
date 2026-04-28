@@ -6,8 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,15 +26,13 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,8 +47,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.ChipsGroup
+import com.escuelafutbol.academia.ui.design.EmptyState
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AttendanceSummaryCard(
     resumen: AsistenciaResumenUi,
@@ -71,7 +77,7 @@ fun AttendanceSummaryCard(
                     modifier = Modifier
                         .heightIn(max = 420.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                 ) {
                     Text(
                         stringResource(R.string.attendance_help_summary_section_period),
@@ -122,14 +128,13 @@ fun AttendanceSummaryCard(
     )
     val frac = ((resumen.porcentaje ?: 0f).coerceIn(0f, 100f)) / 100f
 
-    Card(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevated = true,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -141,7 +146,7 @@ fun AttendanceSummaryCard(
                         .weight(1f)
                         .clickable { expandido = !expandido },
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
                 ) {
                     Column(Modifier.weight(1f, fill = false)) {
                         Text(
@@ -174,12 +179,12 @@ fun AttendanceSummaryCard(
                 }
                 IconButton(
                     onClick = { ayudaResumen = true },
-                    modifier = Modifier.padding(start = 2.dp),
+                    modifier = Modifier.padding(start = AcademiaDimens.gapMicro),
                 ) {
                     Icon(
                         Icons.Outlined.Info,
                         contentDescription = stringResource(R.string.attendance_help_summary_cd),
-                        modifier = Modifier.padding(2.dp),
+                        modifier = Modifier.padding(AcademiaDimens.gapMicro),
                     )
                 }
             }
@@ -189,7 +194,7 @@ fun AttendanceSummaryCard(
                     progress = { frac },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp),
+                        .height(AcademiaDimens.gapMicro * 2),
                     gapSize = 0.dp,
                 )
             }
@@ -200,7 +205,7 @@ fun AttendanceSummaryCard(
                 exit = shrinkVertically() + fadeOut(),
             ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 ) {
                     resumen.nombreAlumnoFoco?.let { nombre ->
                         Text(
@@ -212,21 +217,16 @@ fun AttendanceSummaryCard(
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
+                    ChipsGroup {
                         FilterChip(
                             selected = resumen.periodo == AsistenciaPeriodoResumen.MesVista,
                             onClick = { onPeriodoChange(AsistenciaPeriodoResumen.MesVista) },
                             label = { Text(stringResource(R.string.attendance_summary_mode_month)) },
-                            modifier = Modifier.weight(1f),
                         )
                         FilterChip(
                             selected = resumen.periodo == AsistenciaPeriodoResumen.AnioCompleto,
                             onClick = { onPeriodoChange(AsistenciaPeriodoResumen.AnioCompleto) },
                             label = { Text(stringResource(R.string.attendance_summary_mode_year)) },
-                            modifier = Modifier.weight(1f),
                         )
                     }
 
@@ -239,21 +239,21 @@ fun AttendanceSummaryCard(
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center,
                         )
-                        AsistenciaPeriodoResumen.AnioCompleto -> Surface(
-                            tonalElevation = 1.dp,
-                            shape = MaterialTheme.shapes.medium,
-                            modifier = Modifier.fillMaxWidth(),
+                        AsistenciaPeriodoResumen.AnioCompleto -> AppTintedPanel(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentPadding = PaddingValues(
+                                vertical = AcademiaDimens.gapSm,
+                                horizontal = AcademiaDimens.gapMicro,
+                            ),
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center,
                             ) {
                                 IconButton(onClick = onAnioAnterior) {
                                     Icon(
-                                        Icons.Default.ChevronLeft,
+                                        Icons.Filled.ChevronLeft,
                                         contentDescription = stringResource(R.string.attendance_summary_year_prev_cd),
                                     )
                                 }
@@ -273,7 +273,7 @@ fun AttendanceSummaryCard(
                                 }
                                 IconButton(onClick = onAnioSiguiente) {
                                     Icon(
-                                        Icons.Default.ChevronRight,
+                                        Icons.Filled.ChevronRight,
                                         contentDescription = stringResource(R.string.attendance_summary_year_next_cd),
                                     )
                                 }
@@ -282,14 +282,12 @@ fun AttendanceSummaryCard(
                     }
 
                     if (resumen.totalRegistros == 0) {
-                        Text(
-                            if (resumen.hayMarcasFueraDeDiasEntreno) {
-                                stringResource(R.string.attendance_summary_no_data_entreno)
+                        EmptyState(
+                            title = if (resumen.hayMarcasFueraDeDiasEntreno) {
+                                stringResource(R.string.attendance_summary_no_data_without_training_day)
                             } else {
                                 stringResource(R.string.attendance_summary_no_data)
                             },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
                         Text(
@@ -303,7 +301,7 @@ fun AttendanceSummaryCard(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
@@ -332,11 +330,11 @@ fun AttendanceSummaryCard(
                             progress = { frac },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(6.dp),
+                                .height(AcademiaDimens.gapMd - AcademiaDimens.gapMicro),
                             gapSize = 0.dp,
                         )
                     }
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(AcademiaDimens.gapMicro))
                 }
             }
         }

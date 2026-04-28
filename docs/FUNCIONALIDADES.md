@@ -64,7 +64,7 @@ Lógica central de visibilidad: `AcademiaNavPolicy.kt`, `AcademiaRoot.kt`.
 
 - Resumen de plantilla (total jugadores, etc.).
 - **Asistencia media global** alineada con el criterio de días de entrenamiento y cupos implícitos (ver Asistencia).
-- Indicadores si hay marcas fuera de días marcados como entreno.
+- Indicadores si hay marcas fuera de días marcados como entrenamiento.
 - **Cuotas / mensualidades** (si el dispositivo y usuario pueden ver importes según configuración).
 
 ---

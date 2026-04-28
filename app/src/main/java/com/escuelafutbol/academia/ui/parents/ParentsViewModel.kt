@@ -1,6 +1,7 @@
 package com.escuelafutbol.academia.ui.parents
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.escuelafutbol.academia.AcademiaApplication
@@ -78,6 +79,8 @@ data class MensajeCategoriaUi(
     val cuerpo: String,
     val createdAtMillis: Long,
     val eventAtMillis: Long?,
+    /** Solo UI: persistencia local en el ViewModel (no viene de la nube). */
+    val leido: Boolean = false,
 )
 
 /** Alumno candidato a auto-vínculo (correo tutor = correo de la sesión; RLS en Supabase). */
@@ -111,6 +114,13 @@ class ParentsViewModel(
 
     private val _mensajesNube = MutableStateFlow(ParentsMensajesUiState())
     val mensajesNube: StateFlow<ParentsMensajesUiState> = _mensajesNube.asStateFlow()
+
+    private val avisosPrefs = application.getSharedPreferences("parents_inbox_prefs", Context.MODE_PRIVATE)
+
+    private val _mensajesLeidosIds = MutableStateFlow(
+        HashSet(avisosPrefs.getStringSet(KEY_MENSAJES_LEIDOS, null) ?: emptySet()),
+    )
+    val mensajesLeidosIds: StateFlow<Set<String>> = _mensajesLeidosIds.asStateFlow()
 
     private val _enviandoMensaje = MutableStateFlow(false)
     val enviandoMensaje: StateFlow<Boolean> = _enviandoMensaje.asStateFlow()
@@ -235,6 +245,16 @@ class ParentsViewModel(
 
     fun refrescarMensajes() {
         viewModelScope.launch { refrescarMensajesSuspend() }
+    }
+
+    /** Marca un aviso como leído en el dispositivo (SharedPreferences; no toca Supabase). */
+    fun marcarMensajeLeido(id: String) {
+        val trimmed = id.trim()
+        if (trimmed.isEmpty()) return
+        _mensajesLeidosIds.update { prev ->
+            if (trimmed in prev) prev else HashSet(prev).apply { add(trimmed) }
+        }
+        avisosPrefs.edit().putStringSet(KEY_MENSAJES_LEIDOS, HashSet(_mensajesLeidosIds.value)).apply()
     }
 
     /** Carga desde la nube alumnos que el padre puede vincular (mismo criterio que RLS: email tutor). */
@@ -439,6 +459,10 @@ class ParentsViewModel(
         }
         val totalGlobal = hijos.sumOf { it.totalAdeudoHijo }
         return ParentsTabContent.PadreConHijos(hijos, totalGlobal, reglaActiva)
+    }
+
+    companion object {
+        private const val KEY_MENSAJES_LEIDOS = "mensajes_categoria_leidos_ids_v1"
     }
 }
 

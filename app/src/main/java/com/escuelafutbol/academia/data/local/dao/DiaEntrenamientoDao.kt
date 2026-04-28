@@ -23,7 +23,7 @@ interface DiaEntrenamientoDao {
     @Upsert
     suspend fun upsert(registro: DiaEntrenamiento)
 
-    /** Quita cualquier marca de entreno para ese día (global y por categoría). */
+    /** Quita cualquier marca de día de entrenamiento para ese día (global y por categoría). */
     @Query("DELETE FROM dias_entrenamiento WHERE fechaDia = :fechaDia")
     suspend fun deleteAllForDay(fechaDia: Long)
 

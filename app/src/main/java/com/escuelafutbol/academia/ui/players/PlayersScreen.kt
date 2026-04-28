@@ -27,10 +27,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -61,6 +65,10 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -111,6 +119,10 @@ import com.escuelafutbol.academia.ui.util.formatearFechaDiaLocal
 import com.escuelafutbol.academia.ui.util.formatearFechaHoraLocal
 import com.escuelafutbol.academia.R
 import androidx.compose.ui.text.style.TextAlign
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.PrimaryButton
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.ui.SessionViewModel
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Jugador
@@ -243,6 +255,8 @@ fun PlayersScreen(
     categoriaFiltro: String?,
     configAcademia: AcademiaConfig,
     sessionAuthUserId: String = "",
+    /** Navegación a otra pestaña principal del `NavHost` (misma ruta que `AcademiaRoot` Tab.route). */
+    onNavigateToMainTab: (String) -> Unit = {},
 ) {
     if (configAcademia.esPadreMembresiaNube()) {
         Box(
@@ -279,6 +293,7 @@ fun PlayersScreen(
     var jugadorBaja by remember { mutableStateOf<Jugador?>(null) }
     var expandedJugadorId by remember { mutableStateOf<Long?>(null) }
     var jugadorFotoAmpliada by remember { mutableStateOf<Jugador?>(null) }
+    var jugadorDetalle by remember { mutableStateOf<Jugador?>(null) }
 
     /** Evita que un "atrás" del sistema al cerrar el selector cierre el alta. */
     var awaitingExternalActivityResult by remember { mutableStateOf(false) }
@@ -300,6 +315,11 @@ fun PlayersScreen(
     LaunchedEffect(jugadoresUi) {
         val id = expandedJugadorId ?: return@LaunchedEffect
         if (jugadoresUi.none { it.jugador.id == id }) expandedJugadorId = null
+    }
+
+    LaunchedEffect(jugadoresUi) {
+        val id = jugadorDetalle?.id ?: return@LaunchedEffect
+        if (jugadoresUi.none { it.jugador.id == id }) jugadorDetalle = null
     }
 
     val categoriasOrdenadas = remember(jugadoresUi) {
@@ -370,9 +390,12 @@ fun PlayersScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-    BackHandler(enabled = formularioAbierto && !awaitingExternalActivityResult) {
-        viewModel.cerrarFormularioJugador()
-    }
+        BackHandler(enabled = formularioAbierto && !awaitingExternalActivityResult) {
+            viewModel.cerrarFormularioJugador()
+        }
+        BackHandler(enabled = jugadorDetalle != null && !formularioAbierto) {
+            jugadorDetalle = null
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -544,6 +567,7 @@ fun PlayersScreen(
                                     puedeVerMensualidad = puedeVerMensualidad,
                                     etiquetasAltaPorUid = etiquetasAltaPorUid,
                                     onAmpliarFoto = { jugadorFotoAmpliada = ui.jugador },
+                                    onAbrirDetalle = { jugadorDetalle = ui.jugador },
                                     onEditar = { viewModel.abrirEdicionJugador(ui.jugador) },
                                     onHistorial = { jugadorHistorial = ui.jugador },
                                     onDarBaja = { jugadorBaja = ui.jugador },
@@ -555,7 +579,7 @@ fun PlayersScreen(
             }
         }
 
-        if (!formularioAbierto) {
+        if (!formularioAbierto && jugadorDetalle == null) {
             FloatingActionButton(
                 onClick = { viewModel.abrirAltaJugador() },
                 modifier = Modifier
@@ -564,6 +588,18 @@ fun PlayersScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_player))
             }
+        }
+
+        jugadorDetalle?.let { detalle ->
+            JugadorDetalleScreen(
+                jugador = detalle,
+                onBack = { jugadorDetalle = null },
+                onEditar = {
+                    viewModel.abrirEdicionJugador(detalle)
+                    jugadorDetalle = null
+                },
+                onNavigateToTab = onNavigateToMainTab,
+            )
         }
 
     if (formularioAbierto) {
@@ -826,6 +862,7 @@ private fun JugadorCard(
     puedeVerMensualidad: Boolean,
     etiquetasAltaPorUid: Map<String, String>,
     onAmpliarFoto: () -> Unit,
+    onAbrirDetalle: () -> Unit,
     onEditar: () -> Unit,
     onHistorial: () -> Unit,
     onDarBaja: () -> Unit,
@@ -881,7 +918,8 @@ private fun JugadorCard(
                         modifier = Modifier
                             .size(avatarSize)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable(onClick = onAbrirDetalle),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -892,53 +930,62 @@ private fun JugadorCard(
                         )
                     }
                 }
-                Row(
+                Box(
                     modifier = Modifier
                         .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(onClick = onAbrirDetalle)
                         .semantics(mergeDescendants = true) {
                             contentDescription = headerCd
                             stateDescription = stateDesc
-                        }
-                        .clickable(onClick = onExpandToggle),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        },
+                    contentAlignment = Alignment.CenterStart,
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            jugador.nombre,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            jugador.categoria,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (!expanded &&
-                        (jugador.becado || puedeVerMensualidad)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        JugadorEstadoResumenBadges(
-                            jugador = jugador,
-                            adeudoTotal = adeudoTotal,
-                            puedeVerMensualidad = puedeVerMensualidad,
-                            modifier = Modifier.widthIn(max = 120.dp),
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                jugador.nombre,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                jugador.categoria,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (!expanded &&
+                            (jugador.becado || puedeVerMensualidad)
+                        ) {
+                            JugadorEstadoResumenBadges(
+                                jugador = jugador,
+                                adeudoTotal = adeudoTotal,
+                                puedeVerMensualidad = puedeVerMensualidad,
+                                modifier = Modifier.widthIn(max = 120.dp),
+                            )
+                        }
+                    }
+                }
+                IconButton(
+                        onClick = onExpandToggle,
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ExpandMore,
+                            contentDescription = stringResource(R.string.player_card_expand_icon_cd),
+                            modifier = Modifier.rotate(chevronRotation),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Default.ExpandMore,
-                        contentDescription = stringResource(R.string.player_card_expand_icon_cd),
-                        modifier = Modifier
-                            .size(20.dp)
-                            .rotate(chevronRotation),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
-            }
 
             AnimatedVisibility(
                 visible = expanded,
@@ -1324,8 +1371,10 @@ private fun JugadorFormDialog(
     }
 
     val configuration = LocalConfiguration.current
-    val scrollMaxHeight = configuration.screenHeightDp.dp * 0.55f
+    val scrollMaxHeight = configuration.screenHeightDp.dp * 0.5f
     val formScroll = rememberScrollState()
+    var fotoSheetVisible by remember { mutableStateOf(false) }
+    val fotoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Box(
         modifier = Modifier
@@ -1339,240 +1388,161 @@ private fun JugadorFormDialog(
             tonalElevation = 3.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
         ) {
-            Column(Modifier.padding(24.dp)) {
+            Column(Modifier.padding(AcademiaDimens.paddingCard)) {
                 Text(
                     stringResource(
                         if (jugadorExistente == null) R.string.add_player else R.string.edit_player,
                     ),
                     style = MaterialTheme.typography.headlineSmall,
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AcademiaDimens.spacingListSection))
+                val path = fotoPath
+                val hayFotoLocal = path != null && File(path).exists()
+                val modeloRemoto = remember(jugadorExistente?.id, path) {
+                    if (jugadorExistente != null && !hayFotoLocal) {
+                        jugadorExistente.coilFotoModel(context)
+                    } else {
+                        null
+                    }
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(contentAlignment = Alignment.BottomEnd) {
+                        Box(
+                            modifier = Modifier
+                                .size(AcademiaDimens.avatarFormHero)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { fotoSheetVisible = true },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            when {
+                                hayFotoLocal -> AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(File(path!!))
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = stringResource(R.string.player_photo_cd),
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                                modeloRemoto != null -> AsyncImage(
+                                    model = modeloRemoto,
+                                    contentDescription = stringResource(R.string.player_photo_cd),
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                                else -> Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.player_photo_sheet_title),
+                                    modifier = Modifier.size(AcademiaDimens.iconSizeMd * 2),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        SmallFloatingActionButton(
+                            onClick = { fotoSheetVisible = true },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = (-AcademiaDimens.gapSm), y = (-AcademiaDimens.gapSm)),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            Icon(
+                                Icons.Default.PhotoCamera,
+                                contentDescription = stringResource(R.string.staff_take_photo),
+                                modifier = Modifier.size(AcademiaDimens.iconSizeSm),
+                            )
+                        }
+                    }
+                }
+                Text(
+                    stringResource(R.string.player_photo_tap_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = AcademiaDimens.gapSm),
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(AcademiaDimens.spacingListSection))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = scrollMaxHeight)
                         .verticalScroll(formScroll),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
                 ) {
-                    OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                stringResource(R.string.player_photo_section),
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                stringResource(R.string.player_photo_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Row(
+                    AppCard {
+                        SectionHeader(
+                            title = stringResource(R.string.player_form_basic_section),
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
+                            OutlinedTextField(
+                                value = nombre,
+                                onValueChange = { nombre = it },
+                                label = { Text(stringResource(R.string.name)) },
+                                singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                val path = fotoPath
-                                val hayFotoLocal = path != null && File(path).exists()
-                                val modeloRemoto = remember(jugadorExistente?.id, path) {
-                                    if (jugadorExistente != null && !hayFotoLocal) {
-                                        jugadorExistente.coilFotoModel(context)
-                                    } else {
-                                        null
-                                    }
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            setAwaitingExternalResult(true)
-                                            pickGallery.launch("image/*")
-                                        },
-                                ) {
-                                    when {
-                                        hayFotoLocal -> AsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(File(path!!))
-                                                .crossfade(true)
-                                                .build(),
-                                            contentDescription = stringResource(R.string.player_photo_cd),
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
+                            )
+                            OutlinedTextField(
+                                value = categoria,
+                                onValueChange = { categoria = it },
+                                label = { Text(stringResource(R.string.category)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            OutlinedTextField(
+                                value = fechaNacMs?.let { formatearFechaCalendarioUtc(it) } ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text(stringResource(R.string.birth_date)) },
+                                placeholder = { Text(stringResource(R.string.birth_date_hint)) },
+                                trailingIcon = {
+                                    IconButton(onClick = { showDatePicker = true }) {
+                                        Icon(
+                                            Icons.Default.CalendarMonth,
+                                            contentDescription = stringResource(R.string.calendar_pick_cd),
                                         )
-                                        modeloRemoto != null -> AsyncImage(
-                                            model = modeloRemoto,
-                                            contentDescription = stringResource(R.string.player_photo_cd),
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
-                                        )
-                                        else -> Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Add,
-                                                contentDescription = stringResource(R.string.staff_pick_gallery),
-                                                modifier = Modifier.size(26.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
                                     }
-                                }
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showDatePicker = true },
+                            )
+                            if (fechaNacMs != null) {
+                                TextButton(
+                                    onClick = { fechaNacMs = null },
+                                    modifier = Modifier.align(Alignment.End),
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                setAwaitingExternalResult(true)
-                                                pickGallery.launch("image/*")
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .defaultMinSize(minHeight = 44.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Image,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(20.dp),
-                                                )
-                                                Text(
-                                                    stringResource(R.string.staff_pick_gallery),
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    maxLines = 1,
-                                                )
-                                            }
-                                        }
-                                        OutlinedButton(
-                                            onClick = { openCamera() },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .defaultMinSize(minHeight = 44.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.PhotoCamera,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(20.dp),
-                                                )
-                                                Text(
-                                                    stringResource(R.string.staff_take_photo),
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    maxLines = 1,
-                                                )
-                                            }
-                                        }
-                                    }
-                                    if (fotoPath != null) {
-                                        TextButton(
-                                            modifier = Modifier.align(Alignment.End),
-                                            onClick = {
-                                                fotoPath?.let { runCatching { File(it).delete() } }
-                                                fotoPath = null
-                                            },
-                                        ) {
-                                            Text(stringResource(R.string.staff_remove_photo))
-                                        }
-                                    }
+                                    Text(stringResource(R.string.birth_date_clear))
                                 }
                             }
                         }
                     }
-                    OutlinedTextField(
-                        value = nombre,
-                        onValueChange = { nombre = it },
-                        label = { Text(stringResource(R.string.name)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = categoria,
-                        onValueChange = { categoria = it },
-                        label = { Text(stringResource(R.string.category)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = fechaNacMs?.let { formatearFechaCalendarioUtc(it) } ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(R.string.birth_date)) },
-                        placeholder = { Text(stringResource(R.string.birth_date_hint)) },
-                        trailingIcon = {
-                            IconButton(onClick = { showDatePicker = true }) {
-                                Icon(
-                                    Icons.Default.CalendarMonth,
-                                    contentDescription = stringResource(R.string.calendar_pick_cd),
-                                )
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showDatePicker = true },
-                    )
-                    if (fechaNacMs != null) {
-                        TextButton(
-                            onClick = { fechaNacMs = null },
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text(stringResource(R.string.birth_date_clear))
-                        }
+                    AppCard {
+                        OutlinedTextField(
+                            value = curpTxt,
+                            onValueChange = { s ->
+                                curpTxt = s.uppercase().filter { it.isLetterOrDigit() }.take(18)
+                            },
+                            label = { Text(stringResource(R.string.player_curp)) },
+                            placeholder = { Text(stringResource(R.string.player_curp_hint)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                    OutlinedTextField(
-                        value = curpTxt,
-                        onValueChange = { s ->
-                            curpTxt = s.uppercase().filter { it.isLetterOrDigit() }.take(18)
-                        },
-                        label = { Text(stringResource(R.string.player_curp)) },
-                        placeholder = { Text(stringResource(R.string.player_curp_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                stringResource(R.string.player_curp_doc_section),
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                stringResource(R.string.player_curp_doc_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    AppCard {
+                        SectionHeader(
+                            title = stringResource(R.string.player_curp_doc_section),
+                            subtitle = stringResource(R.string.player_curp_doc_hint),
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
                             OutlinedButton(
                                 onClick = { onRequestPickCurpDocumento() },
                                 modifier = Modifier.fillMaxWidth(),
@@ -1586,7 +1556,7 @@ private fun JugadorFormDialog(
                                         contentDescription = null,
                                         modifier = Modifier.size(20.dp),
                                     )
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(AcademiaDimens.gapMd))
                                     Text(stringResource(R.string.player_curp_doc_pick))
                                 }
                             }
@@ -1611,25 +1581,12 @@ private fun JugadorFormDialog(
                             }
                         }
                     }
-                    OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                stringResource(R.string.player_birth_cert_section),
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                            Text(
-                                stringResource(R.string.player_birth_cert_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    AppCard {
+                        SectionHeader(
+                            title = stringResource(R.string.player_birth_cert_section),
+                            subtitle = stringResource(R.string.player_birth_cert_hint),
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
                             OutlinedButton(
                                 onClick = { onRequestPickActa() },
                                 modifier = Modifier.fillMaxWidth(),
@@ -1643,7 +1600,7 @@ private fun JugadorFormDialog(
                                         contentDescription = null,
                                         modifier = Modifier.size(20.dp),
                                     )
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(AcademiaDimens.gapMd))
                                     Text(stringResource(R.string.player_birth_cert_pick))
                                 }
                             }
@@ -1668,44 +1625,49 @@ private fun JugadorFormDialog(
                             }
                         }
                     }
-                    OutlinedTextField(
-                        value = tel,
-                        onValueChange = { tel = it },
-                        label = { Text(stringResource(R.string.parent_phone)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    val emailTutorOk = emailTutorFormatoSuaveValido(email)
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text(stringResource(R.string.parent_email)) },
-                        placeholder = { Text(stringResource(R.string.parent_email_placeholder)) },
-                        supportingText = {
-                            Text(
-                                if (emailTutorOk) {
-                                    stringResource(R.string.parent_email_hint)
-                                } else {
-                                    stringResource(R.string.parent_email_error_format)
-                                },
-                                color = if (emailTutorOk) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.error
-                                },
+                    AppCard {
+                        SectionHeader(title = stringResource(R.string.player_form_contact_section))
+                        val emailTutorOk = emailTutorFormatoSuaveValido(email)
+                        Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
+                            OutlinedTextField(
+                                value = tel,
+                                onValueChange = { tel = it },
+                                label = { Text(stringResource(R.string.parent_phone)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
                             )
-                        },
-                        isError = !emailTutorOk,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = notas,
-                        onValueChange = { notas = it },
-                        label = { Text(stringResource(R.string.notes)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                label = { Text(stringResource(R.string.parent_email)) },
+                                placeholder = { Text(stringResource(R.string.parent_email_placeholder)) },
+                                supportingText = {
+                                    Text(
+                                        if (emailTutorOk) {
+                                            stringResource(R.string.parent_email_hint)
+                                        } else {
+                                            stringResource(R.string.parent_email_error_format)
+                                        },
+                                        color = if (emailTutorOk) {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        } else {
+                                            MaterialTheme.colorScheme.error
+                                        },
+                                    )
+                                },
+                                isError = !emailTutorOk,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            OutlinedTextField(
+                                value = notas,
+                                onValueChange = { notas = it },
+                                label = { Text(stringResource(R.string.notes)) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                     if (puedeVerMensualidad) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1739,17 +1701,13 @@ private fun JugadorFormDialog(
                         )
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(
+                Spacer(Modifier.height(AcademiaDimens.spacingListSection))
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(
+                    PrimaryButton(
+                        text = stringResource(R.string.save),
                         onClick = {
                             val men = mensualidadTxt
                                 .trim()
@@ -1775,7 +1733,89 @@ private fun JugadorFormDialog(
                         enabled = nombre.isNotBlank() &&
                             categoria.isNotBlank() &&
                             emailTutorFormatoSuaveValido(email),
-                    ) { Text(stringResource(R.string.save)) }
+                    )
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            stringResource(R.string.cancel),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (fotoSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { fotoSheetVisible = false },
+            sheetState = fotoSheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
+                    .navigationBarsPadding()
+                    .padding(bottom = AcademiaDimens.paddingCard),
+            ) {
+                Text(
+                    text = stringResource(R.string.player_photo_sheet_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    text = stringResource(R.string.player_photo_sheet_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = AcademiaDimens.gapSm, bottom = AcademiaDimens.gapMd),
+                )
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.staff_pick_gallery)) },
+                    leadingContent = {
+                        Icon(Icons.Default.Image, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable {
+                        fotoSheetVisible = false
+                        setAwaitingExternalResult(true)
+                        pickGallery.launch("image/*")
+                    },
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.staff_take_photo)) },
+                    leadingContent = {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable {
+                        fotoSheetVisible = false
+                        openCamera()
+                    },
+                )
+                if (fotoPath != null) {
+                    HorizontalDivider()
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                stringResource(R.string.staff_remove_photo),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        leadingContent = {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        modifier = Modifier.clickable {
+                            fotoSheetVisible = false
+                            fotoPath?.let { runCatching { File(it).delete() } }
+                            fotoPath = null
+                        },
+                    )
                 }
             }
         }

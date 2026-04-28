@@ -66,7 +66,7 @@ data class AcademiaConfig(
     val recursosUltimaVistaAtMillis: Long = 0L,
     /**
      * JSON array de enteros ISO-8601 `DayOfWeek` (lunes=1 … domingo=7), p. ej. `[2,4]` martes y jueves.
-     * Sirve para detectar automáticamente si el día del calendario es habitual de entreno.
+     * Sirve para detectar automáticamente si el día del calendario es habitual de entrenamiento.
      */
     val diasEntrenoSemanaIsoJson: String = "[2,4]",
 ) {

@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,13 +53,12 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -68,10 +66,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -104,6 +100,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.ChipsGroup
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.PrimaryButton
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
@@ -158,13 +161,14 @@ fun ContenidoScreen(
     val hayFiltrosActivos = filtroTema != null || (!esPadreNube && filtroEstadoPub != null)
     val filtroSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val listState = rememberLazyListState()
+    val fabVisible = puedePublicarAlguna && config.remoteAcademiaId != null
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         snackbarHost = { SnackbarHost(snack) },
         floatingActionButton = {
-            if (puedePublicarAlguna && config.remoteAcademiaId != null) {
-                FloatingActionButton(
+            if (fabVisible) {
+                SmallFloatingActionButton(
                     onClick = { editorAbierto = true },
                 ) {
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.resources_publish_cd))
@@ -179,84 +183,115 @@ fun ContenidoScreen(
         ) {
             LazyColumn(
                 state = listState,
-                verticalArrangement = Arrangement.spacedBy(0.dp),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                contentPadding = PaddingValues(
+                    bottom = if (fabVisible) 88.dp else AcademiaDimens.paddingCardCompact,
+                ),
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
             ) {
                 item(key = "resources_screen_header") {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        modifier = Modifier.padding(
+                            horizontal = AcademiaDimens.paddingScreenHorizontal,
+                            vertical = AcademiaDimens.gapSm,
+                        ),
                     ) {
-                        Text(
-                            stringResource(R.string.resources_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 8.dp, end = 4.dp),
+                        SectionHeader(
+                            title = stringResource(R.string.resources_title),
+                            subtitle = stringResource(R.string.resources_screen_subtitle),
+                            action = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro),
+                                ) {
+                                    IconButton(
+                                        onClick = { filtrosSheetAbierto = true },
+                                        modifier = Modifier.size(AcademiaDimens.avatarRow),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.FilterList,
+                                            contentDescription = stringResource(R.string.resources_filter_open_cd),
+                                            tint = if (hayFiltrosActivos) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.refrescar() },
+                                        modifier = Modifier.size(AcademiaDimens.avatarRow),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = stringResource(R.string.resources_refresh_cd),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            },
                         )
-                        IconButton(onClick = { filtrosSheetAbierto = true }) {
-                            Icon(
-                                Icons.Default.FilterList,
-                                contentDescription = stringResource(R.string.resources_filter_open_cd),
-                                tint = if (hayFiltrosActivos) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        }
-                        IconButton(onClick = { viewModel.refrescar() }) {
-                            Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = stringResource(R.string.resources_refresh_cd),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
                     }
                 }
-                item(key = "intro") {
-                    Text(
-                        stringResource(
-                            if (esPadreNube) {
-                                R.string.resources_intro_compact_parent
-                            } else {
-                                R.string.resources_intro_compact_staff
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .padding(bottom = 2.dp),
+                item(key = "quick_filters") {
+                    ContenidoFiltrosRapidosChips(
+                        esPadreNube = esPadreNube,
+                        filtroTema = filtroTema,
+                        filtroEstadoPub = filtroEstadoPub,
+                        onTodas = {
+                            viewModel.setFiltroTema(null)
+                            viewModel.setFiltroEstadoPublicacion(null)
+                        },
+                        onAvisos = {
+                            viewModel.setFiltroEstadoPublicacion(null)
+                            viewModel.setFiltroTema(ContenidoTema.NOTICIA)
+                        },
+                        onFotos = {
+                            viewModel.setFiltroEstadoPublicacion(null)
+                            viewModel.setFiltroTema(ContenidoTema.ENTRENAMIENTO)
+                        },
+                        onPendientes = {
+                            viewModel.setFiltroTema(null)
+                            viewModel.setFiltroEstadoPublicacion(ContenidoEstadoPublicacion.PENDING)
+                        },
+                        modifier = Modifier.padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
                     )
                 }
                 if (config.remoteAcademiaId == null) {
                     item(key = "no_cloud") {
-                        Text(
-                            stringResource(R.string.resources_no_cloud),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .padding(bottom = 4.dp),
-                        )
+                        AppTintedPanel(
+                            modifier = Modifier.padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+                            contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                        ) {
+                            Text(
+                                stringResource(R.string.resources_no_cloud_short),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
                     }
                 }
                 val errorLista = ui.error
                 if (errorLista != null) {
                     item(key = "list_error") {
-                        Text(
-                            errorLista,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
+                        Column(
                             modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .padding(bottom = 4.dp),
-                        )
+                                .fillMaxWidth()
+                                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
+                            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            EmptyState(
+                                title = stringResource(R.string.resources_list_error_title),
+                                subtitle = errorLista,
+                            )
+                            OutlinedButton(onClick = { viewModel.refrescar() }) {
+                                Text(stringResource(R.string.resources_list_error_retry))
+                            }
+                        }
                     }
                 }
                 if (ui.cargando && items.isEmpty()) {
@@ -264,22 +299,29 @@ fun ContenidoScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .heightIn(min = 280.dp),
+                                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
+                                .heightIn(min = AcademiaDimens.contentLoadingMinHeight),
                             contentAlignment = Alignment.Center,
                         ) {
-                            CircularProgressIndicator()
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                            ) {
+                                CircularProgressIndicator()
+                                Text(
+                                    stringResource(R.string.resources_loading_feed),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 } else if (!ui.cargando && items.isEmpty()) {
                     item(key = "empty") {
-                        Text(
-                            stringResource(R.string.resources_empty),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .padding(vertical = 24.dp),
+                        EmptyState(
+                            title = stringResource(R.string.resources_empty_title),
+                            subtitle = stringResource(R.string.resources_empty),
+                            modifier = Modifier.padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
                         )
                     }
                 } else {
@@ -290,7 +332,10 @@ fun ContenidoScreen(
                         TarjetaContenidoFeed(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 0.dp, vertical = 4.dp),
+                                .padding(
+                                    horizontal = AcademiaDimens.gapMicro,
+                                    vertical = AcademiaDimens.gapSm,
+                                ),
                             item = item,
                             mostrarCategoria = categoriaFiltro == null,
                             puedeGestionar = puedePublicarAlguna &&
@@ -340,13 +385,13 @@ fun ContenidoScreen(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .padding(vertical = 8.dp),
+                                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
+                                .padding(vertical = AcademiaDimens.gapMd),
                             horizontalArrangement = Arrangement.Center,
                         ) {
                             CircularProgressIndicator(
-                                modifier = Modifier.heightIn(max = 24.dp),
-                                strokeWidth = 2.dp,
+                                modifier = Modifier.heightIn(max = AcademiaDimens.iconSizeMd),
+                                strokeWidth = AcademiaDimens.gapMicro,
                             )
                         }
                     }
@@ -379,9 +424,9 @@ fun ContenidoScreen(
                 SelectionContainer {
                     Column(
                         Modifier
-                            .heightIn(max = 460.dp)
+                            .heightIn(max = AcademiaDimens.contentDetailDialogScrollMax)
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
                     ) {
                         CabeceraFeedContenido(
                             item = d,
@@ -422,7 +467,7 @@ fun ContenidoScreen(
                 }
             },
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
                     if (viewModel.puedeModerarPublicacion(config, d)) {
                         TextButton(
                             onClick = {
@@ -731,9 +776,10 @@ private fun DialogoPublicarContenido(
         onDismissRequest = { if (!enviando) limpiarAdjuntosYCerrar() },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
         ) {
             Scaffold(
                 contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
@@ -775,8 +821,11 @@ private fun DialogoPublicarContenido(
                             Modifier
                                 .fillMaxWidth()
                                 .navigationBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                .padding(
+                                    horizontal = AcademiaDimens.paddingScreenHorizontal,
+                                    vertical = AcademiaDimens.paddingCardCompact,
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             TextButton(
@@ -786,13 +835,13 @@ private fun DialogoPublicarContenido(
                             ) {
                                 Text(stringResource(R.string.cancel))
                             }
-                            Button(
+                            PrimaryButton(
+                                text = stringResource(R.string.resources_publish_submit),
                                 onClick = { ejecutarPublicar() },
-                                enabled = formularioListoParaPublicar && !enviando,
+                                enabled = formularioListoParaPublicar,
+                                loading = enviando,
                                 modifier = Modifier.weight(1f),
-                            ) {
-                                Text(stringResource(R.string.resources_publish_submit))
-                            }
+                            )
                         }
                     }
                 },
@@ -807,30 +856,35 @@ private fun DialogoPublicarContenido(
                         Modifier
                             .weight(1f)
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 8.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        OutlinedCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
+                            .padding(
+                                top = AcademiaDimens.gapMd,
+                                bottom = AcademiaDimens.paddingCard,
                             ),
+                        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
+                    ) {
+                        SectionHeader(
+                            title = stringResource(R.string.resources_publish_category_label),
+                            subtitle = stringResource(R.string.resources_publish_category_help),
+                        )
+                        AppCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevated = false,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            includeContentPadding = false,
                         ) {
                             Column(
-                                Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                Modifier.padding(AcademiaDimens.paddingCardCompact),
+                                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                             ) {
-                                Text(
-                                    stringResource(R.string.resources_publish_category_help),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                                 TextButton(
                                     onClick = { dialogoCat = true },
                                     enabled = categoriasOpciones.isNotEmpty() && !enviando,
                                     modifier = Modifier.fillMaxWidth(),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    contentPadding = PaddingValues(
+                                        horizontal = AcademiaDimens.gapMd,
+                                        vertical = AcademiaDimens.gapSm,
+                                    ),
                                 ) {
                                     Text(
                                         etiquetaCategoriaSeleccionada(categoriaSel),
@@ -841,15 +895,19 @@ private fun DialogoPublicarContenido(
                                 }
                             }
                         }
-                        OutlinedCard(
+                        SectionHeader(
+                            title = stringResource(R.string.resources_publish_section_visibility_title),
+                            subtitle = stringResource(R.string.resources_publish_section_visibility_subtitle),
+                        )
+                        AppCard(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            ),
+                            elevated = false,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            includeContentPadding = false,
                         ) {
                             Column(
-                                Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                Modifier.padding(AcademiaDimens.paddingCardCompact),
+                                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                             ) {
                                 if (visibleDirectoFamiliasPermitido) {
                                     Row(
@@ -882,15 +940,11 @@ private fun DialogoPublicarContenido(
                                 }
                             }
                         }
-                        Text(
-                            stringResource(R.string.resources_publish_theme_label),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
+                        SectionHeader(
+                            title = stringResource(R.string.resources_publish_theme_label),
+                            subtitle = stringResource(R.string.resources_publish_section_theme_subtitle),
                         )
-                        Row(
-                            Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+                        ChipsGroup {
                             ContenidoTema.todosWire.forEach { w ->
                                 FilterChip(
                                     selected = temaSel == w,
@@ -917,7 +971,7 @@ private fun DialogoPublicarContenido(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 200.dp),
+                                .heightIn(min = AcademiaDimens.contentEditorMessageMinHeight),
                             minLines = 8,
                             maxLines = 18,
                             enabled = !enviando,
@@ -928,7 +982,7 @@ private fun DialogoPublicarContenido(
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             OutlinedButton(
@@ -936,17 +990,20 @@ private fun DialogoPublicarContenido(
                                 enabled = !enviando,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = 48.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
+                                contentPadding = PaddingValues(
+                                    horizontal = AcademiaDimens.gapMd,
+                                    vertical = AcademiaDimens.spacingListSection,
+                                ),
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                                 ) {
                                     Icon(
                                         Icons.Default.Image,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                     )
                                     Text(
                                         stringResource(R.string.staff_pick_gallery),
@@ -959,17 +1016,20 @@ private fun DialogoPublicarContenido(
                                 enabled = !enviando,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = 48.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
+                                contentPadding = PaddingValues(
+                                    horizontal = AcademiaDimens.gapMd,
+                                    vertical = AcademiaDimens.spacingListSection,
+                                ),
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                                 ) {
                                     Icon(
                                         Icons.Default.PhotoCamera,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                     )
                                     Text(
                                         stringResource(R.string.staff_take_photo),
@@ -984,8 +1044,8 @@ private fun DialogoPublicarContenido(
                                 contentDescription = stringResource(R.string.resources_cover_preview_cd),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = 220.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
+                                    .heightIn(max = AcademiaDimens.contentEditorCoverMaxHeight)
+                                    .clip(RoundedCornerShape(AcademiaDimens.radiusMd)),
                                 contentScale = ContentScale.Crop,
                             )
                             TextButton(
@@ -1009,7 +1069,7 @@ private fun DialogoPublicarContenido(
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             OutlinedButton(
@@ -1017,17 +1077,20 @@ private fun DialogoPublicarContenido(
                                 enabled = !enviando && imagenesCuerpo.size < maxCuerpo,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = 48.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
+                                contentPadding = PaddingValues(
+                                    horizontal = AcademiaDimens.gapMd,
+                                    vertical = AcademiaDimens.spacingListSection,
+                                ),
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                                 ) {
                                     Icon(
                                         Icons.Default.Image,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                     )
                                     Text(
                                         stringResource(R.string.staff_pick_gallery),
@@ -1040,17 +1103,20 @@ private fun DialogoPublicarContenido(
                                 enabled = !enviando && imagenesCuerpo.size < maxCuerpo,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = 48.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
+                                contentPadding = PaddingValues(
+                                    horizontal = AcademiaDimens.gapMd,
+                                    vertical = AcademiaDimens.spacingListSection,
+                                ),
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                                 ) {
                                     Icon(
                                         Icons.Default.PhotoCamera,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                     )
                                     Text(
                                         stringResource(R.string.staff_take_photo),
@@ -1061,7 +1127,7 @@ private fun DialogoPublicarContenido(
                         }
                         if (imagenesCuerpo.isNotEmpty()) {
                             LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 itemsIndexed(
@@ -1069,14 +1135,17 @@ private fun DialogoPublicarContenido(
                                     key = { _, f -> f.absolutePath },
                                 ) { _, file ->
                                     Box(
-                                        modifier = Modifier.size(width = 88.dp, height = 88.dp),
+                                        modifier = Modifier.size(
+                                            width = AcademiaDimens.contentEditorBodyThumb,
+                                            height = AcademiaDimens.contentEditorBodyThumb,
+                                        ),
                                     ) {
                                         AsyncImage(
                                             model = file,
                                             contentDescription = stringResource(R.string.resources_cover_preview_cd),
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .clip(RoundedCornerShape(8.dp)),
+                                                .clip(RoundedCornerShape(AcademiaDimens.radiusSm)),
                                             contentScale = ContentScale.Crop,
                                         )
                                         IconButton(
@@ -1116,7 +1185,7 @@ private fun DialogoPublicarContenido(
             text = {
                 Column(
                     Modifier
-                        .heightIn(max = 360.dp)
+                        .heightIn(max = AcademiaDimens.contentCategoryDialogScrollMax)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     categoriasOpciones.forEach { nombre ->
@@ -1150,6 +1219,91 @@ private fun DialogoPublicarContenido(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun ContenidoFiltrosRapidosChips(
+    esPadreNube: Boolean,
+    filtroTema: String?,
+    filtroEstadoPub: String?,
+    onTodas: () -> Unit,
+    onAvisos: () -> Unit,
+    onFotos: () -> Unit,
+    onPendientes: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selTodas = filtroTema == null && filtroEstadoPub == null
+    val selAvisos = filtroTema == ContenidoTema.NOTICIA && filtroEstadoPub == null
+    val selFotos = filtroTema == ContenidoTema.ENTRENAMIENTO && filtroEstadoPub == null
+    val selPendientes = !esPadreNube &&
+        filtroEstadoPub == ContenidoEstadoPublicacion.PENDING &&
+        filtroTema == null
+    ChipsGroup(modifier = modifier) {
+        FilterChip(
+            selected = selTodas,
+            onClick = onTodas,
+            label = { Text(stringResource(R.string.resources_chip_quick_all)) },
+        )
+        FilterChip(
+            selected = selAvisos,
+            onClick = onAvisos,
+            label = { Text(stringResource(R.string.resources_chip_quick_news)) },
+        )
+        FilterChip(
+            selected = selFotos,
+            onClick = onFotos,
+            label = { Text(stringResource(R.string.resources_chip_quick_photos)) },
+        )
+        if (!esPadreNube) {
+            FilterChip(
+                selected = selPendientes,
+                onClick = onPendientes,
+                label = { Text(stringResource(R.string.resources_chip_quick_pending)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun EstadoPublicacionBadgeFeed(estado: String) {
+    when (estado) {
+        ContenidoEstadoPublicacion.PENDING -> {
+            Surface(
+                shape = RoundedCornerShape(AcademiaDimens.radiusSm),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+            ) {
+                Text(
+                    stringResource(R.string.resources_state_pending),
+                    modifier = Modifier.padding(
+                        horizontal = AcademiaDimens.paddingCardCompact,
+                        vertical = AcademiaDimens.gapMicro,
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
+        }
+        ContenidoEstadoPublicacion.REJECTED -> {
+            Surface(
+                shape = RoundedCornerShape(AcademiaDimens.radiusSm),
+                color = MaterialTheme.colorScheme.errorContainer,
+            ) {
+                Text(
+                    stringResource(R.string.resources_state_rejected),
+                    modifier = Modifier.padding(
+                        horizontal = AcademiaDimens.paddingCardCompact,
+                        vertical = AcademiaDimens.gapMicro,
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+        else -> Spacer(Modifier.size(0.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun ContenidoRecursosFiltrosSheetContent(
     esPadreNube: Boolean,
     filtroTema: String?,
@@ -1163,30 +1317,19 @@ private fun ContenidoRecursosFiltrosSheetContent(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 24.dp),
+            .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
+            .padding(bottom = AcademiaDimens.paddingCard + AcademiaDimens.gapMd),
     ) {
-        Text(
-            stringResource(R.string.resources_filter_sheet_title),
-            style = MaterialTheme.typography.titleLarge,
+        SectionHeader(
+            title = stringResource(R.string.resources_filter_sheet_title),
+            subtitle = stringResource(R.string.resources_filter_sheet_intro),
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.resources_intro_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Spacer(Modifier.height(AcademiaDimens.spacingListSection))
+        SectionHeader(
+            title = stringResource(R.string.resources_filter_sheet_section_theme),
+            subtitle = stringResource(R.string.resources_filter_sheet_section_theme_subtitle),
         )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.resources_filter_sheet_section_theme),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Spacer(Modifier.height(8.dp))
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        ChipsGroup {
             FilterChip(
                 selected = filtroTema == null,
                 onClick = { onTema(null) },
@@ -1201,17 +1344,12 @@ private fun ContenidoRecursosFiltrosSheetContent(
             }
         }
         if (!esPadreNube) {
-            Spacer(Modifier.height(20.dp))
-            Text(
-                stringResource(R.string.resources_filter_sheet_section_state),
-                style = MaterialTheme.typography.titleSmall,
+            Spacer(Modifier.height(AcademiaDimens.spacingRowComfort))
+            SectionHeader(
+                title = stringResource(R.string.resources_filter_sheet_section_state),
+                subtitle = stringResource(R.string.resources_filter_sheet_section_state_subtitle),
             )
-            Spacer(Modifier.height(8.dp))
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            ChipsGroup {
                 FilterChip(
                     selected = filtroEstadoPub == null,
                     onClick = { onEstado(null) },
@@ -1258,15 +1396,13 @@ private fun ContenidoRecursosFiltrosSheetContent(
                 )
             }
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(AcademiaDimens.spacingRowComfort))
         HorizontalDivider()
-        Spacer(Modifier.height(12.dp))
-        Button(
+        Spacer(Modifier.height(AcademiaDimens.paddingCardCompact))
+        PrimaryButton(
+            text = stringResource(R.string.resources_filter_sheet_done),
             onClick = onCerrar,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.resources_filter_sheet_done))
-        }
+        )
     }
 }
 
@@ -1292,13 +1428,16 @@ private fun temaLabel(wire: String): String = stringResource(
 
 @Composable
 private fun ChipTemaContenido(temaWire: String) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
+    AppTintedPanel(
+        shape = RoundedCornerShape(AcademiaDimens.radiusSm),
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentPadding = PaddingValues(
+            horizontal = AcademiaDimens.paddingChipVerticalDense + AcademiaDimens.gapSm,
+            vertical = AcademiaDimens.gapSm,
+        ),
     ) {
         Text(
             temaLabel(temaWire),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )
@@ -1314,13 +1453,13 @@ private fun TituloYPreviewTarjetaFeed(item: ContenidoItemUi) {
     if (tit.isNotEmpty() && !mismoInicio) {
         Text(
             item.titulo,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(AcademiaDimens.gapVerticalTight))
     }
     Text(
         item.cuerpo,
@@ -1385,7 +1524,7 @@ private fun CarruselMediaContenido(
             state = pagerState,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(268.dp),
+                .height(AcademiaDimens.contentFeedPagerHeight),
         ) { page ->
             val url = urls[page]
             AsyncImage(
@@ -1407,15 +1546,21 @@ private fun CarruselMediaContenido(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
+                    .padding(top = AcademiaDimens.gapVerticalTight),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 repeat(urls.size) { i ->
                     Box(
                         Modifier
-                            .padding(horizontal = 3.dp)
-                            .size(if (pagerState.currentPage == i) 7.dp else 5.dp)
+                            .padding(horizontal = AcademiaDimens.contentPagerDotSpacingH)
+                            .size(
+                                if (pagerState.currentPage == i) {
+                                    AcademiaDimens.contentPagerDotActive
+                                } else {
+                                    AcademiaDimens.contentPagerDotInactive
+                                },
+                            )
                             .background(
                                 color = if (pagerState.currentPage == i) {
                                     MaterialTheme.colorScheme.primary
@@ -1469,7 +1614,7 @@ private fun BarraReaccionesContenido(
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .semantics { contentDescription = reaccionesCd },
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         chips.forEach { (wire, emoji, count) ->
@@ -1477,9 +1622,12 @@ private fun BarraReaccionesContenido(
             Row(
                 modifier = Modifier
                     .clickable { onReaccionar(wire) }
-                    .padding(horizontal = 2.dp, vertical = 4.dp),
+                    .padding(
+                        horizontal = AcademiaDimens.gapMicro,
+                        vertical = AcademiaDimens.gapSm,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
             ) {
                 Text(
                     emoji,
@@ -1517,11 +1665,11 @@ private fun TarjetaContenidoFeed(
     onAbrirImagenGrande: (String) -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
-    Surface(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 0.dp,
-        tonalElevation = 0.dp,
+        elevated = false,
+        containerColor = MaterialTheme.colorScheme.surface,
+        includeContentPadding = false,
     ) {
         Column(Modifier.fillMaxWidth()) {
             CarruselMediaContenido(
@@ -1532,14 +1680,21 @@ private fun TarjetaContenidoFeed(
                 Modifier
                     .fillMaxWidth()
                     .clickable { onOpen() }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(
+                        horizontal = AcademiaDimens.paddingCard,
+                        vertical = AcademiaDimens.paddingCardCompact,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
             ) {
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     ChipTemaContenido(item.tema)
+                    if (item.estadoPublicacion != ContenidoEstadoPublicacion.PUBLISHED) {
+                        Spacer(Modifier.width(AcademiaDimens.gapSm))
+                        EstadoPublicacionBadgeFeed(item.estadoPublicacion)
+                    }
                     Spacer(Modifier.weight(1f))
                     Text(
                         tiempoRelativoEspañol(item.createdAtMillis),
@@ -1551,7 +1706,7 @@ private fun TarjetaContenidoFeed(
                         Box {
                             IconButton(
                                 onClick = { menu = true },
-                                modifier = Modifier.size(40.dp),
+                                modifier = Modifier.size(AcademiaDimens.avatarRow),
                             ) {
                                 Icon(
                                     Icons.Default.MoreVert,
@@ -1597,29 +1752,21 @@ private fun TarjetaContenidoFeed(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (item.estadoPublicacion == ContenidoEstadoPublicacion.PENDING) {
-                    Text(
-                        stringResource(R.string.resources_state_pending),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                } else if (item.estadoPublicacion == ContenidoEstadoPublicacion.REJECTED) {
-                    Text(
-                        stringResource(R.string.resources_state_rejected),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
                 TituloYPreviewTarjetaFeed(item = item)
             }
             if (item.estadoPublicacion == ContenidoEstadoPublicacion.PUBLISHED) {
                 HorizontalDivider(
                     modifier = Modifier.fillMaxWidth(),
-                    thickness = 1.dp,
+                    thickness = AcademiaDimens.dividerThickness,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                 )
                 Column(
-                    Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp),
+                    Modifier.padding(
+                        start = AcademiaDimens.paddingCard,
+                        end = AcademiaDimens.paddingCard,
+                        top = AcademiaDimens.gapVerticalTight,
+                        bottom = AcademiaDimens.paddingChipVerticalDense + AcademiaDimens.gapMd,
+                    ),
                 ) {
                     BarraReaccionesContenido(
                         reacciones = item.reacciones,

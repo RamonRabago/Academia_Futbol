@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import com.escuelafutbol.academia.AcademiaApplication
 import com.escuelafutbol.academia.MainActivity
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.notification.LocalNotificationContract
 import com.escuelafutbol.academia.data.remote.FcmTokenRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -60,9 +61,15 @@ class AcademiaFcmMessagingService : FirebaseMessagingService() {
             nm.createNotificationChannel(ch)
         }
         val openPadres = data["open_tab"] == NAV_ROUTE_PADRES
+        val navFromData = data["nav_route"]?.trim().orEmpty()
+        val effectiveRoute = navFromData.ifEmpty {
+            if (openPadres) NAV_ROUTE_PADRES else ""
+        }
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (openPadres) {
+            if (effectiveRoute.isNotEmpty()) {
+                putExtra(LocalNotificationContract.EXTRA_NAV_ROUTE, effectiveRoute)
+            } else if (openPadres) {
                 putExtra(EXTRA_OPEN_PADRES, true)
             }
         }

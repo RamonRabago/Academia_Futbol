@@ -4,20 +4,22 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,8 +31,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,7 +41,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -67,16 +67,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.ChipsGroup
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 import com.escuelafutbol.academia.ui.util.formatearFechaAsistenciaTitulo
 import java.time.ZoneId
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 private fun AttendanceDiaEntrenamientoBarra(
@@ -85,67 +90,64 @@ private fun AttendanceDiaEntrenamientoBarra(
     onCambiar: (Boolean) -> Unit,
     onAyuda: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 2.dp, bottom = 2.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+    AppTintedPanel(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(AcademiaDimens.radiusDense),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentPadding = PaddingValues(
+            horizontal = AcademiaDimens.paddingCardCompact,
+            vertical = AcademiaDimens.gapSm,
+        ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 4.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            Text(
+                stringResource(R.string.attendance_training_day_title),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = onAyuda,
+                modifier = Modifier.size(AcademiaDimens.avatarRow),
             ) {
-                Text(
-                    stringResource(R.string.attendance_training_day_title),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = stringResource(R.string.attendance_help_training_cd),
+                    modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                 )
-                IconButton(
-                    onClick = onAyuda,
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    Icon(
-                        Icons.Outlined.Info,
-                        contentDescription = stringResource(R.string.attendance_help_training_cd),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Switch(
-                    checked = esDiaEntreno,
-                    onCheckedChange = onCambiar,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+            }
+            Switch(
+                checked = esDiaEntreno,
+                onCheckedChange = onCambiar,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            )
+        }
+        if (textoDeteccion != null) {
+            Text(
+                textoDeteccion,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        top = AcademiaDimens.gapMicro,
+                        end = AcademiaDimens.avatarRow,
                     ),
-                )
-            }
-            if (textoDeteccion != null) {
-                Text(
-                    textoDeteccion,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 2.dp, end = 40.dp),
-                )
-            }
+            )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AttendanceScreen(
     viewModel: AttendanceViewModel,
@@ -154,15 +156,14 @@ fun AttendanceScreen(
 ) {
     if (configAcademia.esPadreMembresiaNube()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                stringResource(R.string.role_route_blocked_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(24.dp),
+            EmptyState(
+                title = stringResource(R.string.role_route_blocked_title),
+                subtitle = stringResource(R.string.role_route_blocked_body),
             )
         }
         return
@@ -174,6 +175,14 @@ fun AttendanceScreen(
     val esDiaEntreno by viewModel.esDiaEntrenamientoMarcado.collectAsState()
     val diaEntrenoBarra by viewModel.diaEntrenoBarraUi.collectAsState()
     val zone = ZoneId.systemDefault()
+
+    var listaVaciaConfirmada by remember { mutableStateOf(false) }
+    LaunchedEffect(filas) {
+        listaVaciaConfirmada = false
+        if (filas.isNotEmpty()) return@LaunchedEffect
+        delay(400)
+        if (filas.isEmpty()) listaVaciaConfirmada = true
+    }
 
     val textoDeteccionDiaEntreno = when {
         diaEntrenoBarra.hayOverrideManual -> null
@@ -228,7 +237,7 @@ fun AttendanceScreen(
             onDismissRequest = { ayudaDiaEntreno = false },
             title = { Text(stringResource(R.string.attendance_help_dialog_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock)) {
                     Text(
                         stringResource(R.string.attendance_training_day_title),
                         style = MaterialTheme.typography.titleSmall,
@@ -260,153 +269,118 @@ fun AttendanceScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(
+                horizontal = AcademiaDimens.paddingScreenHorizontal,
+                vertical = AcademiaDimens.gapSm,
+            ),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            val cdCalendario = stringResource(R.string.attendance_date_open_calendar_cd)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                IconButton(
-                    onClick = { viewModel.diaAnterior(zone) },
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = stringResource(R.string.attendance_day_prev_cd),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-                Text(
-                    etiquetaFecha,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .widthIn(max = 220.dp)
-                        .clickable { mostrarCalendario = true }
-                        .padding(horizontal = 4.dp, vertical = 4.dp)
-                        .semantics { contentDescription = cdCalendario },
-                )
-                IconButton(
-                    onClick = { viewModel.diaSiguiente(zone) },
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = stringResource(R.string.attendance_day_next_cd),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-
             if (!hayLista) {
-                Text(
-                    if (categoriaFiltro != null) {
-                        stringResource(R.string.no_players_in_category)
-                    } else {
-                        stringResource(R.string.no_players_yet)
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(top = 24.dp),
-                )
+                when {
+                    !listaVaciaConfirmada -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                            ) {
+                                CircularProgressIndicator()
+                                Text(
+                                    stringResource(R.string.attendance_loading_list),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        val tituloVacio = if (categoriaFiltro != null) {
+                            stringResource(R.string.no_players_in_category)
+                        } else {
+                            stringResource(R.string.no_players_yet)
+                        }
+                        val subtituloVacio = if (categoriaFiltro == null) {
+                            stringResource(R.string.attendance_empty_subtitle_staff)
+                        } else {
+                            null
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            EmptyState(
+                                title = tituloVacio,
+                                subtitle = subtituloVacio,
+                            )
+                        }
+                    }
+                }
             } else {
-                // Un solo LazyColumn: el scroll incluye resumen y evita que quede tapado por la barra inferior.
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .navigationBarsPadding(),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(
+                        top = AcademiaDimens.gapSm,
+                        bottom = AcademiaDimens.paddingCard,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
                 ) {
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Button(
-                                onClick = { viewModel.marcarPresentesVisibles(idsVisibles) },
-                                enabled = puedeMasivo,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .defaultMinSize(minHeight = 40.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                            ) {
-                                Text(
-                                    stringResource(R.string.attendance_mark_all_present),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.limpiarAsistenciasVisibles(idsVisibles) },
-                                enabled = puedeMasivo,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .defaultMinSize(minHeight = 40.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                            ) {
-                                Text(
-                                    stringResource(R.string.attendance_clear_visible),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-
-                    item {
-                        OutlinedTextField(
-                            value = busqueda,
-                            onValueChange = { nuevo -> busqueda = nuevo },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium,
-                            placeholder = { Text(stringResource(R.string.attendance_search_hint)) },
+                        SectionHeader(
+                            title = stringResource(R.string.attendance_section_calendar),
+                            subtitle = stringResource(R.string.attendance_section_calendar_subtitle),
                         )
-                    }
-
-                    if (mostrarChipsCategoria) {
-                        item {
-                            LazyRow(
+                        AppCard {
+                            val cdCalendario = stringResource(R.string.attendance_date_open_calendar_cd)
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                contentPadding = PaddingValues(vertical = 0.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                item {
-                                    FilterChip(
-                                        selected = chipCategoria == null,
-                                        onClick = { chipCategoria = null },
-                                        label = { Text(stringResource(R.string.attendance_filter_list_all)) },
+                                IconButton(
+                                    onClick = { viewModel.diaAnterior(zone) },
+                                    modifier = Modifier.size(AcademiaDimens.avatarRow),
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                        contentDescription = stringResource(R.string.attendance_day_prev_cd),
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                     )
                                 }
-                                items(categoriasEnLista, key = { it }) { nombre ->
-                                    FilterChip(
-                                        selected = chipCategoria == nombre,
-                                        onClick = {
-                                            chipCategoria = if (chipCategoria == nombre) null else nombre
-                                        },
-                                        label = {
-                                            Text(
-                                                nombre,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        },
+                                Text(
+                                    etiquetaFecha,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .widthIn(max = 220.dp)
+                                        .clickable { mostrarCalendario = true }
+                                        .padding(
+                                            horizontal = AcademiaDimens.gapSm,
+                                            vertical = AcademiaDimens.gapMd,
+                                        )
+                                        .semantics { contentDescription = cdCalendario },
+                                )
+                                IconButton(
+                                    onClick = { viewModel.diaSiguiente(zone) },
+                                    modifier = Modifier.size(AcademiaDimens.avatarRow),
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = stringResource(R.string.attendance_day_next_cd),
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                     )
                                 }
                             }
@@ -414,42 +388,127 @@ fun AttendanceScreen(
                     }
 
                     item {
-                        AttendanceDiaEntrenamientoBarra(
-                            esDiaEntreno = esDiaEntreno,
-                            textoDeteccion = textoDeteccionDiaEntreno,
-                            onCambiar = { viewModel.setDiaEntrenamientoMarcado(it) },
-                            onAyuda = { ayudaDiaEntreno = true },
+                        SectionHeader(
+                            title = stringResource(R.string.attendance_section_actions),
+                            subtitle = stringResource(R.string.attendance_section_actions_subtitle),
                         )
+                        AppCard {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                            ) {
+                                Button(
+                                    onClick = { viewModel.marcarPresentesVisibles(idsVisibles) },
+                                    enabled = puedeMasivo,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
+                                    contentPadding = PaddingValues(
+                                        horizontal = AcademiaDimens.paddingCardCompact,
+                                        vertical = AcademiaDimens.gapMd,
+                                    ),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.attendance_mark_all_present),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.limpiarAsistenciasVisibles(idsVisibles) },
+                                    enabled = puedeMasivo,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
+                                    contentPadding = PaddingValues(
+                                        horizontal = AcademiaDimens.paddingCardCompact,
+                                        vertical = AcademiaDimens.gapMd,
+                                    ),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.attendance_clear_visible),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        SectionHeader(
+                            title = stringResource(R.string.attendance_section_players),
+                            subtitle = stringResource(R.string.attendance_section_players_subtitle),
+                        )
+                        AppCard {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                            ) {
+                                OutlinedTextField(
+                                    value = busqueda,
+                                    onValueChange = { nuevo -> busqueda = nuevo },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyMedium,
+                                    placeholder = { Text(stringResource(R.string.attendance_search_hint)) },
+                                )
+                                if (mostrarChipsCategoria) {
+                                    ChipsGroup {
+                                        FilterChip(
+                                            selected = chipCategoria == null,
+                                            onClick = { chipCategoria = null },
+                                            label = { Text(stringResource(R.string.attendance_filter_list_all)) },
+                                        )
+                                        categoriasEnLista.forEach { nombre ->
+                                            FilterChip(
+                                                selected = chipCategoria == nombre,
+                                                onClick = {
+                                                    chipCategoria =
+                                                        if (chipCategoria == nombre) null else nombre
+                                                },
+                                                label = {
+                                                    Text(
+                                                        nombre,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                                AttendanceDiaEntrenamientoBarra(
+                                    esDiaEntreno = esDiaEntreno,
+                                    textoDeteccion = textoDeteccionDiaEntreno,
+                                    onCambiar = { viewModel.setDiaEntrenamientoMarcado(it) },
+                                    onAyuda = { ayudaDiaEntreno = true },
+                                )
+                            }
+                        }
                     }
 
                     if (hayPresentesEnListado && !esDiaEntreno) {
                         item {
-                            Text(
-                                stringResource(R.string.attendance_training_day_off_but_present_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.padding(vertical = 2.dp),
-                            )
+                            AppTintedPanel(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f),
+                                contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                            ) {
+                                Text(
+                                    stringResource(R.string.attendance_training_day_off_but_present_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                )
+                            }
                         }
-                    }
-
-                    item {
-                        Text(
-                            stringResource(R.string.attendance_day_list_title),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 2.dp),
-                        )
                     }
 
                     if (filasMostradas.isEmpty()) {
                         item {
-                            Text(
-                                stringResource(R.string.attendance_search_no_matches),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp),
+                            EmptyState(
+                                title = stringResource(R.string.attendance_search_no_matches_title),
+                                subtitle = stringResource(R.string.attendance_search_no_matches_subtitle),
                             )
                         }
                     } else {
@@ -464,15 +523,17 @@ fun AttendanceScreen(
                     }
 
                     item {
+                        SectionHeader(
+                            title = stringResource(R.string.attendance_section_summary),
+                            subtitle = stringResource(R.string.attendance_section_summary_subtitle),
+                        )
                         AttendanceAlumnoResumenPicker(
                             jugadores = jugadoresOpcion,
                             focoJugadorId = focoJugador,
                             onFocoChange = { viewModel.setResumenFocoJugador(it) },
                             enabled = filas.isNotEmpty(),
+                            modifier = Modifier.padding(bottom = AcademiaDimens.gapMd),
                         )
-                    }
-
-                    item {
                         AttendanceSummaryCard(
                             resumen = resumen,
                             onPeriodoChange = { viewModel.setPeriodoResumen(it) },
@@ -540,24 +601,26 @@ private fun AttendanceListaDiaFila(
         uncheckedThumbColor = MaterialTheme.colorScheme.outline,
         uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
     )
-    Card(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (fila.presente) {
-                fondoPresente
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-        ),
+        elevated = false,
+        containerColor = if (fila.presente) {
+            fondoPresente
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
         border = if (fila.presente) BorderStroke(1.dp, bordePresente) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        includeContentPadding = false,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(
+                    horizontal = AcademiaDimens.paddingCardCompact,
+                    vertical = AcademiaDimens.gapMd,
+                ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
         ) {
             Row(
                 modifier = Modifier
@@ -569,11 +632,11 @@ private fun AttendanceListaDiaFila(
                         onClickLabel = alternarCd,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(AcademiaDimens.avatarResultRow)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
                     contentAlignment = Alignment.Center,
@@ -589,7 +652,7 @@ private fun AttendanceListaDiaFila(
                         Icon(
                             Icons.Outlined.Person,
                             contentDescription = null,
-                            modifier = Modifier.size(26.dp),
+                            modifier = Modifier.size(AcademiaDimens.iconSizeResumen),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -601,7 +664,7 @@ private fun AttendanceListaDiaFila(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(AcademiaDimens.gapMicro))
                     Text(
                         fila.jugador.anioNacimiento?.toString() ?: fila.jugador.categoria,
                         style = MaterialTheme.typography.bodySmall,
@@ -615,17 +678,17 @@ private fun AttendanceListaDiaFila(
                         Icons.Filled.CheckCircle,
                         contentDescription = null,
                         tint = bordePresente,
-                        modifier = Modifier.size(26.dp),
+                        modifier = Modifier.size(AcademiaDimens.iconSizeResumen),
                     )
                 } else {
-                    Spacer(Modifier.size(26.dp))
+                    Spacer(Modifier.size(AcademiaDimens.iconSizeResumen))
                 }
             }
             Switch(
                 checked = fila.presente,
                 onCheckedChange = onPresenteChange,
                 colors = switchColors,
-                modifier = Modifier.defaultMinSize(minWidth = 52.dp, minHeight = 40.dp),
+                modifier = Modifier.defaultMinSize(minWidth = 52.dp, minHeight = AcademiaDimens.avatarRow),
             )
         }
     }

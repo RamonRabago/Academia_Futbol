@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,8 +20,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SportsSoccer
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +32,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
 import com.escuelafutbol.academia.ui.parents.HijoRendimientoCompPadreUi
 import com.escuelafutbol.academia.ui.parents.ProximoPartidoPadreUi
 import java.text.DateFormat
@@ -120,22 +121,24 @@ fun ParentNextMatchHeroCard(
         val ms = ld.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         dateFmt.format(Date(ms))
     }.getOrElse { p.fechaIso }
-    ElevatedCard(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 5.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = scheme.primaryContainer.copy(alpha = 0.5f),
-        ),
+        elevated = true,
+        containerColor = scheme.primaryContainer.copy(alpha = 0.55f),
+        includeContentPadding = false,
     ) {
-        Row(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+        ) {
             Box(
                 Modifier
-                    .width(5.dp)
+                    .width(AcademiaDimens.matchResultBarWidth)
                     .fillMaxHeight()
                     .background(scheme.primary),
             )
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Column(Modifier.padding(AcademiaDimens.paddingCard)) {
                 Text(
                     stringResource(R.string.parent_perf_next_match_title),
                     style = MaterialTheme.typography.titleMedium,
@@ -220,16 +223,22 @@ fun ParentCompetitionRendimientoSection(
     rendimiento: HijoRendimientoCompPadreUi?,
     rendimientoCargando: Boolean,
     modifier: Modifier = Modifier,
+    mostrarTarjetaGoles: Boolean = true,
+    mostrarCabeceraSubseccion: Boolean = true,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ParentSubsectionTitle(
-            title = stringResource(R.string.parent_section_competitions_title),
-            subtitle = stringResource(R.string.parent_section_competitions_subtitle),
-        )
-        ParentGoalsOnlyCard(totalGoles = rendimiento?.totalGolesLigas ?: 0)
+        if (mostrarCabeceraSubseccion) {
+            ParentSubsectionTitle(
+                title = stringResource(R.string.parent_section_competitions_title),
+                subtitle = stringResource(R.string.parent_section_competitions_subtitle),
+            )
+        }
+        if (mostrarTarjetaGoles) {
+            ParentGoalsOnlyCard(totalGoles = rendimiento?.totalGolesLigas ?: 0)
+        }
         rendimiento?.let { r ->
             if (r.ultimosResultadosEquipo.isNotEmpty()) {
                 ParentTeamRecentResultsBlock(r)

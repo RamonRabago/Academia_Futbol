@@ -8,11 +8,13 @@ import com.escuelafutbol.academia.data.local.dao.CategoriaDao
 import com.escuelafutbol.academia.data.local.dao.JugadorDao
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.model.mergeCategoriasParaUi
+import com.escuelafutbol.academia.data.local.model.normalizarClaveCategoriaNombre
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +32,14 @@ class CategoriaPickerViewModel(
         mergeCategoriasParaUi(desdeTabla, desdeJugadores)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Jugadores activos agrupados por clave normalizada de categoría (solo UI del selector). */
+    val jugadoresCountByCategoriaClave = jugadorDao.observeAll()
+        .map { jugadores ->
+            jugadores.groupBy { normalizarClaveCategoriaNombre(it.categoria) }
+                .mapValues { (_, lista) -> lista.size }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun agregarCategoria(nombre: String) {
         viewModelScope.launch {

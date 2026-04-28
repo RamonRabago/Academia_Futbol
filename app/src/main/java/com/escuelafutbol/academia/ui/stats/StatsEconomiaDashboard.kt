@@ -11,14 +11,15 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +37,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -53,6 +52,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.ChipsGroup
+import com.escuelafutbol.academia.ui.design.EmptyState
 import java.util.Locale
 
 /** Orden de la lista compacta por categoría. */
@@ -159,7 +162,7 @@ private fun colorSemaforoCobranza(pct: Float?): Color {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun StatsEconomiaCategoriasDashboard(
     eco: StatsEconomiaResumenUi,
@@ -231,15 +234,12 @@ fun StatsEconomiaCategoriasDashboard(
         stringResource(R.string.stats_economy_dash_sort_label),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+        modifier = Modifier.padding(
+            top = AcademiaDimens.gapMicro,
+            bottom = AcademiaDimens.gapSm,
+        ),
     )
-    val scrollOrden = rememberScrollState()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollOrden),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
+    ChipsGroup {
         FilterChip(
             selected = orden == EconomiaOrden.Estimado,
             onClick = {
@@ -285,15 +285,12 @@ fun StatsEconomiaCategoriasDashboard(
         stringResource(R.string.stats_economy_dash_filter_label),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+        modifier = Modifier.padding(
+            top = AcademiaDimens.gapSm,
+            bottom = AcademiaDimens.gapSm,
+        ),
     )
-    val scrollFiltro = rememberScrollState()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollFiltro),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
+    ChipsGroup {
         FilterChip(
             selected = filtro == EconomiaFiltro.Todas,
             onClick = {
@@ -344,14 +341,17 @@ fun StatsEconomiaCategoriasDashboard(
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+        modifier = Modifier.padding(
+            top = AcademiaDimens.gapVerticalTight,
+            bottom = AcademiaDimens.gapMicro,
+        ),
     )
     if (filtro == EconomiaFiltro.MayorIngreso && totalCategorias > 0) {
         Text(
             stringResource(R.string.stats_economy_dash_top3_filter_hint),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp),
+            modifier = Modifier.padding(bottom = AcademiaDimens.gapSm),
         )
     }
 
@@ -361,7 +361,7 @@ fun StatsEconomiaCategoriasDashboard(
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(bottom = AcademiaDimens.gapMd),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -392,12 +392,12 @@ fun StatsEconomiaCategoriasDashboard(
         val tituloCob = stringResource(R.string.stats_economy_dash_top_cob)
         val tituloPeor = stringResource(R.string.stats_economy_dash_top_peor)
         Column(
-            modifier = Modifier.padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = AcademiaDimens.gapMd),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
             ) {
                 StatsCardMedium(
                     value = topEst?.let { formatImporte(it.ingresoMensualEstimado) } ?: "—",
@@ -416,7 +416,7 @@ fun StatsEconomiaCategoriasDashboard(
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
             ) {
                 StatsCardMedium(
                     value = if (eco.hayCobrosRegistradosEnSistema && peor != null) {
@@ -434,7 +434,7 @@ fun StatsEconomiaCategoriasDashboard(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(90.dp),
+                        .height(AcademiaDimens.statsMetricTileHeight),
                 )
             }
         }
@@ -469,29 +469,22 @@ fun StatsEconomiaCategoriasDashboard(
         }
 
         if (rows.isEmpty()) {
-            StatsCardFrame(
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
-                Text(
-                    if (eco.filasPorCategoria.isEmpty()) {
-                        stringResource(R.string.stats_economy_dash_empty_no_categories)
-                    } else {
-                        stringResource(R.string.stats_economy_dash_empty_filter)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                )
-            }
+            EmptyState(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = AcademiaDimens.gapMd),
+                title = if (eco.filasPorCategoria.isEmpty()) {
+                    stringResource(R.string.stats_economy_dash_empty_no_categories)
+                } else {
+                    stringResource(R.string.stats_economy_dash_empty_filter)
+                },
+            )
         } else {
-            Column(modifier = Modifier.padding(top = 6.dp)) {
+            Column(modifier = Modifier.padding(top = AcademiaDimens.gapVerticalTight)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 4.dp),
+                        .padding(bottom = AcademiaDimens.gapSm),
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     Text(
@@ -561,38 +554,36 @@ fun StatsEconomiaCategoriasDashboard(
                     }
                     val colorAdeudoTexto = if (adeudoAlto) ColorAdeudoRojoFuerte else ColorAdeudoRojoSuave
 
-                    Surface(
+                    AppCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                shape = StatsCardShape,
-                            )
-                            .clip(StatsCardShape)
+                            .padding(vertical = AcademiaDimens.gapMicro)
                             .clickable(
                                 onClickLabel = stringResource(
                                     R.string.stats_economy_row_expand_cd,
                                     fila.categoria,
                                 ),
                             ) { onToggleCategoria(fila.categoria) },
-                        color = baseSurface,
-                        tonalElevation = 0.dp,
-                        shape = StatsCardShape,
+                        elevated = false,
+                        containerColor = baseSurface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        includeContentPadding = false,
                     ) {
                         Column(Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    .padding(
+                                        horizontal = AcademiaDimens.gapVerticalTight,
+                                        vertical = AcademiaDimens.gapVerticalTight,
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapVerticalTight),
                             ) {
                                 Row(
                                     modifier = Modifier.weight(1f),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
                                 ) {
                                     if (adeudoAlto) {
                                         Icon(
@@ -601,7 +592,7 @@ fun StatsEconomiaCategoriasDashboard(
                                                 R.string.stats_economy_adeudo_alto_cd,
                                                 fila.categoria,
                                             ),
-                                            modifier = Modifier.size(20.dp),
+                                            modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                                             tint = ColorAdeudoRojoFuerte,
                                         )
                                     }
@@ -711,7 +702,11 @@ fun StatsEconomiaCategoriasDashboard(
                     sinActividad = sinActividad,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 8.dp, end = 8.dp, bottom = 6.dp),
+                        .padding(
+                            start = AcademiaDimens.gapMd,
+                            end = AcademiaDimens.gapMd,
+                            bottom = AcademiaDimens.gapVerticalTight,
+                        ),
                 )
                 AnimatedVisibility(
                     visible = expandida,
@@ -721,8 +716,12 @@ fun StatsEconomiaCategoriasDashboard(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 12.dp, end = 10.dp, bottom = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                            .padding(
+                                start = AcademiaDimens.paddingCardCompact,
+                                end = AcademiaDimens.paddingCardCompact,
+                                bottom = AcademiaDimens.gapMd,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro),
                     ) {
                         Text(
                             stringResource(R.string.stats_economy_cat_active, fila.alumnosActivos),
@@ -761,18 +760,18 @@ private fun BarraCobranzaApilada(
     sinActividad: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val forma = RoundedCornerShape(4.dp)
+    val forma = RoundedCornerShape(AcademiaDimens.radiusSm)
     val (verde, rojo) = remember(fila, hayCobros) {
         fraccionesBarraSoloVerdeRojo(fila, hayCobros)
     }
     if (sinActividad) {
-        Spacer(modifier.height(4.dp))
+        Spacer(modifier.height(AcademiaDimens.gapSm))
         return
     }
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(8.dp)
+            .height(AcademiaDimens.gapMd)
             .clip(forma)
             .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)),
     ) {
@@ -805,7 +804,7 @@ private fun ResumenGlobalColumna(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro),
         modifier = Modifier.widthIn(min = 88.dp),
     ) {
         Text(

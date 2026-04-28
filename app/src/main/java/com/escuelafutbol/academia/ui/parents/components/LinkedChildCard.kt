@@ -3,13 +3,10 @@ package com.escuelafutbol.academia.ui.parents.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.escuelafutbol.academia.ui.design.AppCard
 import com.escuelafutbol.academia.ui.parents.HijoRendimientoCompPadreUi
 import com.escuelafutbol.academia.ui.parents.HijoResumenUi
 import java.text.DateFormat
@@ -28,13 +25,13 @@ fun LinkedChildCard(
     onRequestUnlink: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        elevated = false,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
+        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Column(Modifier.fillMaxWidth()) {
             ChildHeaderRow(
                 hijo = hijo,
                 expanded = expanded,

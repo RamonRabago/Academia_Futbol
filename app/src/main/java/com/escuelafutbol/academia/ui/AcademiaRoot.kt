@@ -79,6 +79,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -104,6 +105,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.AcademiaApplication
+import com.escuelafutbol.academia.data.local.OnboardingPreferences
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
@@ -111,9 +113,13 @@ import com.escuelafutbol.academia.ui.academia.AcademiaConfigViewModel
 import com.escuelafutbol.academia.ui.academia.AcademiaScreen
 import com.escuelafutbol.academia.ui.academia.StaffViewModel
 import com.escuelafutbol.academia.ui.home.InicioPadrePortadaOpcion
+import com.escuelafutbol.academia.ui.home.InicioCumpleaneroUi
+import com.escuelafutbol.academia.ui.home.CumpleanosClubScreen
 import com.escuelafutbol.academia.ui.home.InicioScreen
+import com.escuelafutbol.academia.ui.onboarding.WelcomeFirstLaunchScreen
 import com.escuelafutbol.academia.ui.attendance.AttendanceScreen
 import com.escuelafutbol.academia.ui.attendance.AttendanceViewModel
+import com.escuelafutbol.academia.ui.design.AcademiaContextBanner
 import com.escuelafutbol.academia.ui.categoria.CategoriaPickerViewModel
 import com.escuelafutbol.academia.ui.finanzas.FinanzasScreen
 import com.escuelafutbol.academia.ui.finanzas.FinanzasViewModel
@@ -122,6 +128,7 @@ import com.escuelafutbol.academia.ui.competencias.CompetenciasScreen
 import com.escuelafutbol.academia.ui.competencias.CompetenciasViewModel
 import com.escuelafutbol.academia.ui.contenido.ContenidoScreen
 import com.escuelafutbol.academia.ui.contenido.ContenidoViewModel
+import com.escuelafutbol.academia.ui.parents.PadresNavegacionAtajoUi
 import com.escuelafutbol.academia.ui.parents.ParentsScreen
 import com.escuelafutbol.academia.ui.parents.ParentsTabContent
 import com.escuelafutbol.academia.ui.parents.ParentsViewModel
@@ -502,17 +509,36 @@ private fun AcademiaRootAuthenticatedContent(
         colorSecundarioHex = config.temaColorSecundarioHex,
     ) {
         key(authUserIdKey) {
-            AcademiaMainScaffold(
-                sessionVm = sessionVm,
-                config = config,
-                context = context,
-                factory = scopedFactory,
-                childFactory = childFactory,
-                filtroCategoria = filtroCategoria,
-                authVm = authVm,
-                mostrandoSelectorCategoria = !enPrincipal && !config.esPadreMembresiaNube(),
-                sessionAuthUserId = authUserIdKey,
-            )
+            val onboardingPrefs = remember(app, authUserIdKey) {
+                OnboardingPreferences(app, authUserIdKey)
+            }
+            var mostrarBienvenidaPrimeraVez by remember(onboardingPrefs) {
+                mutableStateOf(!onboardingPrefs.isFirstLaunchWelcomeCompleted())
+            }
+            Box(Modifier.fillMaxSize()) {
+                AcademiaMainScaffold(
+                    sessionVm = sessionVm,
+                    config = config,
+                    context = context,
+                    factory = scopedFactory,
+                    childFactory = childFactory,
+                    filtroCategoria = filtroCategoria,
+                    authVm = authVm,
+                    mostrandoSelectorCategoria = !enPrincipal && !config.esPadreMembresiaNube(),
+                    sessionAuthUserId = authUserIdKey,
+                )
+                if (mostrarBienvenidaPrimeraVez) {
+                    WelcomeFirstLaunchScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(2f),
+                        onComenzar = {
+                            onboardingPrefs.setFirstLaunchWelcomeCompleted()
+                            mostrarBienvenidaPrimeraVez = false
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -787,13 +813,9 @@ private fun AcademiaMainScaffold(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Text(
-                                stringResource(R.string.working_in, etiquetaCategoria),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                            AcademiaContextBanner(
+                                contextText = stringResource(R.string.working_in, etiquetaCategoria),
+                                emphasize = esPadreEnBarra,
                             )
                             if (!etiquetaCuentaSesion.isNullOrBlank()) {
                                 Text(
@@ -997,6 +1019,71 @@ private fun AcademiaMainScaffold(
                     }.collect { value = it }
                 }
                 val categoriaInicio = if (esPadreInicio) categoriaInicioPadre else categoriaInicioStaff
+                val categoriasPermitidasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
+                val cumpleanerosInicio by produceState(
+                    initialValue = emptyList<InicioCumpleaneroUi>(),
+                    esPadreInicio,
+                    filtroCategoria,
+                    categoriasPermitidasCoach,
+                    hijosPortadaKey,
+                    appInicio,
+                ) {
+                    val jugDao = appInicio.database.jugadorDao()
+                    jugDao.observeAll().collect { jugadores ->
+                        val base = if (esPadreInicio) {
+                            val idsHijos = hijosPadre.map { it.jugadorLocalId }.toSet()
+                            jugadores.filter { it.id in idsHijos }
+                        } else {
+                            val permitidas = categoriasPermitidasCoach
+                                ?.map { it.trim() }
+                                ?.filter { it.isNotEmpty() }
+                                ?.toSet()
+                            val filtradosPorPermiso = when {
+                                permitidas == null -> jugadores
+                                permitidas.isEmpty() -> emptyList()
+                                else -> jugadores.filter { j -> j.categoria.trim() in permitidas }
+                            }
+                            val categoriaActiva = filtroCategoria?.trim()?.takeIf { it.isNotEmpty() }
+                            if (categoriaActiva == null) {
+                                filtradosPorPermiso
+                            } else {
+                                filtradosPorPermiso.filter { j ->
+                                    j.categoria.trim().equals(categoriaActiva, ignoreCase = true)
+                                }
+                            }
+                        }
+                        value = base.map { jugador ->
+                            InicioCumpleaneroUi(
+                                nombre = jugador.nombre,
+                                categoria = jugador.categoria,
+                                fechaNacimientoMillis = jugador.fechaNacimientoMillis,
+                                telefonoContacto = jugador.telefonoTutor,
+                                fotoUrlSupabase = jugador.fotoUrlSupabase,
+                                fotoRutaAbsoluta = jugador.fotoRutaAbsoluta,
+                            )
+                        }
+                    }
+                }
+                val staffGuiaInicio by produceState(
+                    initialValue = Pair(false, false),
+                    esPadreInicio,
+                    appInicio,
+                ) {
+                    if (esPadreInicio) {
+                        value = false to false
+                        return@produceState
+                    }
+                    val catDao = appInicio.database.categoriaDao()
+                    val jugDao = appInicio.database.jugadorDao()
+                    combine(
+                        catDao.observeAllOrdered(),
+                        jugDao.observeAll(),
+                    ) { cats, jugs ->
+                        val sinCategorias = cats.isEmpty()
+                        val sinJugadores = jugs.isEmpty()
+                        sinCategorias to (!sinCategorias && sinJugadores)
+                    }.collect { value = it }
+                }
                 InicioScreen(
                     config = config,
                     categoriaPortada = categoriaInicio,
@@ -1011,6 +1098,10 @@ private fun AcademiaMainScaffold(
                     onParentPortadaJugadorRemoteIdChange = { rid ->
                         sessionVm.setParentInicioPortadaJugadorRemoteId(rid)
                     },
+                    mostrarGuiaStaffSinCategorias = staffGuiaInicio.first,
+                    mostrarGuiaStaffSinJugadores = staffGuiaInicio.second,
+                    cumpleanerosHoy = cumpleanerosInicio,
+                    onOpenCumpleanosClub = { navController.navigate("cumpleanos_club") },
                     onNavigate = { route ->
                         navController.navigate(route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -1018,6 +1109,62 @@ private fun AcademiaMainScaffold(
                             restoreState = true
                         }
                     },
+                )
+            }
+            composable("cumpleanos_club") {
+                val esPadreCumple = config.esPadreMembresiaNube()
+                val categoriasPermitidasCoach by sessionVm.categoriasPermitidasOperacion.collectAsState()
+                val parentsTabCumple by parentsVmShared.parentsTabContent.collectAsState()
+                val hijosPadreCumple = remember(parentsTabCumple) {
+                    (parentsTabCumple as? ParentsTabContent.PadreConHijos)?.hijos.orEmpty()
+                }
+                val cumpleanerosClub by produceState(
+                    initialValue = emptyList<InicioCumpleaneroUi>(),
+                    esPadreCumple,
+                    filtroCategoria,
+                    categoriasPermitidasCoach,
+                    appNav,
+                    parentsTabCumple,
+                ) {
+                    val jugDao = appNav.database.jugadorDao()
+                    jugDao.observeAll().collect { jugadores ->
+                        val base = if (esPadreCumple) {
+                            val idsHijos = hijosPadreCumple.map { it.jugadorLocalId }.toSet()
+                            jugadores.filter { it.id in idsHijos }
+                        } else {
+                            val permitidas = categoriasPermitidasCoach
+                                ?.map { it.trim() }
+                                ?.filter { it.isNotEmpty() }
+                                ?.toSet()
+                            val filtradosPorPermiso = when {
+                                permitidas == null -> jugadores
+                                permitidas.isEmpty() -> emptyList()
+                                else -> jugadores.filter { j -> j.categoria.trim() in permitidas }
+                            }
+                            val categoriaActiva = filtroCategoria?.trim()?.takeIf { it.isNotEmpty() }
+                            if (categoriaActiva == null) {
+                                filtradosPorPermiso
+                            } else {
+                                filtradosPorPermiso.filter { j ->
+                                    j.categoria.trim().equals(categoriaActiva, ignoreCase = true)
+                                }
+                            }
+                        }
+                        value = base.map { jugador ->
+                            InicioCumpleaneroUi(
+                                nombre = jugador.nombre,
+                                categoria = jugador.categoria,
+                                fechaNacimientoMillis = jugador.fechaNacimientoMillis,
+                                telefonoContacto = jugador.telefonoTutor,
+                                fotoUrlSupabase = jugador.fotoUrlSupabase,
+                                fotoRutaAbsoluta = jugador.fotoRutaAbsoluta,
+                            )
+                        }
+                    }
+                }
+                CumpleanosClubScreen(
+                    items = cumpleanerosClub,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Tab.Jugadores.route) {
@@ -1040,6 +1187,15 @@ private fun AcademiaMainScaffold(
                     categoriaFiltro = filtroCategoria,
                     configAcademia = cfg,
                     sessionAuthUserId = sessionAuthUserId,
+                    onNavigateToMainTab = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(Tab.Asistencia.route) {
@@ -1102,9 +1258,27 @@ private fun AcademiaMainScaffold(
                 )
             }
             composable(Tab.Padres.route) {
+                val padreNavegacionAtajos = remember(config, uidSesionRol) {
+                    buildList {
+                        add(PadresNavegacionAtajoUi(Tab.Inicio.route, Tab.Inicio.labelRes))
+                        Tab.tabsMenuDesplegable(config, uidSesionRol).forEach { tab ->
+                            add(PadresNavegacionAtajoUi(tab.route, tab.labelRes))
+                        }
+                    }
+                }
                 ParentsScreen(
                     viewModel = parentsVmShared,
                     remoteAcademiaId = config.remoteAcademiaId,
+                    onNavigateToRoute = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    padreNavegacionAtajos = padreNavegacionAtajos,
                 )
             }
             composable(Tab.Academia.route) {

@@ -14,7 +14,7 @@ Documento vivo para alinear **equipo**, **dueños de academias** y **desarrollo*
 |------|---------------------|---------------|-----------------|
 | Identidad / club | Academia, binding | `academia_config`, categorías | `academias`, `categorias`, miembros |
 | Jugadores | Jugadores | `jugadores`, historial | `jugadores`, storage fotos |
-| Operación diaria | Asistencia, estadísticas | asistencias, días entreno | `asistencias` (sync) |
+| Operación diaria | Asistencia, estadísticas | asistencias, días de entrenamiento | `asistencias` (sync) |
 | Economía | Finanzas | cobros mensuales, staff | tablas de cobros / staff |
 | Comunicación urgente | Padres (avisos) | — (lectura en caliente) | `academia_mensajes_categoria` |
 | **Contenido de valor** | **Recursos** | — (lista en memoria + pull) | **`academia_contenido_categoria`**, **`academia_contenido_reaccion`** |

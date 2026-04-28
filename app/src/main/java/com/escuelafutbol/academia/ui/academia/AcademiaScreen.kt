@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -61,10 +62,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -72,7 +69,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -126,6 +122,12 @@ import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.PrimaryButton
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.ui.auth.AuthProfileSnapshot
 import com.escuelafutbol.academia.ui.auth.AuthViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -365,16 +367,26 @@ fun AcademiaScreen(
                 .padding(padding),
             contentPadding = when {
                 hubMenuGestion ->
-                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp)
+                    PaddingValues(
+                        start = AcademiaDimens.paddingScreenHorizontal,
+                        end = AcademiaDimens.paddingScreenHorizontal,
+                        top = AcademiaDimens.gapMd,
+                        bottom = AcademiaDimens.gapVerticalTight,
+                    )
                 contenidoAcademiaDetalleCompacto ->
-                    PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp)
-                else -> PaddingValues(16.dp)
+                    PaddingValues(
+                        start = AcademiaDimens.paddingScreenHorizontal,
+                        end = AcademiaDimens.paddingScreenHorizontal,
+                        top = AcademiaDimens.gapVerticalTight,
+                        bottom = AcademiaDimens.gapMd,
+                    )
+                else -> PaddingValues(AcademiaDimens.paddingScreenHorizontal)
             },
             verticalArrangement = Arrangement.spacedBy(
                 when {
-                    hubMenuGestion -> 10.dp
-                    contenidoAcademiaDetalleCompacto -> 10.dp
-                    else -> 16.dp
+                    hubMenuGestion -> AcademiaDimens.spacingListSection
+                    contenidoAcademiaDetalleCompacto -> AcademiaDimens.spacingListSection
+                    else -> AcademiaDimens.paddingCardCompact
                 },
             ),
         ) {
@@ -382,13 +394,12 @@ fun AcademiaScreen(
                 config.remoteAcademiaId == null || config.academiaGestionNubePermitida
             if (!esPersonalClub) {
                 item {
-                    OutlinedCard(
+                    AppTintedPanel(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentPadding = PaddingValues(AcademiaDimens.paddingCard),
                     ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection)) {
                             Text(
                                 stringResource(R.string.academy_readonly_family_title),
                                 style = MaterialTheme.typography.titleSmall,
@@ -403,13 +414,12 @@ fun AcademiaScreen(
                 }
             } else if (!puedeGestionarAcademia) {
                 item {
-                    OutlinedCard(
+                    AppTintedPanel(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentPadding = PaddingValues(AcademiaDimens.paddingCard),
                     ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection)) {
                             Text(
                                 stringResource(R.string.academy_readonly_no_admin_title),
                                 style = MaterialTheme.typography.titleSmall,
@@ -434,18 +444,35 @@ fun AcademiaScreen(
                             AcademiaDuenoBienvenidaCabecera(nombreClub = config.nombreAcademia)
                         }
                     }
+                    if (hubMenuGestion) {
+                        item(key = "academy_hub_header") {
+                            SectionHeader(
+                                title = stringResource(R.string.tab_academy),
+                                subtitle = stringResource(R.string.academy_screen_subtitle),
+                            )
+                        }
+                    }
                     item {
-                        Text(
-                            stringResource(
-                                if (hubMenuGestion) {
-                                    R.string.academy_settings_hub_intro_short
-                                } else {
-                                    R.string.academy_settings_hub_intro
-                                },
+                        AppTintedPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
+                            contentPadding = PaddingValues(
+                                horizontal = AcademiaDimens.paddingCardCompact,
+                                vertical = AcademiaDimens.gapMd,
                             ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (hubMenuGestion) {
+                                        R.string.academy_settings_hub_intro_short
+                                    } else {
+                                        R.string.academy_settings_hub_intro
+                                    },
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     if (config.remoteAcademiaId != null) {
                         item {
@@ -524,22 +551,31 @@ fun AcademiaScreen(
                                 null -> {
                                     item {
                                         if (config.remoteAcademiaId != null) {
-                                            Text(
-                                                stringResource(R.string.academy_invite_hub_intro),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
+                                            AppTintedPanel(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(
+                                                    alpha = 0.65f,
+                                                ),
+                                                contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                                            ) {
+                                                Text(
+                                                    stringResource(R.string.academy_invite_hub_intro_short),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
                                         }
                                     }
                                     item {
                                         if (config.remoteAcademiaId != null) {
-                                            OutlinedCard(
+                                            AppCard(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(16.dp),
+                                                elevated = false,
+                                                includeContentPadding = false,
                                             ) {
                                                 Column(
-                                                    Modifier.padding(16.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                                    Modifier.padding(AcademiaDimens.paddingCard),
+                                                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                                                 ) {
                                                     Text(
                                                         stringResource(R.string.academy_club_code_generate),
@@ -551,7 +587,8 @@ fun AcademiaScreen(
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         maxLines = 5,
                                                     )
-                                                    FilledTonalButton(
+                                                    PrimaryButton(
+                                                        text = stringResource(R.string.academy_club_code_generate),
                                                         onClick = {
                                                             configVm.regenerarCodigosInvitacion { r ->
                                                                 r.onFailure { e ->
@@ -570,17 +607,14 @@ fun AcademiaScreen(
                                                                 }
                                                             }
                                                         },
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        shape = RoundedCornerShape(12.dp),
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Filled.Refresh,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(20.dp),
-                                                        )
-                                                        Spacer(Modifier.width(10.dp))
-                                                        Text(stringResource(R.string.academy_club_code_generate))
-                                                    }
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Filled.Refresh,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(AcademiaDimens.iconSizeSm),
+                                                            )
+                                                        },
+                                                    )
                                                 }
                                             }
                                         }
@@ -731,16 +765,9 @@ fun AcademiaScreen(
                         }
                         AcademiaDestinoAjuste.TemaColores -> {
             item {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.academy_theme_section),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    stringResource(R.string.academy_theme_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
+                SectionHeader(
+                    title = stringResource(R.string.academy_theme_section),
+                    subtitle = stringResource(R.string.academy_theme_hint_short),
                 )
                 var primHex by remember { mutableStateOf("") }
                 var secHex by remember { mutableStateOf("") }
@@ -767,21 +794,21 @@ fun AcademiaScreen(
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = AcademiaDimens.spacingDialogBlock),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .size(AcademiaDimens.avatarRow)
+                            .clip(RoundedCornerShape(AcademiaDimens.radiusSm))
                             .background(
                                 parseBrandColorOrNull(primHex)
                                     ?: MaterialTheme.colorScheme.surfaceVariant,
                             )
                             .border(
-                                1.dp,
+                                AcademiaDimens.dividerThickness,
                                 MaterialTheme.colorScheme.outline,
-                                RoundedCornerShape(8.dp),
+                                RoundedCornerShape(AcademiaDimens.radiusSm),
                             ),
                     )
                     OutlinedTextField(
@@ -802,13 +829,13 @@ fun AcademiaScreen(
                     stringResource(R.string.academy_theme_presets_primary),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = AcademiaDimens.gapMd),
                 )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(scrollPrim),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.chipSpacing),
                 ) {
                     presetsPrim.forEach { (hex, labelRes) ->
                         FilterChip(
@@ -820,21 +847,21 @@ fun AcademiaScreen(
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = AcademiaDimens.spacingDialogBlock),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .size(AcademiaDimens.avatarRow)
+                            .clip(RoundedCornerShape(AcademiaDimens.radiusSm))
                             .background(
                                 parseBrandColorOrNull(secHex)
                                     ?: MaterialTheme.colorScheme.surfaceVariant,
                             )
                             .border(
-                                1.dp,
+                                AcademiaDimens.dividerThickness,
                                 MaterialTheme.colorScheme.outline,
-                                RoundedCornerShape(8.dp),
+                                RoundedCornerShape(AcademiaDimens.radiusSm),
                             ),
                     )
                     OutlinedTextField(
@@ -855,13 +882,13 @@ fun AcademiaScreen(
                     stringResource(R.string.academy_theme_presets_secondary),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = AcademiaDimens.gapMd),
                 )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(scrollSec),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.chipSpacing),
                 ) {
                     presetsSec.forEach { (hex, labelRes) ->
                         FilterChip(
@@ -876,22 +903,22 @@ fun AcademiaScreen(
                         stringResource(R.string.academy_theme_invalid_hex),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = AcademiaDimens.gapMd),
                     )
                 }
                 Row(
-                    modifier = Modifier.padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = AcademiaDimens.spacingDialogBlock),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 ) {
                     TextButton(onClick = { configVm.restaurarColoresTemaPorDefecto() }) {
                         Text(stringResource(R.string.academy_theme_reset))
                     }
-                    Button(
+                    PrimaryButton(
+                        text = stringResource(R.string.academy_theme_save),
                         onClick = { configVm.guardarColoresTema(primHex, secHex) },
                         enabled = canSave,
-                    ) {
-                        Text(stringResource(R.string.academy_theme_save))
-                    }
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
                         }
@@ -922,27 +949,21 @@ fun AcademiaScreen(
                         }
                         AcademiaDestinoAjuste.EquipoTecnico -> {
             item {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.staff_section),
-                    style = MaterialTheme.typography.titleMedium,
-                )
                 Text(
                     stringResource(R.string.staff_section_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Button(
+                PrimaryButton(
+                    text = stringResource(R.string.add_staff),
                     onClick = {
                         staffEditar = null
                         staffPrefillCoachMiembro = null
                         staffFormInstance++
                         dialogoStaff = true
                     },
-                    modifier = Modifier.padding(top = 8.dp),
-                ) {
-                    Text(stringResource(R.string.add_staff))
-                }
+                    modifier = Modifier.padding(top = AcademiaDimens.gapMd),
+                )
             }
             items(staff, key = { it.id }) { m ->
                 val categoriasStaff by staffVm.categoriasFlowPara(m.id)
@@ -999,9 +1020,10 @@ fun AcademiaScreen(
 
         val aid = config.remoteAcademiaId
         if (pantallaMiembros && aid != null) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background,
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
             ) {
                 AcademiaMiembrosAdminScreen(
                     academiaId = aid,
@@ -1165,19 +1187,24 @@ private fun AcademiaIdentidadClubSeccionCompacta(
         config.portadaRutaAbsoluta != null || !config.portadaUrlSupabase.isNullOrBlank()
     val tieneLogo =
         config.logoRutaAbsoluta != null || !config.logoUrlSupabase.isNullOrBlank()
-    val padTarjeta = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-    val padBoton = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+    val padTarjetaInner = PaddingValues(AcademiaDimens.paddingCardCompact)
+    val padBoton = PaddingValues(
+        horizontal = AcademiaDimens.paddingCardCompact,
+        vertical = AcademiaDimens.gapMd,
+    )
+    val logoBlock = AcademiaDimens.resumenStaffCeldaAltura - AcademiaDimens.avatarSheetRow
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
     ) {
-        OutlinedCard(
+        AppCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            elevated = false,
+            includeContentPadding = false,
         ) {
             Column(
-                Modifier.padding(padTarjeta),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.padding(padTarjetaInner),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
             ) {
                 Text(
                     stringResource(R.string.academy_cover_section),
@@ -1189,11 +1216,11 @@ private fun AcademiaIdentidadClubSeccionCompacta(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Card(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(96.dp),
-                    shape = RoundedCornerShape(12.dp),
+                        .height(AcademiaDimens.avatarFormHero)
+                        .clip(RoundedCornerShape(AcademiaDimens.radiusMd)),
                 ) {
                     if (portadaModel != null) {
                         AsyncImage(
@@ -1221,7 +1248,7 @@ private fun AcademiaIdentidadClubSeccionCompacta(
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedButton(
@@ -1250,49 +1277,44 @@ private fun AcademiaIdentidadClubSeccionCompacta(
                 }
             }
         }
-        OutlinedCard(
+        AppCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            elevated = false,
+            includeContentPadding = false,
         ) {
             Row(
-                Modifier.padding(padTarjeta),
+                Modifier.padding(padTarjetaInner),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
             ) {
                 if (logoModel != null) {
                     AsyncImage(
                         model = logoModel,
                         contentDescription = stringResource(R.string.academy_logo_profile),
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(logoBlock)
                             .clip(CircleShape)
                             .clickable(onClick = onTapLogo),
                         contentScale = ContentScale.Crop,
                     )
                 } else {
-                    Card(
-                        modifier = Modifier.size(64.dp),
-                        shape = CircleShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
+                    Box(
+                        modifier = Modifier
+                            .size(logoBlock)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Column(
-                            Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Text(
-                                stringResource(R.string.academy_logo_placeholder_short),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Text(
+                            stringResource(R.string.academy_logo_placeholder_short),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapVerticalTight),
                 ) {
                     Text(
                         stringResource(R.string.academy_logo_section),
@@ -1306,7 +1328,7 @@ private fun AcademiaIdentidadClubSeccionCompacta(
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         OutlinedButton(
@@ -1333,29 +1355,27 @@ private fun AcademiaIdentidadClubSeccionCompacta(
                 }
             }
         }
-        OutlinedCard(
+        AppCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            elevated = false,
+            includeContentPadding = false,
         ) {
-            Row(
-                Modifier.padding(padTarjeta),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                Modifier.padding(padTarjetaInner),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
             ) {
                 OutlinedTextField(
                     value = nombreAcademia,
                     onValueChange = onNombreChange,
                     label = { Text(stringResource(R.string.academy_name_label)) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                Button(
+                PrimaryButton(
+                    text = stringResource(R.string.save),
                     onClick = onGuardarNombre,
                     enabled = puedeGuardarNombre,
-                    contentPadding = padBoton,
-                ) {
-                    Text(stringResource(R.string.save))
-                }
+                )
             }
         }
     }
@@ -1382,19 +1402,23 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
     val puedeEditarDiaLimite = config.puedeMutarDiaLimitePagoMes(
         sessionAuthUserId.takeIf { it.isNotBlank() },
     )
-    val padTarjeta = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-    val padBoton = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+    val padTarjetaInner = PaddingValues(AcademiaDimens.paddingCardCompact)
+    val padBoton = PaddingValues(
+        horizontal = AcademiaDimens.paddingCardCompact,
+        vertical = AcademiaDimens.gapMd,
+    )
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
     ) {
-        OutlinedCard(
+        AppCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            elevated = false,
+            includeContentPadding = false,
         ) {
             Column(
-                Modifier.padding(padTarjeta),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.padding(padTarjetaInner),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
             ) {
                 Text(
                     stringResource(R.string.academy_fee_privacy_hint_compact),
@@ -1411,11 +1435,11 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .defaultMinSize(minHeight = 48.dp),
+                            .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -1437,7 +1461,7 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .defaultMinSize(minHeight = 48.dp),
+                            .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -1459,7 +1483,7 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .defaultMinSize(minHeight = 48.dp),
+                            .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -1483,20 +1507,21 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                     TextButton(
                         onClick = onCambiarPin,
                         contentPadding = padBoton,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = AcademiaDimens.gapMicro),
                     ) {
                         Text(stringResource(R.string.pin_change_action))
                     }
                 }
             }
         }
-        OutlinedCard(
+        AppCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            elevated = false,
+            includeContentPadding = false,
         ) {
             Column(
-                Modifier.padding(padTarjeta),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                Modifier.padding(padTarjetaInner),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapVerticalTight),
             ) {
                 Text(
                     stringResource(R.string.academy_payment_deadline_title),
@@ -1513,7 +1538,7 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                         stringResource(R.string.academy_payment_deadline_owner_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = AcademiaDimens.gapSm),
                     )
                     Text(
                         run {
@@ -1525,7 +1550,7 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                             }
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = AcademiaDimens.gapSm),
                     )
                 } else {
                     var diaLimiteTxt by remember { mutableStateOf("") }
@@ -1543,11 +1568,11 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                            .padding(top = AcademiaDimens.gapSm),
                     )
                     Row(
-                        modifier = Modifier.padding(top = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = AcademiaDimens.gapVerticalTight),
+                        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                     ) {
                         TextButton(
                             onClick = {
@@ -1574,7 +1599,8 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                         ) {
                             Text(stringResource(R.string.academy_payment_deadline_clear))
                         }
-                        Button(
+                        PrimaryButton(
+                            text = stringResource(R.string.academy_payment_deadline_save),
                             onClick = {
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
@@ -1631,10 +1657,8 @@ private fun AcademiaMensualidadPrivacidadSeccionCompacta(
                                     }
                                 }
                             },
-                            contentPadding = padBoton,
-                        ) {
-                            Text(stringResource(R.string.academy_payment_deadline_save))
-                        }
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -1647,14 +1671,17 @@ private fun AcademiaDuenoBienvenidaCabecera(
     nombreClub: String,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    AppTintedPanel(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+        shape = RoundedCornerShape(AcademiaDimens.radiusXl),
+        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+        contentPadding = PaddingValues(
+            horizontal = AcademiaDimens.paddingScreenHorizontal,
+            vertical = AcademiaDimens.paddingCardCompact,
+        ),
     ) {
         Column(
-            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
         ) {
             Text(
                 stringResource(R.string.academy_owner_welcome_prefix),
@@ -1681,26 +1708,30 @@ private fun AcademiaAjusteNavegacionFila(
     onClick: () -> Unit,
     compact: Boolean = false,
 ) {
-    OutlinedCard(
+    AppCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        elevated = false,
+        includeContentPadding = false,
     ) {
         if (compact) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .defaultMinSize(minHeight = 52.dp)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .defaultMinSize(minHeight = AcademiaDimens.buttonMinHeight)
+                    .padding(
+                        horizontal = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapSm,
+                        vertical = AcademiaDimens.spacingListSection,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(AcademiaDimens.iconInset),
                 )
                 Column(Modifier.weight(1f)) {
                     Text(titulo, style = MaterialTheme.typography.titleSmall)
@@ -1720,6 +1751,12 @@ private fun AcademiaAjusteNavegacionFila(
             }
         } else {
             ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = AcademiaDimens.gapMd,
+                        vertical = AcademiaDimens.gapSm,
+                    ),
                 headlineContent = {
                     Text(titulo, style = MaterialTheme.typography.titleSmall)
                 },
@@ -1736,7 +1773,7 @@ private fun AcademiaAjusteNavegacionFila(
                         icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(AcademiaDimens.iconSizeMd),
                     )
                 },
                 trailingContent = {
@@ -1865,14 +1902,15 @@ private fun StaffCard(
     onDelete: () -> Unit,
 ) {
     val rol = RolStaff.fromStored(staff.rol)
-    Card(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevated = true,
+        includeContentPadding = false,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(AcademiaDimens.paddingCard),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1880,7 +1918,7 @@ private fun StaffCard(
             val fotoModel = staff.coilFotoModel(context)
             Row(
                 modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (fotoModel != null) {
@@ -1888,14 +1926,14 @@ private fun StaffCard(
                         model = fotoModel,
                         contentDescription = stringResource(R.string.staff_photo_cd),
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(AcademiaDimens.avatarSheetRow)
                             .clip(CircleShape),
                         contentScale = ContentScale.Crop,
                     )
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(AcademiaDimens.avatarSheetRow)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center,
@@ -1903,7 +1941,7 @@ private fun StaffCard(
                         Icon(
                             Icons.Default.Image,
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(AcademiaDimens.iconInset),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -2130,15 +2168,15 @@ private fun StaffFormDialog(
                         .verticalScroll(formScroll),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    OutlinedCard(
+                    AppCard(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        ),
+                        elevated = false,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        includeContentPadding = false,
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(AcademiaDimens.paddingCardCompact),
+                            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                         ) {
                             Text(
                                 stringResource(R.string.staff_photo_section),
@@ -2364,8 +2402,9 @@ private fun StaffFormDialog(
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.cancel))
                     }
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(
+                    Spacer(Modifier.width(AcademiaDimens.gapMd))
+                    PrimaryButton(
+                        text = stringResource(R.string.save),
                         onClick = {
                             val sueldo = sueldoTxt.trim().replace(',', '.').toDoubleOrNull()
                             onGuardar(
@@ -2380,16 +2419,18 @@ private fun StaffFormDialog(
                             )
                         },
                         enabled = nombre.isNotBlank(),
-                    ) {
-                        Text(stringResource(R.string.save))
-                    }
+                        modifier = Modifier.widthIn(min = 120.dp),
+                    )
                 }
             }
         }
     }
 }
 
-private val InviteRoleButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+private val InviteRoleButtonPadding = PaddingValues(
+    horizontal = AcademiaDimens.spacingListSection,
+    vertical = AcademiaDimens.gapMd,
+)
 
 @Composable
 private fun InviteRoleCodeRow(
@@ -2401,32 +2442,32 @@ private fun InviteRoleCodeRow(
 ) {
     val context = LocalContext.current
     val c = code?.trim().orEmpty()
-    Surface(
+    AppTintedPanel(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(AcademiaDimens.radiusMd),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        contentPadding = PaddingValues(AcademiaDimens.spacingRowComfort),
     ) {
         Column(
-            Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(40.dp),
+                Box(
+                    modifier = Modifier
+                        .size(AcademiaDimens.avatarRow)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            leadingIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
+                    Icon(
+                        leadingIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
                 }
                 Text(
                     label,
@@ -2435,14 +2476,17 @@ private fun InviteRoleCodeRow(
                 )
             }
             if (c.isNotEmpty()) {
-                Surface(
+                AppTintedPanel(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = RoundedCornerShape(AcademiaDimens.radiusDense),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentPadding = PaddingValues(
+                        horizontal = AcademiaDimens.spacingRowComfort,
+                        vertical = AcademiaDimens.paddingCardCompact,
+                    ),
                 ) {
                     Text(
                         text = c,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.titleMedium,
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = 0.8.sp,
@@ -2451,7 +2495,7 @@ private fun InviteRoleCodeRow(
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 ) {
                     OutlinedButton(
                         onClick = {
@@ -2469,9 +2513,9 @@ private fun InviteRoleCodeRow(
                         Icon(
                             Icons.Filled.Share,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AcademiaDimens.gapVerticalTight))
                         Text(
                             stringResource(R.string.academy_club_code_share),
                             style = MaterialTheme.typography.labelMedium,
@@ -2487,9 +2531,9 @@ private fun InviteRoleCodeRow(
                         Icon(
                             Icons.Filled.ContentCopy,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AcademiaDimens.gapVerticalTight))
                         Text(
                             stringResource(R.string.academy_club_code_copy),
                             style = MaterialTheme.typography.labelMedium,
@@ -2513,9 +2557,9 @@ private fun InviteRoleCodeRow(
                     Icon(
                         Icons.Filled.Email,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AcademiaDimens.gapMd))
                     Text(stringResource(R.string.academy_club_email_invite))
                 }
             } else {
@@ -2670,17 +2714,20 @@ private fun AcademiaPadreNubeAccesoRapidoBoton(
     icon: ImageVector,
     label: String,
 ) {
-    FilledTonalButton(
+    OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.heightIn(min = 80.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp),
+        modifier = modifier.heightIn(min = AcademiaDimens.resumenStaffCeldaAltura - AcademiaDimens.spacingListSection * 2),
+        contentPadding = PaddingValues(
+            horizontal = AcademiaDimens.gapMd,
+            vertical = AcademiaDimens.paddingCardCompact,
+        ),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(AcademiaDimens.iconSizeResumen))
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
@@ -2706,8 +2753,8 @@ private fun AcademiaPadreNubeAccesosRapidosRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(vertical = AcademiaDimens.gapVerticalTight),
+        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
     ) {
         AcademiaPadreNubeAccesoRapidoBoton(
             modifier = Modifier.weight(1f),
@@ -2932,17 +2979,21 @@ private fun AcademiaPadreNubeSimpleScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scroll)
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 0.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = AcademiaDimens.paddingScreenHorizontal + AcademiaDimens.gapMd)
+                    .padding(top = 0.dp, bottom = AcademiaDimens.gapMd),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
             ) {
+                SectionHeader(
+                    title = stringResource(R.string.tab_academy),
+                    subtitle = stringResource(R.string.academy_parent_screen_subtitle),
+                )
                 Column(Modifier.fillMaxWidth()) {
                     Text(
                         text = saludo,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AcademiaDimens.spacingDialogBlock))
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2952,35 +3003,32 @@ private fun AcademiaPadreNubeSimpleScreen(
                                 model = logoModel,
                                 contentDescription = stringResource(R.string.academy_logo),
                                 modifier = Modifier
-                                    .size(88.dp)
+                                    .size(AcademiaDimens.contentEditorBodyThumb)
                                     .clip(CircleShape)
                                     .border(
-                                        width = 1.dp,
+                                        width = AcademiaDimens.dividerThickness,
                                         color = MaterialTheme.colorScheme.outlineVariant,
                                         shape = CircleShape,
                                     ),
                                 contentScale = ContentScale.Crop,
                             )
                         } else {
-                            Surface(
-                                modifier = Modifier.size(88.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
+                            Box(
+                                modifier = Modifier
+                                    .size(AcademiaDimens.contentEditorBodyThumb)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        Icons.Filled.SportsSoccer,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(44.dp),
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    )
-                                }
+                                Icon(
+                                    Icons.Filled.SportsSoccer,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AcademiaDimens.homeShortcutIconContainer),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
                             }
                         }
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(AcademiaDimens.spacingRowComfort))
                         val welcomeTitleStyle = MaterialTheme.typography.headlineLarge
                         val welcomeSuffixStyle = MaterialTheme.typography.titleLarge
                         Text(
@@ -3012,7 +3060,7 @@ private fun AcademiaPadreNubeSimpleScreen(
                             textAlign = TextAlign.Center,
                             lineHeight = 40.sp,
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AcademiaDimens.spacingListSection))
                         Text(
                             text = stringResource(
                                 R.string.academy_parent_welcome_thanks,
@@ -3024,7 +3072,7 @@ private fun AcademiaPadreNubeSimpleScreen(
                             textAlign = TextAlign.Center,
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AcademiaDimens.spacingListSection))
                     Text(
                         text = stringResource(R.string.academy_parent_emotional_line),
                         style = MaterialTheme.typography.bodySmall,
@@ -3037,15 +3085,18 @@ private fun AcademiaPadreNubeSimpleScreen(
                     sessionAuthUserId = sessionAuthUserId,
                     onNavigateToRoute = onNavigateToRoute,
                 )
-                OutlinedCard(
+                AppCard(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.outlinedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    ),
+                    elevated = false,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    includeContentPadding = false,
                 ) {
                     Column(
-                        Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        Modifier.padding(
+                            horizontal = AcademiaDimens.paddingCard + AcademiaDimens.gapSm,
+                            vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapVerticalTight,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                     ) {
                         Text(
                             stringResource(R.string.academy_parent_cloud_card_title),
@@ -3067,14 +3118,17 @@ private fun AcademiaPadreNubeSimpleScreen(
                         )
                     }
                 }
-                OutlinedCard(
+                AppCard(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.outlinedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    ),
+                    elevated = false,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    includeContentPadding = false,
                 ) {
                     Column(
-                        Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                        Modifier.padding(
+                            horizontal = AcademiaDimens.paddingCard + AcademiaDimens.gapSm,
+                            vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapVerticalTight,
+                        ),
                     ) {
                         Text(
                             stringResource(R.string.academy_parent_section_kids_status),
@@ -3083,13 +3137,13 @@ private fun AcademiaPadreNubeSimpleScreen(
                             ),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AcademiaDimens.spacingDialogBlock))
                         when (val c = contenidoPadres) {
                             is ParentsTabContent.PadreConHijos -> {
                                 c.hijos.forEachIndexed { index, hijo ->
                                     if (index > 0) {
                                         HorizontalDivider(
-                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            modifier = Modifier.padding(vertical = AcademiaDimens.gapSm),
                                             color = MaterialTheme.colorScheme.outlineVariant,
                                         )
                                     }
@@ -3101,24 +3155,25 @@ private fun AcademiaPadreNubeSimpleScreen(
                                 }
                             }
                             else -> {
-                                Text(
-                                    stringResource(R.string.academy_parent_kids_empty_hint),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 22.sp,
+                                EmptyState(
+                                    title = stringResource(R.string.academy_parent_kids_empty_title),
+                                    subtitle = stringResource(R.string.academy_parent_kids_empty_hint),
                                 )
                             }
                         }
                     }
                 }
-                OutlinedCard(
+                AppCard(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.outlinedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    ),
+                    elevated = false,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    includeContentPadding = false,
                 ) {
                     Column(
-                        Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                        Modifier.padding(
+                            horizontal = AcademiaDimens.gapMd,
+                            vertical = AcademiaDimens.spacingListSection,
+                        ),
                         verticalArrangement = Arrangement.spacedBy(0.dp),
                     ) {
                         Text(
@@ -3127,7 +3182,12 @@ private fun AcademiaPadreNubeSimpleScreen(
                                 fontWeight = FontWeight.SemiBold,
                             ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
+                            modifier = Modifier.padding(
+                                start = AcademiaDimens.paddingCard + AcademiaDimens.gapSm,
+                                end = AcademiaDimens.paddingCard + AcademiaDimens.gapSm,
+                                top = AcademiaDimens.gapMd,
+                                bottom = AcademiaDimens.gapSm,
+                            ),
                         )
                         ListItem(
                             headlineContent = {

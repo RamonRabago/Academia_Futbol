@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -25,9 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.ui.navigation.rutaPrincipalVisible
 
 private data class EquipoDestino(
@@ -55,42 +58,53 @@ fun EquipoHubScreen(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(
+                horizontal = AcademiaDimens.paddingScreenHorizontal,
+                vertical = AcademiaDimens.paddingCardCompact,
+            ),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
     ) {
-        Text(
-            stringResource(R.string.team_hub_title),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+        SectionHeader(
+            title = stringResource(R.string.team_hub_title),
+            subtitle = stringResource(R.string.team_hub_subtitle),
         )
-        Text(
-            stringResource(R.string.team_hub_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        destinos.forEach { d ->
-            OutlinedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigate(d.route) },
+        if (destinos.isEmpty()) {
+            EmptyState(
+                title = stringResource(R.string.team_hub_empty_title),
+                subtitle = stringResource(R.string.team_hub_empty_subtitle),
+            )
+            AppTintedPanel(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
             ) {
-                Row(
-                    Modifier
+                Text(
+                    text = stringResource(R.string.team_hub_empty_tip),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        } else {
+            destinos.forEach { d ->
+                AppCard(
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        .clickable { onNavigate(d.route) },
                 ) {
-                    Icon(
-                        imageVector = d.icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        stringResource(d.titleRes),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
+                    ) {
+                        Icon(
+                            imageVector = d.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            stringResource(d.titleRes),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }

@@ -3,10 +3,12 @@ package com.escuelafutbol.academia.ui.stats
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,6 +43,10 @@ import com.escuelafutbol.academia.R
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.model.esPadreMembresiaNube
 import com.escuelafutbol.academia.data.local.model.puedeVerMensualidadEnEsteDispositivo
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import java.text.NumberFormat
 import java.time.YearMonth
 import java.util.Locale
@@ -54,15 +60,14 @@ fun StatsScreen(
 ) {
     if (configAcademia.esPadreMembresiaNube()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                stringResource(R.string.role_route_blocked_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(24.dp),
+            EmptyState(
+                title = stringResource(R.string.role_route_blocked_title),
+                subtitle = stringResource(R.string.role_route_blocked_body),
             )
         }
         return
@@ -85,24 +90,25 @@ fun StatsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .navigationBarsPadding()
+            .padding(
+                horizontal = AcademiaDimens.paddingScreenHorizontal,
+                vertical = AcademiaDimens.gapSm,
+            ),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
     ) {
-        Text(
-            stringResource(R.string.tab_stats),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
+        SectionHeader(
+            title = stringResource(R.string.tab_stats),
+            subtitle = stringResource(R.string.stats_screen_intro_subtitle),
         )
-        StatsCardHero(
-            value = stats.porcentajeAsistenciaGlobal?.let { pct ->
-                String.format(Locale.getDefault(), "%.1f%%", pct)
-            } ?: "—",
-            label = stringResource(R.string.avg_attendance),
+
+        SectionHeader(
+            title = stringResource(R.string.stats_summary),
+            subtitle = stringResource(R.string.stats_section_resumen_subtitle),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
         ) {
             StatsCardMedium(
                 value = stats.totalJugadores.toString(),
@@ -115,36 +121,60 @@ fun StatsScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+
+        SectionHeader(
+            title = stringResource(
+                R.string.stats_section_attendance_title_period,
+                etiquetaMesAnio(mesEconomia),
+            ),
+            subtitle = stringResource(R.string.stats_section_attendance_subtitle_sync),
+        )
+        StatsCardHero(
+            value = stats.porcentajeAsistenciaGlobal?.let { pct ->
+                String.format(Locale.getDefault(), "%.1f%%", pct)
+            } ?: "—",
+            label = stringResource(R.string.avg_attendance),
+        )
+        Text(
+            text = stringResource(R.string.stats_attendance_training_days_month_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = AcademiaDimens.gapSm),
+            textAlign = TextAlign.Center,
+        )
         if (stats.hayMarcasSinDiaEntreno) {
-            Text(
-                stringResource(R.string.stats_training_day_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.tertiary,
-            )
+            AppTintedPanel(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f),
+                contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+            ) {
+                Text(
+                    stringResource(R.string.stats_training_day_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
         }
 
         if (puedeCuotas) {
             val c = stats.cuotasResumen
             val eco = stats.economiaPorCategoria
 
-            Text(
-                stringResource(R.string.stats_economy_section_title),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(top = 4.dp),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
+            SectionHeader(
+                title = stringResource(R.string.stats_section_economy_title),
+                subtitle = stringResource(R.string.stats_section_economy_subtitle),
             )
             val enMesCorriente = mesEconomia == YearMonth.now()
             val puedeIrMesSiguiente = mesEconomia.isBefore(YearMonth.now())
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp),
+                modifier = Modifier.padding(vertical = AcademiaDimens.gapSm),
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
             Text(
                 stringResource(R.string.stats_economy_heading_cobros),
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.secondary,
             )
             StatsEconomiaSelectorMesFila(
@@ -185,19 +215,20 @@ fun StatsScreen(
             )
 
             HorizontalDivider(
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                modifier = Modifier.padding(
+                    top = AcademiaDimens.gapMd,
+                    bottom = AcademiaDimens.gapSm,
+                ),
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
-            Text(
-                stringResource(R.string.stats_fees_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
+            SectionHeader(
+                title = stringResource(R.string.stats_fees_title),
+                subtitle = stringResource(R.string.stats_section_fees_subtitle),
             )
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 ) {
                     StatsCardMedium(
                         value = formatImporte(c.totalMensual),
@@ -212,7 +243,7 @@ fun StatsScreen(
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 ) {
                     StatsCardMedium(
                         value = c.nConCuota.toString(),
@@ -252,12 +283,15 @@ fun StatsScreen(
             onDismissRequest = { mostrarDetalleCuotas = false },
             title = { Text(stringResource(R.string.stats_fees_detail_title)) },
             text = {
-                LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
+                ) {
                     items(lineas, key = { it.jugadorId }) { linea ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = AcademiaDimens.gapSm),
                         ) {
                             Text(linea.nombre, style = MaterialTheme.typography.titleSmall)
                             Text(
@@ -307,7 +341,7 @@ private fun StatsEconomiaSelectorMesFila(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
     ) {
         IconButton(onClick = onAnterior) {
             Icon(
@@ -322,7 +356,6 @@ private fun StatsEconomiaSelectorMesFila(
             Text(
                 etiquetaMes,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
         }
@@ -367,7 +400,10 @@ private fun StatsEconomiaMonthPickerDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.stats_economy_month_pick_title)) },
         text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro),
+            ) {
                 items(opciones, key = { it.toString() }) { ym ->
                     val sel = ym == mesSeleccionado
                     TextButton(
@@ -399,4 +435,3 @@ private fun StatsEconomiaMonthPickerDialog(
         },
     )
 }
-

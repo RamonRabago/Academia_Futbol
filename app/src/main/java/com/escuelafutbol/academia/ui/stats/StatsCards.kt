@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,17 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-
-/** Radio y forma compartidos por tarjetas de estadísticas (hero, grid y marco de resúmenes). */
-val StatsCardCornerDp = 12.dp
-val StatsCardShape = RoundedCornerShape(StatsCardCornerDp)
-
-private val StatsGridCardHeight = 90.dp
-internal val StatsCardPaddingH = 12.dp
-internal val StatsCardPaddingV = 10.dp
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
 
 /**
- * Tarjeta grande (hero): número principal arriba, etiqueta debajo. Sin borde ni sombra.
+ * Tarjeta grande (hero): número principal arriba, etiqueta debajo.
  */
 @Composable
 fun StatsCardHero(
@@ -38,20 +29,21 @@ fun StatsCardHero(
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        shape = StatsCardShape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevated = true,
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        includeContentPadding = false,
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = StatsCardPaddingH, vertical = StatsCardPaddingV + 4.dp),
+                .padding(
+                    horizontal = AcademiaDimens.paddingCardCompact,
+                    vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapSm,
+                ),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapVerticalTight),
         ) {
             Text(
                 value,
@@ -75,7 +67,7 @@ fun StatsCardHero(
 }
 
 /**
- * Tarjeta mediana (cuadrícula): altura fija, número arriba, etiqueta abajo, borde y sin sombra.
+ * Tarjeta mediana (cuadrícula): altura fija, número arriba, etiqueta abajo.
  */
 @Composable
 fun StatsCardMedium(
@@ -83,21 +75,22 @@ fun StatsCardMedium(
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    AppCard(
         modifier = modifier
             .fillMaxWidth()
-            .height(StatsGridCardHeight),
-        shape = StatsCardShape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            .height(AcademiaDimens.statsMetricTileHeight),
+        elevated = false,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        includeContentPadding = false,
     ) {
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = StatsCardPaddingH, vertical = StatsCardPaddingV),
+                .padding(
+                    horizontal = AcademiaDimens.paddingCardCompact,
+                    vertical = AcademiaDimens.gapMd,
+                ),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
@@ -120,24 +113,25 @@ fun StatsCardMedium(
 }
 
 /**
- * Marco de tarjeta a ancho completo (resúmenes con varias columnas): mismo radio, borde y padding que el grid.
+ * Marco a ancho completo (resúmenes con varias columnas).
  */
 @Composable
 fun StatsCardFrame(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
+    AppCard(
         modifier = modifier.fillMaxWidth(),
-        shape = StatsCardShape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevated = false,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        includeContentPadding = false,
     ) {
         Column(
-            Modifier.padding(horizontal = StatsCardPaddingH, vertical = StatsCardPaddingV),
+            Modifier.padding(
+                horizontal = AcademiaDimens.paddingCardCompact,
+                vertical = AcademiaDimens.gapMd,
+            ),
             content = content,
         )
     }

@@ -13,7 +13,9 @@ import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.ui.attendance.contarPresentesAusentesEntrenamientoImplicitos
 import com.escuelafutbol.academia.ui.attendance.diaMarcadoComoEntrenamiento
 import com.escuelafutbol.academia.ui.attendance.scopeKeyAsistencia
+import com.escuelafutbol.academia.ui.util.DayMillis
 import com.escuelafutbol.academia.ui.util.jugadoresActivosFlow
+import java.time.ZoneId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -90,6 +92,13 @@ private fun construirCuotasResumen(jugadores: List<Jugador>): CuotasResumenUi {
     return CuotasResumenUi(lineas, porCategoria, totalM, nBec, nCon, nSin)
 }
 
+/** Inicio y fin de mes en millis de inicio de día local (mismo criterio que el resumen en Asistencia). */
+private fun rangoMillisYearMonth(ym: YearMonth, zone: ZoneId = ZoneId.systemDefault()): Pair<Long, Long> {
+    val desde = DayMillis.fromLocalDate(ym.atDay(1), zone)
+    val hasta = DayMillis.fromLocalDate(ym.atEndOfMonth(), zone)
+    return desde to hasta
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsViewModel(
     private val jugadorDao: JugadorDao,
@@ -162,13 +171,16 @@ class StatsViewModel(
         val todosCobros = parcial.todosCobros
         val ids = jugadores.map { it.id }.toSet()
         val scope = scopeKeyAsistencia(cat)
-        val crudas = todasAsistencias.filter { it.jugadorId in ids }
+        val (desdeMs, hastaMs) = rangoMillisYearMonth(mesEco)
+        val marcasMes = marcasEntreno.filter { it.fechaDia in desdeMs..hastaMs }
+        val todasEnMes = todasAsistencias.filter { it.fechaDia in desdeMs..hastaMs }
+        val crudas = todasEnMes.filter { it.jugadorId in ids }
         val asistencias = crudas.filter {
-            diaMarcadoComoEntrenamiento(it.fechaDia, scope, marcasEntreno)
+            diaMarcadoComoEntrenamiento(it.fechaDia, scope, marcasMes)
         }
         val cupos = contarPresentesAusentesEntrenamientoImplicitos(
             ids,
-            marcasEntreno,
+            marcasMes,
             crudas,
             scope,
         )

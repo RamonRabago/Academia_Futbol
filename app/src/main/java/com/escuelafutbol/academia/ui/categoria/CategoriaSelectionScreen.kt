@@ -2,11 +2,16 @@ package com.escuelafutbol.academia.ui.categoria
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,29 +19,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,13 +54,22 @@ import com.escuelafutbol.academia.data.local.model.puedeEditarCategoriasEnSelect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.PrimaryButton
+import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.data.local.entity.AcademiaConfig
 import com.escuelafutbol.academia.data.local.entity.Categoria
 import com.escuelafutbol.academia.data.local.model.normalizarClaveCategoriaNombre
@@ -63,6 +78,7 @@ import com.escuelafutbol.academia.ui.util.FullscreenImageViewerDialog
 import com.escuelafutbol.academia.ui.util.coilLogoModel
 import com.escuelafutbol.academia.ui.util.coilPortadaCategoriaModel
 import com.escuelafutbol.academia.ui.util.coilPortadaModel
+
 private sealed class CategoriaPickerImageViewer {
     data object Logo : CategoriaPickerImageViewer()
     data object AcademiaPortada : CategoriaPickerImageViewer()
@@ -83,8 +99,8 @@ fun CategoriaSelectionScreen(
     /** Tras elegir categoría (o «todas»): p. ej. volver a Inicio para no quedar en la pestaña que había detrás. */
     onCategoriaConfirmada: () -> Unit = {},
 ) {
-    val nombreAcademia = config.nombreAcademia
     val categoriasUi by pickerVm.categoriasUi.collectAsState()
+    val jugadoresCountByClave by pickerVm.jugadoresCountByCategoriaClave.collectAsState()
     val categoriasMostrar = remember(categoriasUi, categoriasPermitidasCoach) {
         if (categoriasPermitidasCoach == null) {
             categoriasUi
@@ -102,7 +118,6 @@ fun CategoriaSelectionScreen(
             (coincidentes + sinteticas).sortedBy { normalizarClaveCategoriaNombre(it.nombre) }
         }
     }
-    /** Si no es null, el selector está restringido (coach con lista, coach sin categorías, o padre con conjunto vacío): no mostrar «Todas las categorías». */
     val ocultarTodasLasCategorias = categoriasPermitidasCoach != null
     val puedeEditarCategoriasUi = config.puedeEditarCategoriasEnSelector()
     val ctx = LocalContext.current
@@ -110,6 +125,7 @@ fun CategoriaSelectionScreen(
     var textoNueva by remember { mutableStateOf("") }
     var portadaPickNombre by remember { mutableStateOf<String?>(null) }
     var imageViewer by remember { mutableStateOf<CategoriaPickerImageViewer?>(null) }
+    var menuCategoriaAbierto by remember { mutableStateOf<String?>(null) }
     val pickPortada = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri ->
@@ -120,246 +136,351 @@ fun CategoriaSelectionScreen(
         }
     }
 
+    val portadaModel = config.coilPortadaModel(ctx)
+    val logoModel = config.coilLogoModel(ctx)
+    val scheme = MaterialTheme.colorScheme
+
     Scaffold(
         modifier = modifier,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val logoModel = config.coilLogoModel(ctx)
-                        if (logoModel != null) {
-                            AsyncImage(
-                                model = logoModel,
-                                contentDescription = stringResource(R.string.academy_logo_profile),
-                                modifier = Modifier
-                                    .padding(end = 12.dp)
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        imageViewer = CategoriaPickerImageViewer.Logo
-                                    },
-                                contentScale = ContentScale.Crop,
-                            )
-                        }
-                        Text(
-                            nombreAcademia,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                    }
-                },
-            )
-        },
         floatingActionButton = {
             if (puedeEditarCategoriasUi) {
-                FloatingActionButton(onClick = { dialogoNueva = true }) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_category))
-                }
+                ExtendedFloatingActionButton(
+                    onClick = { dialogoNueva = true },
+                    icon = {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                    },
+                    text = { Text(stringResource(R.string.pick_category_new_fab)) },
+                )
             }
         },
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            contentPadding = PaddingValues(
+                start = AcademiaDimens.paddingScreenHorizontal,
+                end = AcademiaDimens.paddingScreenHorizontal,
+                top = 0.dp,
+                bottom = AcademiaDimens.homeHeroLogoSize + AcademiaDimens.paddingCard,
+            ),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
         ) {
-            val portadaModel = config.coilPortadaModel(ctx)
-            if (portadaModel != null) {
-                AsyncImage(
-                    model = portadaModel,
-                    contentDescription = stringResource(R.string.academy_cover),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(88.dp)
-                        .clickable {
+            item {
+                CategoriaSelectorHero(
+                    portadaModel = portadaModel,
+                    logoModel = logoModel,
+                    onPortadaClick = {
+                        if (portadaModel != null) {
                             imageViewer = CategoriaPickerImageViewer.AcademiaPortada
-                        },
-                    contentScale = ContentScale.Crop,
+                        }
+                    },
+                    onLogoClick = {
+                        if (logoModel != null) {
+                            imageViewer = CategoriaPickerImageViewer.Logo
+                        }
+                    },
                 )
             }
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp),
-            ) {
-                if (esperandoMembresiaNube) {
-                    Column(
+
+            if (esperandoMembresiaNube) {
+                item {
+                    AppTintedPanel(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(vertical = 32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                            .fillMaxWidth()
+                            .padding(vertical = AcademiaDimens.paddingCard + AcademiaDimens.avatarRow),
+                        containerColor = scheme.surfaceContainerLow,
+                        contentPadding = PaddingValues(AcademiaDimens.paddingCard),
                     ) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            stringResource(R.string.pick_category_membership_loading),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                Text(
-                    stringResource(R.string.pick_category_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Text(
-                    stringResource(R.string.pick_category_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
-                )
-                if (categoriasPermitidasCoach != null && categoriasPermitidasCoach.isNotEmpty()) {
-                    Text(
-                        stringResource(
-                            R.string.pick_category_coach_assigned_list,
-                            categoriasPermitidasCoach.sorted().joinToString(", "),
-                        ),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
-                }
-                if (ocultarTodasLasCategorias) {
-                    Text(
-                        stringResource(R.string.pick_category_coach_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                }
-                if (categoriasPermitidasCoach != null && categoriasMostrar.isEmpty()) {
-                    Text(
-                        stringResource(R.string.pick_category_coach_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (!ocultarTodasLasCategorias) {
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        sessionVm.confirmarSeleccion(null)
-                                        onCategoriaConfirmada()
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                ),
-                            ) {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            stringResource(R.string.category_all),
-                                            style = MaterialTheme.typography.titleMedium,
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Text(
-                                            stringResource(R.string.category_all_hint),
-                                            style = MaterialTheme.typography.bodySmall,
-                                        )
-                                    },
-                                )
-                            }
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.paddingCardCompact),
+                        ) {
+                            CircularProgressIndicator()
+                            Text(
+                                stringResource(R.string.pick_category_membership_loading),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = scheme.onSurfaceVariant,
+                            )
                         }
                     }
-                    items(
-                        categoriasMostrar,
-                        key = { c ->
-                            "${c.nombre}|${c.portadaUrlSupabase}|${c.portadaRutaAbsoluta}"
-                        },
-                    ) { cat ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                }
+            } else {
+                item {
+                    SectionHeader(
+                        title = stringResource(R.string.pick_category_title),
+                        subtitle = stringResource(R.string.pick_category_subtitle_short),
+                    )
+                }
+
+                if (categoriasPermitidasCoach != null && categoriasPermitidasCoach.isNotEmpty()) {
+                    item {
+                        AppTintedPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerColor = scheme.surfaceContainerLow.copy(alpha = 0.92f),
+                            contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                        ) {
+                            Text(
+                                stringResource(
+                                    R.string.pick_category_coach_assigned_list,
+                                    categoriasPermitidasCoach.sorted().joinToString(", "),
+                                ),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = scheme.onSurface,
+                            )
+                        }
+                    }
+                }
+                if (ocultarTodasLasCategorias) {
+                    item {
+                        AppTintedPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerColor = scheme.primaryContainer.copy(alpha = 0.35f),
+                            contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                        ) {
+                            Text(
+                                stringResource(R.string.pick_category_coach_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.primary,
+                            )
+                        }
+                    }
+                }
+                if (categoriasPermitidasCoach != null && categoriasMostrar.isEmpty()) {
+                    item {
+                        EmptyState(
+                            title = stringResource(R.string.pick_category_coach_empty_title),
+                            subtitle = stringResource(R.string.pick_category_coach_empty),
+                        )
+                    }
+                }
+                if (categoriasPermitidasCoach == null && categoriasMostrar.isEmpty()) {
+                    item {
+                        EmptyState(
+                            title = stringResource(R.string.pick_category_list_empty_title),
+                            subtitle = stringResource(R.string.pick_category_list_empty_subtitle),
+                        )
+                    }
+                }
+
+                if (!ocultarTodasLasCategorias) {
+                    item {
+                        AppCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateContentSize(),
+                            elevated = false,
+                            containerColor = scheme.primaryContainer.copy(alpha = 0.55f),
+                            border = BorderStroke(
+                                AcademiaDimens.gapMicro,
+                                scheme.primary.copy(alpha = 0.5f),
+                            ),
+                            includeContentPadding = false,
+                        ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    .padding(AcademiaDimens.paddingCard + AcademiaDimens.gapSm),
                                 verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.paddingCard),
                             ) {
-                                val thumb = cat.coilPortadaCategoriaModel(ctx)
                                 Box(
                                     modifier = Modifier
-                                        .size(width = 64.dp, height = 44.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .clickable {
-                                            if (thumb != null) {
-                                                imageViewer =
-                                                    CategoriaPickerImageViewer.CategoriaPortada(cat.nombre)
-                                            } else {
-                                                sessionVm.confirmarSeleccion(cat.nombre)
-                                                onCategoriaConfirmada()
-                                            }
-                                        },
+                                        .size(AcademiaDimens.buttonMinHeight)
+                                        .clip(CircleShape)
+                                        .background(scheme.primary.copy(alpha = 0.18f)),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    if (thumb != null) {
-                                        AsyncImage(
-                                            model = thumb,
-                                            contentDescription = stringResource(
-                                                R.string.player_photo_tap_to_expand,
-                                            ),
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
-                                        )
-                                    }
+                                    Icon(
+                                        Icons.Filled.Groups,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(AcademiaDimens.iconSizeMd),
+                                        tint = scheme.primary,
+                                    )
                                 }
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 10.dp)
-                                        .clickable {
-                                            sessionVm.confirmarSeleccion(cat.nombre)
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.category_all),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = scheme.onPrimaryContainer,
+                                    )
+                                    Spacer(Modifier.height(AcademiaDimens.gapSm))
+                                    Text(
+                                        stringResource(R.string.pick_category_all_card_subtitle),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = scheme.onSurfaceVariant,
+                                    )
+                                }
+                                Box(Modifier.width(AcademiaDimens.contentEditorBodyThumb)) {
+                                    PrimaryButton(
+                                        text = stringResource(R.string.pick_category_enter),
+                                        onClick = {
+                                            sessionVm.confirmarSeleccion(null)
                                             onCategoriaConfirmada()
                                         },
-                                ) {
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                items(
+                    categoriasMostrar,
+                    key = { c ->
+                        "${c.nombre}|${c.portadaUrlSupabase}|${c.portadaRutaAbsoluta}"
+                    },
+                ) { cat ->
+                    val clave = normalizarClaveCategoriaNombre(cat.nombre)
+                    val numJugadores = jugadoresCountByClave[clave] ?: 0
+                    val thumb = cat.coilPortadaCategoriaModel(ctx)
+                    val hasPortada =
+                        cat.portadaRutaAbsoluta != null || !cat.portadaUrlSupabase.isNullOrBlank()
+                    val entrar: () -> Unit = {
+                        sessionVm.confirmarSeleccion(cat.nombre)
+                        onCategoriaConfirmada()
+                    }
+                    val abrirPortadaOEntrar: () -> Unit = {
+                        if (thumb != null) {
+                            imageViewer = CategoriaPickerImageViewer.CategoriaPortada(cat.nombre)
+                        } else {
+                            entrar()
+                        }
+                    }
+                    AppCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(),
+                        elevated = false,
+                        containerColor = scheme.surface,
+                        includeContentPadding = false,
+                    ) {
+                        Column {
+                            val interactionImg = remember(cat.nombre) { MutableInteractionSource() }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(AcademiaDimens.categoryPickerCardImageHeight)
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topStart = AcademiaDimens.radiusXl,
+                                            topEnd = AcademiaDimens.radiusXl,
+                                        ),
+                                    )
+                                    .background(scheme.surfaceVariant)
+                                    .clickable(
+                                        interactionSource = interactionImg,
+                                        indication = ripple(bounded = true),
+                                        onClick = abrirPortadaOEntrar,
+                                    ),
+                            ) {
+                                if (thumb != null) {
+                                    AsyncImage(
+                                        model = thumb,
+                                        contentDescription = stringResource(R.string.player_photo_tap_to_expand),
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        Color.Black.copy(alpha = 0.05f),
+                                                        Color.Black.copy(alpha = 0.38f),
+                                                    ),
+                                                ),
+                                            ),
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = AcademiaDimens.paddingScreenHorizontal,
+                                        vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapSm,
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
+                            ) {
+                                Column(Modifier.weight(1f)) {
                                     Text(
                                         cat.nombre,
-                                        style = MaterialTheme.typography.titleMedium,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = scheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
+                                    Spacer(Modifier.height(AcademiaDimens.gapSm))
                                     Text(
-                                        stringResource(R.string.category_row_work_hint),
+                                        if (numJugadores > 0) {
+                                            stringResource(R.string.pick_category_players_line, numJugadores)
+                                        } else {
+                                            stringResource(R.string.pick_category_players_none)
+                                        },
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = scheme.onSurfaceVariant,
+                                    )
+                                }
+                                Box(Modifier.width(AcademiaDimens.contentEditorBodyThumb)) {
+                                    PrimaryButton(
+                                        text = stringResource(R.string.pick_category_enter),
+                                        onClick = entrar,
                                     )
                                 }
                                 if (puedeEditarCategoriasUi) {
-                                    IconButton(
-                                        onClick = {
-                                            portadaPickNombre = cat.nombre
-                                            pickPortada.launch("image/*")
-                                        },
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Image,
-                                            contentDescription = stringResource(R.string.category_pick_cover_cd),
-                                        )
-                                    }
-                                    if (cat.portadaRutaAbsoluta != null ||
-                                        !cat.portadaUrlSupabase.isNullOrBlank()
-                                    ) {
+                                    Box {
                                         IconButton(
-                                            onClick = { pickerVm.quitarPortadaCategoria(cat.nombre) },
+                                            onClick = {
+                                                menuCategoriaAbierto =
+                                                    if (menuCategoriaAbierto == cat.nombre) null else cat.nombre
+                                            },
                                         ) {
                                             Icon(
-                                                Icons.Default.Delete,
-                                                contentDescription = stringResource(R.string.category_clear_cover_cd),
+                                                Icons.Default.MoreVert,
+                                                contentDescription = stringResource(R.string.pick_category_menu_cd),
                                             )
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuCategoriaAbierto == cat.nombre,
+                                            onDismissRequest = { menuCategoriaAbierto = null },
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(stringResource(R.string.pick_category_menu_change_cover))
+                                                },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.Image, contentDescription = null)
+                                                },
+                                                onClick = {
+                                                    menuCategoriaAbierto = null
+                                                    portadaPickNombre = cat.nombre
+                                                    pickPortada.launch("image/*")
+                                                },
+                                            )
+                                            if (hasPortada) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(stringResource(R.string.pick_category_menu_remove_cover))
+                                                    },
+                                                    onClick = {
+                                                        menuCategoriaAbierto = null
+                                                        pickerVm.quitarPortadaCategoria(cat.nombre)
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
                 }
             }
         }
@@ -383,14 +504,15 @@ fun CategoriaSelectionScreen(
                 )
             },
             confirmButton = {
-                TextButton(
+                PrimaryButton(
+                    text = stringResource(R.string.save),
                     onClick = {
                         pickerVm.agregarCategoria(textoNueva)
                         dialogoNueva = false
                         textoNueva = ""
                     },
                     enabled = textoNueva.trim().isNotEmpty(),
-                ) { Text(stringResource(R.string.save)) }
+                )
             },
             dismissButton = {
                 TextButton(
@@ -436,6 +558,89 @@ fun CategoriaSelectionScreen(
             )
         } else {
             LaunchedEffect(v) { imageViewer = null }
+        }
+    }
+}
+
+@Composable
+private fun CategoriaSelectorHero(
+    portadaModel: Any?,
+    logoModel: Any?,
+    onPortadaClick: () -> Unit,
+    onLogoClick: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val shapeBottom = RoundedCornerShape(
+        bottomStart = AcademiaDimens.radiusLg + AcademiaDimens.gapMd,
+        bottomEnd = AcademiaDimens.radiusLg + AcademiaDimens.gapMd,
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(AcademiaDimens.categoryPickerHeroHeight)
+            .clip(shapeBottom),
+    ) {
+        val interactionHero = remember { MutableInteractionSource() }
+        if (portadaModel != null) {
+            AsyncImage(
+                model = portadaModel,
+                contentDescription = stringResource(R.string.academy_cover),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = interactionHero,
+                        indication = ripple(bounded = true),
+                        onClick = onPortadaClick,
+                    ),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                scheme.primary.copy(alpha = 0.85f),
+                                scheme.primary.copy(alpha = 0.55f),
+                            ),
+                        ),
+                    ),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.12f),
+                            Color.Black.copy(alpha = 0.48f),
+                        ),
+                    ),
+                ),
+        )
+        if (logoModel != null) {
+            val interactionLogo = remember { MutableInteractionSource() }
+            AsyncImage(
+                model = logoModel,
+                contentDescription = stringResource(R.string.academy_logo_profile),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(AcademiaDimens.contentEditorBodyThumb)
+                    .clip(CircleShape)
+                    .border(
+                        AcademiaDimens.gapMd,
+                        scheme.surface.copy(alpha = 0.9f),
+                        CircleShape,
+                    )
+                    .clickable(
+                        interactionSource = interactionLogo,
+                        indication = ripple(bounded = true),
+                        onClick = onLogoClick,
+                    ),
+                contentScale = ContentScale.Crop,
+            )
         }
     }
 }

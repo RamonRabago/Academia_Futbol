@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.escuelafutbol.academia.AcademiaApplication
+import com.escuelafutbol.academia.notification.LocalEngagementWorkScheduler
+import com.escuelafutbol.academia.notification.LocalNotificationContract
 import com.escuelafutbol.academia.push.AcademiaFcmMessagingService
 import com.escuelafutbol.academia.ui.AcademiaRoot
 import com.escuelafutbol.academia.ui.AcademiaViewModelFactory
@@ -17,9 +19,10 @@ import io.github.jan.supabase.auth.handleDeeplinks
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        procesarNotificacionAbrirPadres(intent)
+        procesarNavegacionDesdeNotificacion(intent)
         procesarDeepLinkAuth(intent)
         enableEdgeToEdge()
+        LocalEngagementWorkScheduler.ensureScheduled(this)
         val app = application as AcademiaApplication
         val factory = AcademiaViewModelFactory(application, app.database)
         setContent {
@@ -30,13 +33,21 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        procesarNotificacionAbrirPadres(intent)
+        procesarNavegacionDesdeNotificacion(intent)
         procesarDeepLinkAuth(intent)
     }
 
-    private fun procesarNotificacionAbrirPadres(intent: Intent?) {
-        if (intent?.getBooleanExtra(AcademiaFcmMessagingService.EXTRA_OPEN_PADRES, false) == true) {
-            (application as AcademiaApplication).emitPendingNavigation(AcademiaFcmMessagingService.NAV_ROUTE_PADRES)
+    private fun procesarNavegacionDesdeNotificacion(intent: Intent?) {
+        if (intent == null) return
+        val app = application as AcademiaApplication
+        val route = intent.getStringExtra(LocalNotificationContract.EXTRA_NAV_ROUTE)?.trim().orEmpty()
+        if (route.isNotEmpty()) {
+            app.emitPendingNavigation(route)
+            intent.removeExtra(LocalNotificationContract.EXTRA_NAV_ROUTE)
+            return
+        }
+        if (intent.getBooleanExtra(AcademiaFcmMessagingService.EXTRA_OPEN_PADRES, false)) {
+            app.emitPendingNavigation(AcademiaFcmMessagingService.NAV_ROUTE_PADRES)
         }
     }
 

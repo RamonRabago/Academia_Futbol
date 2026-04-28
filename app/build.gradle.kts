@@ -108,6 +108,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation(libs.kotlinx.coroutines.android)
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.appcompat:appcompat:1.7.0")

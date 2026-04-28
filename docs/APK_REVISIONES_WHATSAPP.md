@@ -12,6 +12,7 @@ Tras cada generación que vaya a pruebas o reparto, añade una fila a la tabla i
 
 | # | Fecha (local) | Versión (`versionName` / code) | Commit | Tamaño (bytes) | Notas |
 |---|----------------|----------------------------------|--------|----------------|--------|
+| 2 | 2026-04-24 | 1.0.2 / 3 | `d421848` | 17796209 (~17,0 MiB) | `assembleRelease` (firma debug). Mismo `versionCode` que rev. 1; reinstalar o desinstalar antes si el dispositivo ya tenía la anterior. |
 | 1 | 2026-04-23 | 1.0.2 / 3 | `213593b` | 17451676 (~16,6 MiB) | Build tras commit de UI (competencias, estadísticas, asistencia, padres, etc.). Copiar `app-release.apk` desde la ruta de salida indicada arriba. |
 
 Entrega anterior documentada en el changelog del producto: sección **[1.0.1] — 2026-04-21** en `CHANGELOG.md` (misma variante release + firma debug).

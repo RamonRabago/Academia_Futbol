@@ -1,10 +1,12 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.escuelafutbol.academia.ui.competencias
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +63,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
@@ -70,25 +73,21 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.ripple
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -150,6 +149,7 @@ import com.escuelafutbol.academia.data.remote.dto.DetalleMarcadorPayload
 import com.escuelafutbol.academia.domain.competencias.LiderOfensivoResumen
 import com.escuelafutbol.academia.domain.competencias.LideresOfensivosTablaResultado
 import com.escuelafutbol.academia.domain.competencias.LineaTablaPosicion
+import com.escuelafutbol.academia.domain.competencias.construirLideresOfensivosTabla
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -157,9 +157,18 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
+import com.escuelafutbol.academia.ui.design.AcademiaContextBanner
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.AppTintedPanel
+import com.escuelafutbol.academia.ui.design.ChipsGroup
+import com.escuelafutbol.academia.ui.design.EmptyState
+import com.escuelafutbol.academia.ui.design.PrimaryButton
+import com.escuelafutbol.academia.ui.design.SectionHeader
 
 private const val RUTA_LISTA = "lista"
 private const val RUTA_DETALLE = "detalle/{competenciaId}"
+private const val RUTA_NUEVA = "nueva"
 
 /** Debe coincidir en cabecera y filas de [TabTabla] / [FilaTabla] para evitar columnas desfasadas. */
 private const val TablaPesoColEquipo = 2.68f
@@ -189,67 +198,37 @@ private data class PartidoTarjetaResultadoEstilo(
 
 @Composable
 private fun partidoTarjetaResultadoEstilo(rv: PartidoResultadoVisual): PartidoTarjetaResultadoEstilo {
-    val dark = isSystemInDarkTheme()
     val scheme = MaterialTheme.colorScheme
+    val bar = AcademiaDimens.matchResultBarWidth
     return when (rv) {
         PartidoResultadoVisual.Victoria ->
-            if (!dark) {
-                PartidoTarjetaResultadoEstilo(
-                    anchoBarra = 5.dp,
-                    colorBarra = Color(0xFF2E7D32),
-                    colorBorde = Color(0xFF2E7D32).copy(alpha = 0.42f),
-                    colorFondo = Color(0xFFE8F5E9).copy(alpha = 0.55f),
-                    colorMarcador = Color(0xFF1B5E20),
-                )
-            } else {
-                PartidoTarjetaResultadoEstilo(
-                    anchoBarra = 5.dp,
-                    colorBarra = Color(0xFF66BB6A),
-                    colorBorde = Color(0xFF66BB6A).copy(alpha = 0.45f),
-                    colorFondo = Color(0xFF1B3D2F).copy(alpha = 0.42f),
-                    colorMarcador = Color(0xFFC8E6C9),
-                )
-            }
+            PartidoTarjetaResultadoEstilo(
+                anchoBarra = bar,
+                colorBarra = scheme.primary,
+                colorBorde = scheme.primary.copy(alpha = 0.42f),
+                colorFondo = scheme.primaryContainer.copy(alpha = 0.5f),
+                colorMarcador = scheme.onPrimaryContainer,
+            )
         PartidoResultadoVisual.Derrota ->
-            if (!dark) {
-                PartidoTarjetaResultadoEstilo(
-                    anchoBarra = 5.dp,
-                    colorBarra = Color(0xFFC62828),
-                    colorBorde = Color(0xFFC62828).copy(alpha = 0.42f),
-                    colorFondo = Color(0xFFFFEBEE).copy(alpha = 0.5f),
-                    colorMarcador = Color(0xFFB71C1C),
-                )
-            } else {
-                PartidoTarjetaResultadoEstilo(
-                    anchoBarra = 5.dp,
-                    colorBarra = Color(0xFFEF5350),
-                    colorBorde = Color(0xFFEF5350).copy(alpha = 0.45f),
-                    colorFondo = Color(0xFF4A1C1C).copy(alpha = 0.38f),
-                    colorMarcador = Color(0xFFFFCDD2),
-                )
-            }
+            PartidoTarjetaResultadoEstilo(
+                anchoBarra = bar,
+                colorBarra = scheme.error,
+                colorBorde = scheme.error.copy(alpha = 0.42f),
+                colorFondo = scheme.errorContainer.copy(alpha = 0.5f),
+                colorMarcador = scheme.onErrorContainer,
+            )
         PartidoResultadoVisual.Empate ->
-            if (!dark) {
-                PartidoTarjetaResultadoEstilo(
-                    anchoBarra = 5.dp,
-                    colorBarra = Color(0xFF546E7A),
-                    colorBorde = Color(0xFF78909C).copy(alpha = 0.5f),
-                    colorFondo = Color(0xFFECEFF1).copy(alpha = 0.65f),
-                    colorMarcador = Color(0xFF455A64),
-                )
-            } else {
-                PartidoTarjetaResultadoEstilo(
-                    anchoBarra = 5.dp,
-                    colorBarra = Color(0xFF90A4AE),
-                    colorBorde = Color(0xFF90A4AE).copy(alpha = 0.45f),
-                    colorFondo = Color(0xFF37474F).copy(alpha = 0.35f),
-                    colorMarcador = Color(0xFFCFD8DC),
-                )
-            }
+            PartidoTarjetaResultadoEstilo(
+                anchoBarra = bar,
+                colorBarra = scheme.tertiary,
+                colorBorde = scheme.outline.copy(alpha = 0.45f),
+                colorFondo = scheme.surfaceVariant.copy(alpha = 0.65f),
+                colorMarcador = scheme.onSurfaceVariant,
+            )
         PartidoResultadoVisual.Pendiente ->
             PartidoTarjetaResultadoEstilo(
-                anchoBarra = 4.dp,
-                colorBarra = scheme.outline.copy(alpha = if (dark) 0.65f else 0.55f),
+                anchoBarra = bar,
+                colorBarra = scheme.outline.copy(alpha = 0.58f),
                 colorBorde = scheme.outlineVariant,
                 colorFondo = scheme.surface,
                 colorMarcador = scheme.onSurfaceVariant,
@@ -340,18 +319,20 @@ private fun PadreContextoLigaDetalleBanner(
     val hijoSel = hijosParticipantes.find { it.id == selectedId } ?: hijosParticipantes.first()
     val insc = inscripcionCoincideConHijo(hijoSel, inscripciones)
     val scheme = MaterialTheme.colorScheme
-    Surface(
-        color = scheme.secondaryContainer.copy(alpha = 0.32f),
+    AppCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevated = false,
+        includeContentPadding = false,
+        containerColor = scheme.secondaryContainer.copy(alpha = 0.32f),
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Column(
+            Modifier.padding(
+                horizontal = AcademiaDimens.paddingCardCompact,
+                vertical = AcademiaDimens.gapMd,
+            ),
+        ) {
             if (hijosParticipantes.size > 1) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                ChipsGroup {
                     hijosParticipantes.forEach { h ->
                         val nombre = h.nombre.trim().ifBlank { "—" }
                         FilterChip(
@@ -371,7 +352,7 @@ private fun PadreContextoLigaDetalleBanner(
                         )
                     }
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AcademiaDimens.gapVerticalTight))
             }
             Text(
                 stringResource(R.string.competitions_parent_context_emotional),
@@ -383,7 +364,7 @@ private fun PadreContextoLigaDetalleBanner(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = scheme.onSecondaryContainer,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = AcademiaDimens.gapSm),
             )
             val cat = (insc?.categoriaNombre?.trim()?.ifBlank { null } ?: hijoSel.categoria).trim().ifBlank { "—" }
             val equipo = insc?.nombreEquipoMostrado?.trim()?.takeIf { it.isNotEmpty() }
@@ -394,7 +375,7 @@ private fun PadreContextoLigaDetalleBanner(
                 color = scheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = AcademiaDimens.gapMicro),
             )
         }
     }
@@ -422,6 +403,14 @@ fun CompetenciasScreen(
                 onAbrirCompetencia = { id ->
                     innerNav.navigate("detalle/$id")
                 },
+                onNuevaCompetencia = { innerNav.navigate(RUTA_NUEVA) },
+            )
+        }
+        composable(RUTA_NUEVA) {
+            NuevaCompetenciaScreen(
+                viewModel = viewModel,
+                onBack = { innerNav.popBackStack() },
+                onCreada = { innerNav.popBackStack() },
             )
         }
         composable(
@@ -443,6 +432,38 @@ fun CompetenciasScreen(
     }
 }
 
+/** Misma pauta que Inicio (portada hijo) y [com.escuelafutbol.academia.ui.parents.components.ChildHeaderRow]. */
+@Composable
+private fun CompetenciasPadreAvatarHijo(jugador: Jugador) {
+    val context = LocalContext.current
+    val modeloFoto = remember(jugador.fotoUrlSupabase, jugador.fotoRutaAbsoluta) {
+        coilFotoJugadorModel(context, jugador.fotoUrlSupabase, jugador.fotoRutaAbsoluta)
+    }
+    Box(
+        modifier = Modifier
+            .size(AcademiaDimens.iconSizeMd)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (modeloFoto != null) {
+            AsyncImage(
+                model = modeloFoto,
+                contentDescription = stringResource(R.string.player_photo_cd),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Icon(
+                Icons.Outlined.Person,
+                contentDescription = null,
+                modifier = Modifier.size(AcademiaDimens.iconSizeSm - AcademiaDimens.gapMicro),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CompetenciasListaScaffold(
@@ -450,13 +471,13 @@ private fun CompetenciasListaScaffold(
     config: AcademiaConfig,
     padreSoloLectura: Boolean,
     onAbrirCompetencia: (String) -> Unit,
+    onNuevaCompetencia: () -> Unit,
 ) {
     val ui by viewModel.listaUi.collectAsState()
     val categoriasHijo by viewModel.categoriasHijoPadre.collectAsState()
     val filtroLocalPadre by viewModel.filtroLocalPadre.collectAsState()
     val vinculosPadreRemotos by viewModel.vinculosPadreJugadorRemoteIds.collectAsState()
     val hijosPadre by viewModel.hijosPadreVinculados.collectAsState()
-    var dialogoNueva by remember { mutableStateOf(false) }
     val idsHijosKey = remember(hijosPadre) { hijosPadre.joinToString(",") { it.id.toString() } }
     var hijoFiltroListaPadre by remember(idsHijosKey) { mutableStateOf<Long?>(null) }
 
@@ -508,47 +529,42 @@ private fun CompetenciasListaScaffold(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
         ) {
-            Text(
-                stringResource(
+            SectionHeader(
+                title = stringResource(R.string.competitions_list_header_title),
+                subtitle = stringResource(
                     if (padreSoloLectura) {
                         R.string.competitions_list_intro_parent_human
                     } else {
                         R.string.competitions_list_intro_staff
                     },
                 ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
             if (!padreSoloLectura && viewModel.puedeCrearCompetencia(config)) {
-                FilledTonalButton(
-                    onClick = { dialogoNueva = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.competitions_fab_new))
-                }
+                PrimaryButton(
+                    text = stringResource(R.string.competitions_fab_new),
+                    onClick = onNuevaCompetencia,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
             }
             if (padreSoloLectura && hijosPadre.size > 1) {
-                Text(
-                    stringResource(R.string.competitions_parent_filter_view_as),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 4.dp),
+                val todosHijos = stringResource(R.string.competitions_parent_filter_children_all)
+                val nombreHijoBanner = hijosPadre
+                    .find { it.id == hijoFiltroListaPadre }
+                    ?.nombre
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: todosHijos
+                AcademiaContextBanner(
+                    contextText = stringResource(
+                        R.string.competitions_parent_context_banner_child,
+                        nombreHijoBanner,
+                    ),
+                    modifier = Modifier.padding(bottom = 6.dp),
                 )
-                val hijoScroll = rememberScrollState()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(hijoScroll)
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                ChipsGroup(modifier = Modifier.padding(bottom = 8.dp)) {
                     FilterChip(
                         selected = hijoFiltroListaPadre == null,
                         onClick = { hijoFiltroListaPadre = null },
@@ -559,6 +575,7 @@ private fun CompetenciasListaScaffold(
                         FilterChip(
                             selected = hijoFiltroListaPadre == h.id,
                             onClick = { hijoFiltroListaPadre = h.id },
+                            leadingIcon = { CompetenciasPadreAvatarHijo(jugador = h) },
                             label = {
                                 Text(
                                     nombre,
@@ -571,14 +588,13 @@ private fun CompetenciasListaScaffold(
                 }
             }
             if (padreSoloLectura && categoriasHijo.size > 1) {
-                val chipScroll = rememberScrollState()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(chipScroll)
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                val todasCats = stringResource(R.string.competitions_parent_filter_all)
+                val catBanner = filtroLocalPadre?.takeIf { it.isNotBlank() } ?: todasCats
+                AcademiaContextBanner(
+                    contextText = stringResource(R.string.working_in, catBanner),
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+                ChipsGroup(modifier = Modifier.padding(bottom = 8.dp)) {
                     FilterChip(
                         selected = filtroLocalPadre == null,
                         onClick = { viewModel.setFiltroLocalPadreCategoria(null) },
@@ -617,11 +633,17 @@ private fun CompetenciasListaScaffold(
                     padreSoloLectura -> stringResource(R.string.competitions_parent_empty_no_matches)
                     else -> stringResource(R.string.competitions_staff_empty_onboarding)
                 }
-                Text(
-                    msg,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 24.dp),
+                EmptyState(
+                    title = msg,
+                    icon = {
+                        Icon(
+                            Icons.Outlined.EmojiEvents,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                        )
+                    },
+                    modifier = Modifier.padding(vertical = 16.dp),
                 )
             } else {
                 if (!padreSoloLectura) {
@@ -657,306 +679,6 @@ private fun CompetenciasListaScaffold(
             }
         }
     }
-
-    if (dialogoNueva) {
-        DialogoNuevaCompetencia(
-            viewModel = viewModel,
-            onDismiss = { dialogoNueva = false },
-            onCreada = { dialogoNueva = false },
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DialogoNuevaCompetencia(
-    viewModel: CompetenciasViewModel,
-    onDismiss: () -> Unit,
-    onCreada: () -> Unit,
-) {
-    val context = LocalContext.current
-    val catalogo by viewModel.catalogoDeportes.collectAsState()
-    var nombre by remember { mutableStateOf("") }
-    var temporada by remember { mutableStateOf("") }
-    var tipo by remember { mutableStateOf("liga") }
-    var deporteSel by remember { mutableStateOf<CatalogoDeporteRow?>(null) }
-    var err by remember { mutableStateOf<String?>(null) }
-    var nombreError by remember { mutableStateOf<String?>(null) }
-    var deporteError by remember { mutableStateOf<String?>(null) }
-    var guardando by remember { mutableStateOf(false) }
-
-    LaunchedEffect(catalogo) {
-        if (deporteSel == null && catalogo.isNotEmpty()) {
-            deporteSel = catalogo.first()
-        }
-    }
-
-    fun validar(): Boolean {
-        nombreError = null
-        deporteError = null
-        err = null
-        var ok = true
-        if (nombre.isBlank()) {
-            nombreError = context.getString(R.string.competitions_error_name_required)
-            ok = false
-        }
-        if (deporteSel == null) {
-            deporteError = context.getString(R.string.competitions_error_pick_sport)
-            ok = false
-        }
-        return ok
-    }
-
-    Dialog(
-        onDismissRequest = { if (!guardando) onDismiss() },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = !guardando,
-            dismissOnClickOutside = false,
-        ),
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = Color.Transparent,
-                topBar = {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Text(
-                                stringResource(R.string.competitions_dialog_new_title),
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = { if (!guardando) onDismiss() },
-                                enabled = !guardando,
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.nav_back_cd),
-                                )
-                            }
-                        },
-                    )
-                },
-                bottomBar = {
-                    Surface(
-                        shadowElevation = 6.dp,
-                        tonalElevation = 1.dp,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    ) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .imePadding()
-                                .padding(horizontal = 20.dp, vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            err?.let { msg ->
-                                Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer,
-                                ) {
-                                    Text(
-                                        msg,
-                                        modifier = Modifier.padding(14.dp),
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                }
-                            }
-                            Button(
-                                onClick = {
-                                    if (!validar()) return@Button
-                                    val d = deporteSel!!
-                                    guardando = true
-                                    err = null
-                                    viewModel.crearCompetencia(
-                                        nombre = nombre,
-                                        deporteId = d.id,
-                                        tipoCompetencia = tipo,
-                                        temporada = temporada.takeIf { it.isNotBlank() },
-                                    ) { r ->
-                                        guardando = false
-                                        if (r.isSuccess) {
-                                            onCreada()
-                                        } else {
-                                            err = r.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }
-                                                ?: context.getString(R.string.competitions_error_save_generic)
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 52.dp),
-                                enabled = !guardando,
-                            ) {
-                                if (guardando) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(22.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        strokeWidth = 2.dp,
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                }
-                                Text(stringResource(R.string.competitions_save))
-                            }
-                        }
-                    }
-                },
-            ) { innerPadding ->
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(22.dp),
-                ) {
-                    Text(
-                        stringResource(R.string.competitions_new_screen_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        stringResource(R.string.competitions_new_section_details),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    OutlinedTextField(
-                        value = nombre,
-                        onValueChange = {
-                            nombre = it
-                            nombreError = null
-                            err = null
-                        },
-                        label = { Text(stringResource(R.string.competitions_field_name)) },
-                        supportingText = nombreError?.let { msg -> { Text(msg) } },
-                        isError = nombreError != null,
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        stringResource(R.string.competitions_new_section_sport),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        stringResource(R.string.competitions_field_sport_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (catalogo.isEmpty()) {
-                        Text(
-                            stringResource(R.string.competitions_new_catalog_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    } else {
-                        val cardShape = RoundedCornerShape(18.dp)
-                        catalogo.forEach { d ->
-                            val sel = deporteSel?.id == d.id
-                            OutlinedCard(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(enabled = !guardando) {
-                                        deporteSel = d
-                                        deporteError = null
-                                        err = null
-                                    },
-                                shape = cardShape,
-                                colors = CardDefaults.outlinedCardColors(
-                                    containerColor = if (sel) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
-                                    } else {
-                                        MaterialTheme.colorScheme.surface
-                                    },
-                                ),
-                                border = BorderStroke(
-                                    width = if (sel) 2.dp else 1.dp,
-                                    color = if (sel) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant
-                                    },
-                                ),
-                            ) {
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 56.dp)
-                                        .padding(horizontal = 18.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = if (sel) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(28.dp),
-                                        tint = if (sel) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.outline
-                                        },
-                                    )
-                                    Text(
-                                        d.nombre,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    deporteError?.let { msg ->
-                        Text(
-                            msg,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    HorizontalDivider(
-                        Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    )
-                    Text(
-                        stringResource(R.string.competitions_new_section_type_season),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    OutlinedTextField(
-                        value = tipo,
-                        onValueChange = {
-                            tipo = it
-                            err = null
-                        },
-                        label = { Text(stringResource(R.string.competitions_field_type_hint)) },
-                        placeholder = { Text(stringResource(R.string.competitions_field_type_placeholder)) },
-                        supportingText = { Text(stringResource(R.string.competitions_field_type_allowed_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = temporada,
-                        onValueChange = {
-                            temporada = it
-                            err = null
-                        },
-                        label = { Text(stringResource(R.string.competitions_field_season_optional)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(32.dp))
-                }
-            }
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -971,6 +693,7 @@ private fun CompetenciaDetalleScaffold(
     val ui by viewModel.detalleUi.collectAsState()
     val hijosPadre by viewModel.hijosPadreVinculados.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
+    var filtroInscripcionDetalle by remember(competenciaId) { mutableStateOf<String?>(null) }
     var partidoResultado by remember { mutableStateOf<com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaPartidoRow?>(null) }
     val tabs = listOf(
         stringResource(R.string.competitions_tab_matches),
@@ -980,6 +703,15 @@ private fun CompetenciaDetalleScaffold(
     LaunchedEffect(competenciaId) {
         viewModel.cargarDetalle(competenciaId)
         partidoResultado = null
+    }
+    val inscripcionesIdsKeyDetalle = remember(ui.inscripciones) {
+        ui.inscripciones.joinToString(",") { it.id }
+    }
+    LaunchedEffect(inscripcionesIdsKeyDetalle, filtroInscripcionDetalle) {
+        val f = filtroInscripcionDetalle
+        if (f != null && ui.inscripciones.none { it.id == f }) {
+            filtroInscripcionDetalle = null
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -1027,14 +759,18 @@ private fun CompetenciaDetalleScaffold(
                     HorizontalDivider()
                 }
                 if (detallePadreSinContenidoFiltrado) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                    AppTintedPanel(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                        contentPadding = PaddingValues(
+                            horizontal = AcademiaDimens.paddingCardCompact,
+                            vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapMicro,
+                        ),
                     ) {
                         Text(
                             stringResource(R.string.competitions_parent_detail_empty_filtered),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         )
                     }
                     HorizontalDivider()
@@ -1047,9 +783,15 @@ private fun CompetenciaDetalleScaffold(
                         config = config,
                         padreSoloLectura = padreSoloLectura,
                         hijosPadreVinculados = hijosPadre,
+                        filtroInscripcionDetalle = filtroInscripcionDetalle,
+                        onFiltroInscripcionDetalleChange = { filtroInscripcionDetalle = it },
                         onAbrirResultado = { partidoResultado = it },
                     )
-                    1 -> TabTabla(ui = ui)
+                    1 -> TabTabla(
+                        ui = ui,
+                        filtroInscripcionDetalle = filtroInscripcionDetalle,
+                        onFiltroInscripcionDetalleChange = { filtroInscripcionDetalle = it },
+                    )
                     2 -> TabInscripciones(
                         competenciaId = competenciaId,
                         ui = ui,
@@ -1103,18 +845,14 @@ private fun jugadorParaLineaMarcador(jugadores: List<Jugador>, a: AnotadorMarcad
 @Composable
 private fun PartidoEstadoChip(estadoResuelto: String) {
     val norm = estadoResuelto.trim().lowercase(Locale.ROOT)
-    val dark = isSystemInDarkTheme()
     val scheme = MaterialTheme.colorScheme
     val (bg, fg) = when (norm) {
         CompetenciaPartidoEstado.JUGADO ->
-            if (!dark) Color(0xFFE8F5E9) to Color(0xFF1B5E20)
-            else Color(0xFF1B3D2F) to Color(0xFF81C784)
+            scheme.primaryContainer.copy(alpha = 0.55f) to scheme.onPrimaryContainer
         CompetenciaPartidoEstado.PROGRAMADO ->
-            if (!dark) Color(0xFFFFF8E1) to Color(0xFFE65100)
-            else Color(0xFF4A3F00) to Color(0xFFFFE082)
+            scheme.tertiaryContainer.copy(alpha = 0.55f) to scheme.onTertiaryContainer
         CompetenciaPartidoEstado.CANCELADO ->
-            if (!dark) Color(0xFFFFEBEE) to Color(0xFFC62828)
-            else Color(0xFF4A1C1C) to Color(0xFFFFCDD2)
+            scheme.errorContainer.copy(alpha = 0.55f) to scheme.onErrorContainer
         CompetenciaPartidoEstado.POSPUESTO ->
             scheme.surfaceVariant to scheme.onSurfaceVariant
         else ->
@@ -1130,16 +868,20 @@ private fun PartidoEstadoChip(estadoResuelto: String) {
                 if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
             }
     }
-    Surface(
-        color = bg,
-        shape = RoundedCornerShape(10.dp),
+    AppTintedPanel(
+        modifier = Modifier.wrapContentWidth(),
+        shape = RoundedCornerShape(AcademiaDimens.radiusDense),
+        containerColor = bg,
+        contentPadding = PaddingValues(
+            horizontal = AcademiaDimens.paddingCardCompact,
+            vertical = AcademiaDimens.gapVerticalTight,
+        ),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = fg,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
 }
@@ -1147,23 +889,23 @@ private fun PartidoEstadoChip(estadoResuelto: String) {
 @Composable
 private fun AvatarAnotadorSinFotoPlaceholder() {
     val cd = stringResource(R.string.competitions_scorer_list_avatar_none_cd)
-    Surface(
-        modifier = Modifier.size(40.dp),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)),
+    Box(
+        Modifier
+            .size(AcademiaDimens.avatarRow)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .border(
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)),
+                CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Person,
-                contentDescription = cd,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        Icon(
+            imageVector = Icons.Outlined.Person,
+            contentDescription = cd,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+            modifier = Modifier.size(AcademiaDimens.iconSizeSm),
+        )
     }
 }
 
@@ -1194,12 +936,12 @@ private fun FilaAnotadorPartidoTarjeta(
         )
     }
     val avatarModifier = Modifier
-        .size(40.dp)
+        .size(AcademiaDimens.avatarRow)
         .clip(CircleShape)
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = AcademiaDimens.gapSm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (fotoModel != null) {
@@ -1217,7 +959,7 @@ private fun FilaAnotadorPartidoTarjeta(
         } else {
             AvatarAnotadorSinFotoPlaceholder()
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AcademiaDimens.paddingCardCompact))
         Text(
             text = nombreLista,
             style = MaterialTheme.typography.titleSmall,
@@ -1228,7 +970,7 @@ private fun FilaAnotadorPartidoTarjeta(
         )
         Column(
             modifier = Modifier
-                .widthIn(min = 56.dp)
+                .widthIn(min = AcademiaDimens.columnMinScoreboard)
                 .wrapContentWidth(Alignment.End),
             horizontalAlignment = Alignment.End,
         ) {
@@ -1255,6 +997,9 @@ private fun EncabezadoCategoriaYResumenPartidos(
     filtroInscripcionId: String?,
     onCambiarFiltro: (String?) -> Unit,
     partidosVisibles: List<AcademiaCompetenciaPartidoRow>,
+    mostrarResumenPartidos: Boolean = true,
+    /** Texto cuando el filtro es «todas» (p. ej. tabla vs partidos). */
+    allCategoriesContextRes: Int = R.string.competitions_detail_matches_all_categories,
 ) {
     if (inscripciones.isEmpty()) return
     val ordenadas = remember(inscripciones) {
@@ -1276,37 +1021,36 @@ private fun EncabezadoCategoriaYResumenPartidos(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(
+                horizontal = AcademiaDimens.paddingScreenHorizontal,
+                vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapMicro,
+            ),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
     ) {
-        Text(
-            stringResource(R.string.competitions_detail_matches_category_heading),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+        SectionHeader(
+            title = stringResource(R.string.competitions_detail_matches_category_heading),
+            subtitle = null,
         )
         if (ordenadas.size == 1) {
             val solo = ordenadas.first().categoriaNombre.trim().ifBlank { "—" }
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+            AppTintedPanel(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(AcademiaDimens.radiusMd),
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                contentPadding = PaddingValues(
+                    horizontal = AcademiaDimens.paddingCardCompact,
+                    vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapMicro,
+                ),
             ) {
                 Text(
                     stringResource(R.string.competitions_detail_matches_category_active, solo),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         } else {
-            val chipScroll = rememberScrollState()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(chipScroll),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            ChipsGroup {
                 FilterChip(
                     selected = filtroInscripcionId == null,
                     onClick = { onCambiarFiltro(null) },
@@ -1328,32 +1072,32 @@ private fun EncabezadoCategoriaYResumenPartidos(
                 }
             }
             val textoContexto = when (filtroInscripcionId) {
-                null -> stringResource(R.string.competitions_detail_matches_all_categories)
+                null -> stringResource(allCategoriesContextRes)
                 else -> {
                     val nom = ordenadas.find { it.id == filtroInscripcionId }?.categoriaNombre?.trim()?.ifBlank { null }
                         ?: "—"
                     stringResource(R.string.competitions_detail_matches_category_active, nom)
                 }
             }
-            Text(
-                textoContexto,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
+            AcademiaContextBanner(
+                contextText = textoContexto,
+                modifier = Modifier.padding(top = AcademiaDimens.gapMd),
             )
         }
-        Text(
-            stringResource(
-                R.string.competitions_detail_matches_summary,
-                jugados,
-                victorias,
-                empates,
-                derrotas,
-                pendientes,
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (mostrarResumenPartidos) {
+            Text(
+                stringResource(
+                    R.string.competitions_detail_matches_summary,
+                    jugados,
+                    victorias,
+                    empates,
+                    derrotas,
+                    pendientes,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -1365,26 +1109,17 @@ private fun TabPartidos(
     config: AcademiaConfig,
     padreSoloLectura: Boolean,
     hijosPadreVinculados: List<Jugador>,
+    filtroInscripcionDetalle: String?,
+    onFiltroInscripcionDetalleChange: (String?) -> Unit,
     onAbrirResultado: (com.escuelafutbol.academia.data.remote.dto.AcademiaCompetenciaPartidoRow) -> Unit,
 ) {
     var dialogoPartido by remember { mutableStateOf(false) }
     var expandedPartidoId by remember { mutableStateOf<String?>(null) }
-    var filtroInscripcionPartidos by remember(competenciaId) { mutableStateOf<String?>(null) }
     val fallbackSingular = stringResource(R.string.competitions_scorers_fallback_singular)
     val fallbackPlural = stringResource(R.string.competitions_scorers_fallback_label)
 
-    val inscripcionesIdsKey = remember(ui.inscripciones) {
-        ui.inscripciones.joinToString(",") { it.id }
-    }
-    LaunchedEffect(inscripcionesIdsKey, filtroInscripcionPartidos) {
-        val f = filtroInscripcionPartidos
-        if (f != null && ui.inscripciones.none { it.id == f }) {
-            filtroInscripcionPartidos = null
-        }
-    }
-
-    val partidosMostrados = remember(ui.partidos, filtroInscripcionPartidos) {
-        when (val f = filtroInscripcionPartidos) {
+    val partidosMostrados = remember(ui.partidos, filtroInscripcionDetalle) {
+        when (val f = filtroInscripcionDetalle) {
             null -> ui.partidos
             else -> ui.partidos.filter { it.categoriaEnCompetenciaId == f }
         }
@@ -1392,14 +1127,15 @@ private fun TabPartidos(
 
     Column(Modifier.fillMaxSize()) {
         if (ui.inscripciones.isNotEmpty()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                tonalElevation = 0.dp,
+            AppCard(
+                elevated = false,
+                includeContentPadding = false,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 EncabezadoCategoriaYResumenPartidos(
                     inscripciones = ui.inscripciones,
-                    filtroInscripcionId = filtroInscripcionPartidos,
-                    onCambiarFiltro = { filtroInscripcionPartidos = it },
+                    filtroInscripcionId = filtroInscripcionDetalle,
+                    onCambiarFiltro = onFiltroInscripcionDetalleChange,
                     partidosVisibles = partidosMostrados,
                 )
             }
@@ -1408,16 +1144,19 @@ private fun TabPartidos(
             )
         }
         if (viewModel.puedeAgregarInscripcionOPartido(config) && ui.inscripciones.isNotEmpty()) {
-            Button(
+                Button(
                 onClick = { dialogoPartido = true },
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(
+                        horizontal = AcademiaDimens.paddingScreenHorizontal,
+                        vertical = AcademiaDimens.paddingCardCompact,
+                    )
                     .fillMaxWidth()
-                    .heightIn(min = 52.dp),
+                    .heightIn(min = AcademiaDimens.buttonMinHeight),
                 colors = ButtonDefaults.buttonColors(),
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(10.dp))
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(AcademiaDimens.iconSizeSm))
+                Spacer(Modifier.width(AcademiaDimens.chipSpacing))
                 Text(stringResource(R.string.competitions_add_match))
             }
             HorizontalDivider(
@@ -1455,8 +1194,11 @@ private fun TabPartidos(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(
+                        horizontal = AcademiaDimens.paddingScreenHorizontal,
+                        vertical = AcademiaDimens.paddingCardCompact,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.chipSpacing),
                 ) {
                     items(partidosMostrados, key = { it.id }) { p ->
                     val detalleMarcador = DetalleMarcadorJsonCodec.decodeOrNull(p.detalleMarcadorJson)
@@ -1497,10 +1239,10 @@ private fun TabPartidos(
                     }
                     val sumaGolesAnotadores = anotadores.sumOf { it.cantidad }
                     val expandInteraction = remember(p.id) { MutableInteractionSource() }
-                    OutlinedCard(
+                    AppCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(AcademiaDimens.radiusXl))
                             .clickable(
                                 interactionSource = expandInteraction,
                                 indication = ripple(bounded = true),
@@ -1508,9 +1250,10 @@ private fun TabPartidos(
                                 role = Role.Button,
                                 onClick = toggleExpand,
                             ),
-                        border = BorderStroke(1.dp, estiloTarjeta.colorBorde),
-                        colors = CardDefaults.outlinedCardColors(containerColor = estiloTarjeta.colorFondo),
-                        shape = RoundedCornerShape(16.dp),
+                        elevated = false,
+                        containerColor = estiloTarjeta.colorFondo,
+                        borderColor = estiloTarjeta.colorBorde,
+                        includeContentPadding = false,
                     ) {
                         Row(
                             Modifier
@@ -1524,13 +1267,19 @@ private fun TabPartidos(
                                     .fillMaxHeight()
                                     .background(
                                         color = estiloTarjeta.colorBarra,
-                                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                                        shape = RoundedCornerShape(
+                                            topStart = AcademiaDimens.radiusLg,
+                                            bottomStart = AcademiaDimens.radiusLg,
+                                        ),
                                     ),
                             )
                             Column(
                                 Modifier
                                     .weight(1f)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    .padding(
+                                        horizontal = AcademiaDimens.paddingCardCompact,
+                                        vertical = AcademiaDimens.chipSpacing,
+                                    )
                                     .animateContentSize(animationSpec = tween(280)),
                             ) {
                                 Row(
@@ -1578,13 +1327,13 @@ private fun TabPartidos(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier
-                                                .padding(top = 4.dp)
+                                                .padding(top = AcademiaDimens.radiusSm / 2)
                                                 .fillMaxWidth(),
                                         )
                                     }
                                 }
 
-                                Spacer(Modifier.height(10.dp))
+                                Spacer(Modifier.height(AcademiaDimens.chipSpacing))
 
                                 val marcadorTexto = if (p.jugado && p.scorePropio != null && p.scoreRival != null) {
                                     "${p.scorePropio} – ${p.scoreRival}"
@@ -1594,7 +1343,7 @@ private fun TabPartidos(
                                 Box(
                                     Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 6.dp),
+                                        .padding(vertical = AcademiaDimens.gapVerticalTight),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     if (p.jugado && p.scorePropio != null && p.scoreRival != null && iconoResultado != null) {
@@ -1608,7 +1357,7 @@ private fun TabPartidos(
                                                 tint = estiloTarjeta.colorMarcador,
                                                 modifier = Modifier.size(32.dp),
                                             )
-                                            Spacer(Modifier.width(10.dp))
+                                            Spacer(Modifier.width(AcademiaDimens.chipSpacing))
                                             Text(
                                                 text = marcadorTexto,
                                                 style = MaterialTheme.typography.headlineLarge,
@@ -1628,7 +1377,7 @@ private fun TabPartidos(
                                     }
                                 }
 
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(AcademiaDimens.gapVerticalTight))
 
                                 Box(
                                     Modifier.fillMaxWidth(),
@@ -1651,59 +1400,61 @@ private fun TabPartidos(
                                     Column(
                                         Modifier
                                             .fillMaxWidth()
-                                            .padding(top = 12.dp),
+                                            .padding(top = AcademiaDimens.paddingCardCompact),
                                     ) {
-                                        Surface(
+                                        AppTintedPanel(
                                             modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = scheme.surfaceVariant.copy(alpha = 0.45f),
+                                            shape = RoundedCornerShape(AcademiaDimens.radiusMd),
+                                            containerColor = scheme.surfaceVariant.copy(alpha = 0.45f),
+                                            contentPadding = PaddingValues(
+                                                horizontal = AcademiaDimens.contextBannerHorizontalPadding,
+                                                vertical = AcademiaDimens.chipSpacing,
+                                            ),
                                         ) {
-                                            Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                                            Text(
+                                                text = stringResource(R.string.competitions_scorers_section),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = scheme.primary,
+                                            )
+                                            if (anotadores.isNotEmpty()) {
+                                                Spacer(Modifier.height(AcademiaDimens.radiusSm / 2))
                                                 Text(
-                                                    text = stringResource(R.string.competitions_scorers_section),
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = scheme.primary,
+                                                    text = pluralStringResource(
+                                                        R.plurals.competitions_match_goals_total,
+                                                        sumaGolesAnotadores,
+                                                        sumaGolesAnotadores,
+                                                    ) + " · " + pluralStringResource(
+                                                        R.plurals.competitions_match_scoring_players,
+                                                        anotadores.size,
+                                                        anotadores.size,
+                                                    ),
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = scheme.onSurfaceVariant,
                                                 )
-                                                if (anotadores.isNotEmpty()) {
-                                                    Spacer(Modifier.height(4.dp))
-                                                    Text(
-                                                        text = pluralStringResource(
-                                                            R.plurals.competitions_match_goals_total,
-                                                            sumaGolesAnotadores,
-                                                            sumaGolesAnotadores,
-                                                        ) + " · " + pluralStringResource(
-                                                            R.plurals.competitions_match_scoring_players,
-                                                            anotadores.size,
-                                                            anotadores.size,
-                                                        ),
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = scheme.onSurfaceVariant,
-                                                    )
-                                                }
-                                                Spacer(Modifier.height(8.dp))
-                                                if (anotadores.isEmpty()) {
-                                                    Text(
-                                                        text = stringResource(R.string.competitions_match_scorers_empty_detail),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = scheme.onSurfaceVariant,
-                                                    )
-                                                } else {
-                                                    anotadores.forEachIndexed { i, a ->
-                                                        if (i > 0) {
-                                                            HorizontalDivider(
-                                                                Modifier.padding(vertical = 4.dp),
-                                                                color = scheme.outlineVariant,
-                                                            )
-                                                        }
-                                                        val jRes = jugadorParaLineaMarcador(jugadoresCat, a)
-                                                        FilaAnotadorPartidoTarjeta(
-                                                            jugadorResuelto = jRes,
-                                                            anotador = a,
-                                                            unidadSingular = ui.deporte?.etiquetaScoreSingular ?: fallbackSingular,
-                                                            unidadPlural = ui.deporte?.etiquetaScorePlural ?: fallbackPlural,
+                                            }
+                                            Spacer(Modifier.height(AcademiaDimens.radiusSm))
+                                            if (anotadores.isEmpty()) {
+                                                Text(
+                                                    text = stringResource(R.string.competitions_match_scorers_empty_detail),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = scheme.onSurfaceVariant,
+                                                )
+                                            } else {
+                                                anotadores.forEachIndexed { i, a ->
+                                                    if (i > 0) {
+                                                        HorizontalDivider(
+                                                            Modifier.padding(vertical = AcademiaDimens.radiusSm / 2),
+                                                            color = scheme.outlineVariant,
                                                         )
                                                     }
+                                                    val jRes = jugadorParaLineaMarcador(jugadoresCat, a)
+                                                    FilaAnotadorPartidoTarjeta(
+                                                        jugadorResuelto = jRes,
+                                                        anotador = a,
+                                                        unidadSingular = ui.deporte?.etiquetaScoreSingular ?: fallbackSingular,
+                                                        unidadPlural = ui.deporte?.etiquetaScorePlural ?: fallbackPlural,
+                                                    )
                                                 }
                                             }
                                         }
@@ -1731,55 +1482,115 @@ private fun TabPartidos(
 }
 
 @Composable
-private fun TabTabla(ui: CompetenciasDetalleUi) {
+private fun TabTabla(
+    ui: CompetenciasDetalleUi,
+    filtroInscripcionDetalle: String?,
+    onFiltroInscripcionDetalleChange: (String?) -> Unit,
+) {
     val deporte = ui.deporte
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        if (ui.tabla.isEmpty()) {
-            Text(
-                stringResource(R.string.competitions_table_empty),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+    val partidosParaTabla = remember(ui.partidos, filtroInscripcionDetalle) {
+        when (val f = filtroInscripcionDetalle) {
+            null -> ui.partidos
+            else -> ui.partidos.filter { it.categoriaEnCompetenciaId == f }
+        }
+    }
+    val tablaMostrada = remember(ui.tabla, filtroInscripcionDetalle) {
+        when (val f = filtroInscripcionDetalle) {
+            null -> ui.tabla
+            else -> ui.tabla.filter { it.categoriaEnCompetenciaId == f }
+        }
+    }
+    val lideresMostrados = remember(partidosParaTabla) {
+        construirLideresOfensivosTabla(partidosParaTabla, limite = 3)
+    }
+    Column(Modifier.fillMaxSize()) {
+        if (ui.inscripciones.isNotEmpty()) {
+            AppCard(
+                elevated = false,
+                includeContentPadding = false,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        CabeceraTablaPosiciones(
-                            labelGf = stringResource(R.string.competitions_col_sf),
-                            labelGc = stringResource(R.string.competitions_col_sc),
-                        )
-                        HorizontalDivider(
-                            Modifier.padding(vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                        )
-                        ui.tabla.forEachIndexed { index, linea ->
-                            FilaTabla(linea)
-                            if (index < ui.tabla.lastIndex) {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    thickness = 0.5.dp,
-                                )
+                EncabezadoCategoriaYResumenPartidos(
+                    inscripciones = ui.inscripciones,
+                    filtroInscripcionId = filtroInscripcionDetalle,
+                    onCambiarFiltro = onFiltroInscripcionDetalleChange,
+                    partidosVisibles = partidosParaTabla,
+                    mostrarResumenPartidos = false,
+                    allCategoriesContextRes = R.string.competitions_detail_table_all_categories,
+                )
+            }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+            )
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(
+                    horizontal = AcademiaDimens.paddingScreenHorizontal,
+                    vertical = AcademiaDimens.radiusSm,
+                )
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.chipSpacing),
+        ) {
+            when {
+                ui.tabla.isEmpty() -> {
+                    EmptyState(
+                        title = stringResource(R.string.competitions_table_empty),
+                        icon = {
+                            Icon(
+                                Icons.Outlined.EmojiEvents,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+                            )
+                        },
+                    )
+                }
+                tablaMostrada.isEmpty() -> {
+                    EmptyState(
+                        title = stringResource(R.string.competitions_table_filtered_empty),
+                        icon = {
+                            Icon(
+                                Icons.Outlined.EmojiEvents,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+                            )
+                        },
+                    )
+                }
+                else -> {
+                    AppCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevated = true,
+                    ) {
+                        Column {
+                            CabeceraTablaPosiciones(
+                                labelGf = stringResource(R.string.competitions_col_sf),
+                                labelGc = stringResource(R.string.competitions_col_sc),
+                            )
+                            HorizontalDivider(
+                                Modifier.padding(vertical = AcademiaDimens.radiusSm / 2),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                            )
+                            tablaMostrada.forEachIndexed { index, linea ->
+                                FilaTabla(linea)
+                                if (index < tablaMostrada.lastIndex) {
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                        thickness = 0.5.dp,
+                                    )
+                                }
                             }
                         }
                     }
+                    BloqueLideresOfensivosTabla(
+                        deporte = deporte,
+                        resultado = lideresMostrados,
+                    )
                 }
-                BloqueLideresOfensivosTabla(
-                    deporte = deporte,
-                    resultado = ui.lideresOfensivosTabla,
-                )
             }
         }
     }
@@ -1811,38 +1622,22 @@ private fun MensajeLideresTablaSecundario(
     deporte: CatalogoDeporteRow?,
     mensaje: String,
 ) {
-    OutlinedCard(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
+        elevated = false,
     ) {
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Icon(
-                Icons.Outlined.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    tituloSeccionLideresOfensivos(deporte),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
+        SectionHeader(
+            title = tituloSeccionLideresOfensivos(deporte),
+            subtitle = mensaje,
+            action = {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
                 )
-                Text(
-                    mensaje,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
+            },
+        )
     }
 }
 
@@ -1898,65 +1693,54 @@ private fun TarjetaLideresOfensivosRanking(
     lideres: List<LiderOfensivoResumen>,
 ) {
     val unidadPlural = deporte?.etiquetaScorePlural ?: stringResource(R.string.competitions_scorers_fallback_label)
-    OutlinedCard(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
+        elevated = false,
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(
-                tituloSeccionLideresOfensivos(deporte),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                stringResource(R.string.competitions_offense_leaders_subtitle),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-            )
-            lideres.forEachIndexed { index, l ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        Modifier.padding(vertical = 6.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "${index + 1}.",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFeatureSettings = "tnum",
-                        ),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.widthIn(min = 22.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    IconoBalonLiderOfensivo(deporte)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        l.nombreMostrado,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "${l.total} $unidadPlural",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontFeatureSettings = "tnum",
-                        ),
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                    )
-                }
+        SectionHeader(
+            title = tituloSeccionLideresOfensivos(deporte),
+            subtitle = stringResource(R.string.competitions_offense_leaders_subtitle),
+        )
+        Spacer(Modifier.height(AcademiaDimens.chipSpacing))
+        lideres.forEachIndexed { index, l ->
+            if (index > 0) {
+                HorizontalDivider(
+                    Modifier.padding(vertical = 6.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "${index + 1}.",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.widthIn(min = 22.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                IconoBalonLiderOfensivo(deporte)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    l.nombreMostrado,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "${l.total} $unidadPlural",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontFeatureSettings = "tnum",
+                    ),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -2177,12 +1961,11 @@ private fun TarjetaInscripcionesPorHijoPadre(
     valorSinEquipo: String,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Card(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainerLow),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevated = true,
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column {
             Text(
                 nombreHijo,
                 style = MaterialTheme.typography.titleMedium,
@@ -2193,12 +1976,12 @@ private fun TarjetaInscripcionesPorHijoPadre(
                 stringResource(R.string.competitions_parent_inscriptions_intro),
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = AcademiaDimens.chipSpacing),
             )
             filas.forEachIndexed { idx, ins ->
                 if (idx > 0) {
                     HorizontalDivider(
-                        Modifier.padding(vertical = 12.dp),
+                        Modifier.padding(vertical = AcademiaDimens.paddingCardCompact),
                         color = scheme.outlineVariant,
                     )
                 }
@@ -2222,7 +2005,7 @@ private fun TarjetaInscripcionesPorHijoPadre(
                         stringResource(R.string.competitions_group_label, g),
                         style = MaterialTheme.typography.labelSmall,
                         color = scheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 6.dp),
+                        modifier = Modifier.padding(top = AcademiaDimens.gapVerticalTight),
                     )
                 }
             }
@@ -2272,12 +2055,11 @@ private fun TarjetaInscripcionesPadreSinAsociacion(
     valorSinEquipo: String,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Card(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = scheme.secondaryContainer.copy(alpha = 0.45f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevated = false,
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column {
             Text(
                 stringResource(R.string.competitions_parent_inscriptions_fallback_title),
                 style = MaterialTheme.typography.titleSmall,
@@ -2288,12 +2070,12 @@ private fun TarjetaInscripcionesPadreSinAsociacion(
                 stringResource(R.string.competitions_parent_inscriptions_fallback_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSecondaryContainer.copy(alpha = 0.9f),
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.padding(top = AcademiaDimens.gapVerticalTight),
             )
             inscripciones.forEachIndexed { idx, ins ->
                 if (idx > 0) {
                     HorizontalDivider(
-                        Modifier.padding(vertical = 10.dp),
+                        Modifier.padding(vertical = AcademiaDimens.chipSpacing),
                         color = scheme.outlineVariant,
                     )
                 }
@@ -2330,25 +2112,27 @@ private fun TabInscripciones(
     val categorias by viewModel.nombresCategoriasLocales.collectAsState()
     Column(Modifier.fillMaxSize()) {
         if (viewModel.puedeAgregarInscripcionOPartido(config)) {
-            FilledTonalButton(
+            PrimaryButton(
+                text = stringResource(R.string.competitions_add_team),
                 onClick = { dialogo = true },
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(AcademiaDimens.paddingScreenHorizontal)
                     .fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.competitions_add_team))
-            }
+            )
         }
         if (padreSoloLectura) {
             TabInscripcionesPadre(ui = ui, hijosVinculados = hijosPadreVinculados)
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(AcademiaDimens.paddingScreenHorizontal),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.radiusSm),
             ) {
                 items(ui.inscripciones, key = { it.id }) { ins ->
-                    OutlinedCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
+                    AppCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevated = false,
+                    ) {
+                        Column {
                             Text(ins.categoriaNombre, style = MaterialTheme.typography.titleSmall)
                             ins.nombreEquipoMostrado?.takeIf { it.isNotBlank() }?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall)
@@ -2483,7 +2267,6 @@ private fun DialogoNuevoPartido(
         val id = insSel?.id ?: return@LaunchedEffect
         jornada = sugerirSiguienteJornadaPartido(partidosExistentes, id)
     }
-    val chipShape = RoundedCornerShape(18.dp)
     BackHandler {
         if (mostrarCalendario) mostrarCalendario = false
         else onDismiss()
@@ -2497,7 +2280,11 @@ private fun DialogoNuevoPartido(
             dismissOnClickOutside = false,
         ),
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
                 topBar = {
@@ -2518,13 +2305,18 @@ private fun DialogoNuevoPartido(
                     )
                 },
                 bottomBar = {
-                    Surface(tonalElevation = 1.dp, shadowElevation = 3.dp) {
+                    Column(Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                         Row(
                             Modifier
                                 .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .navigationBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                .padding(
+                                    horizontal = AcademiaDimens.paddingScreenHorizontal,
+                                    vertical = AcademiaDimens.gapMd,
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
@@ -2564,9 +2356,9 @@ private fun DialogoNuevoPartido(
                     Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
+                        .padding(horizontal = AcademiaDimens.paddingCard + AcademiaDimens.gapSm),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
+                    contentPadding = PaddingValues(top = AcademiaDimens.gapSm, bottom = AcademiaDimens.paddingCard),
                 ) {
                     item {
                         Text(
@@ -2584,11 +2376,13 @@ private fun DialogoNuevoPartido(
                     }
                     items(inscripciones, key = { it.id }) { row ->
                         val sel = insSel?.id == row.id
-                        Surface(
-                            onClick = { insSel = row },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = chipShape,
-                            color = if (sel) {
+                        AppCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { insSel = row },
+                            elevated = false,
+                            includeContentPadding = false,
+                            containerColor = if (sel) {
                                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
                             } else {
                                 MaterialTheme.colorScheme.surface
@@ -2601,20 +2395,22 @@ private fun DialogoNuevoPartido(
                                     MaterialTheme.colorScheme.outlineVariant
                                 },
                             ),
-                            shadowElevation = if (sel) 2.dp else 0.dp,
                         ) {
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 56.dp)
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    .heightIn(min = AcademiaDimens.buttonMinHeight)
+                                    .padding(
+                                        horizontal = AcademiaDimens.paddingScreenHorizontal,
+                                        vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapMicro,
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingRowComfort),
                             ) {
                                 Icon(
                                     imageVector = if (sel) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
                                     contentDescription = null,
-                                    modifier = Modifier.size(30.dp),
+                                    modifier = Modifier.size(AcademiaDimens.iconDialogList),
                                     tint = if (sel) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
@@ -2642,7 +2438,7 @@ private fun DialogoNuevoPartido(
                         }
                     }
                     item {
-                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(Modifier.padding(vertical = AcademiaDimens.gapMd))
                         Text(
                             stringResource(R.string.competitions_match_section_details),
                             style = MaterialTheme.typography.titleMedium,
@@ -2683,7 +2479,11 @@ private fun DialogoNuevoPartido(
                             stringResource(R.string.competitions_match_date_field_help),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, top = 0.dp, bottom = 4.dp),
+                            modifier = Modifier.padding(
+                                start = AcademiaDimens.gapSm,
+                                top = 0.dp,
+                                bottom = AcademiaDimens.gapSm,
+                            ),
                         )
                     }
                     item {
@@ -2697,14 +2497,14 @@ private fun DialogoNuevoPartido(
                     }
                     item {
                         err?.let { msg ->
-                            Surface(
+                            AppTintedPanel(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(AcademiaDimens.radiusMd),
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
                             ) {
                                 Text(
                                     msg,
-                                    modifier = Modifier.padding(12.dp),
                                     color = MaterialTheme.colorScheme.onErrorContainer,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -2816,25 +2616,31 @@ private fun FilaAnotadorResultadoUi(
     } else {
         stringResource(R.string.competitions_result_tap_to_change_player)
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Surface(
-            onClick = { if (jugadores.isNotEmpty()) onAbrirSelector() },
-            enabled = jugadores.isNotEmpty(),
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd)) {
+        AppCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = jugadores.isNotEmpty()) {
+                    if (jugadores.isNotEmpty()) onAbrirSelector()
+                },
+            elevated = false,
+            includeContentPadding = false,
+            containerColor = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(
+                        horizontal = AcademiaDimens.paddingCardCompact,
+                        vertical = AcademiaDimens.paddingCardCompact + AcademiaDimens.gapMicro,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(AcademiaDimens.avatarResultRow)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
@@ -2852,7 +2658,7 @@ private fun FilaAnotadorResultadoUi(
                             Icons.Outlined.Person,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(AcademiaDimens.iconInset),
                         )
                     }
                 }
@@ -2877,7 +2683,7 @@ private fun FilaAnotadorResultadoUi(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(AcademiaDimens.iconSizeSm),
                 )
             }
         }
@@ -3072,8 +2878,11 @@ private fun PantallaResultadoPartido(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
                 topBar = {
@@ -3094,13 +2903,18 @@ private fun PantallaResultadoPartido(
                     )
                 },
                 bottomBar = {
-                    Surface(tonalElevation = 1.dp, shadowElevation = 3.dp) {
+                    Column(Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                         Row(
                             Modifier
                                 .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .navigationBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                .padding(
+                                    horizontal = AcademiaDimens.paddingScreenHorizontal,
+                                    vertical = AcademiaDimens.gapMd,
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
@@ -3120,37 +2934,36 @@ private fun PantallaResultadoPartido(
                     Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 0.dp, bottom = 12.dp),
+                        .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
+                    contentPadding = PaddingValues(bottom = AcademiaDimens.paddingCardCompact),
                 ) {
                     item {
-                        Surface(
-                            shape = RoundedCornerShape(22.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        AppTintedPanel(
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AcademiaDimens.radiusXl),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            contentPadding = PaddingValues(AcademiaDimens.paddingCard),
                         ) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text(
+                            Text(
+                                partido.rival.ifBlank { "—" },
+                                style = MaterialTheme.typography.headlineSmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                stringResource(
+                                    R.string.competitions_dialog_result_subtitle,
+                                    partido.jornada,
+                                    fecha,
                                     partido.rival.ifBlank { "—" },
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    stringResource(
-                                        R.string.competitions_dialog_result_subtitle,
-                                        partido.jornada,
-                                        fecha,
-                                        partido.rival.ifBlank { "—" },
-                                        partido.categoriaNombre,
-                                    ),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                                    partido.categoriaNombre,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                     item {
@@ -3246,7 +3059,7 @@ private fun PantallaResultadoPartido(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    item { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
+                    item { HorizontalDivider(Modifier.padding(vertical = AcademiaDimens.gapSm)) }
                     item {
                         Text(
                             stringResource(R.string.competitions_scorers_section),
@@ -3264,31 +3077,31 @@ private fun PantallaResultadoPartido(
                             etiquetaPlural,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(top = 4.dp),
+                            modifier = Modifier.padding(top = AcademiaDimens.gapSm),
                         )
                     }
                     items(filas, key = { it.key }) { fila ->
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        AppTintedPanel(
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AcademiaDimens.radiusXl),
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
                         ) {
-                            Column(Modifier.padding(12.dp)) {
-                                FilaAnotadorResultadoUi(
-                                    fila = fila,
-                                    jugadores = jugadores,
-                                    onAbrirSelector = { selectorFilaKey = fila.key },
-                                    onChange = { nuevo ->
-                                        val ix = filas.indexOfFirst { it.key == fila.key }
-                                        if (ix >= 0) filas[ix] = nuevo
-                                    },
-                                    onRemove = { filas.removeAll { it.key == fila.key } },
-                                )
-                            }
+                            FilaAnotadorResultadoUi(
+                                fila = fila,
+                                jugadores = jugadores,
+                                onAbrirSelector = { selectorFilaKey = fila.key },
+                                onChange = { nuevo ->
+                                    val ix = filas.indexOfFirst { it.key == fila.key }
+                                    if (ix >= 0) filas[ix] = nuevo
+                                },
+                                onRemove = { filas.removeAll { it.key == fila.key } },
+                            )
                         }
                     }
                     item {
-                        FilledTonalButton(
+                        PrimaryButton(
+                            text = stringResource(R.string.competitions_scorer_add),
                             onClick = {
                                 val nk = (filas.maxOfOrNull { it.key } ?: 0L) + 1L
                                 filas.add(
@@ -3300,17 +3113,14 @@ private fun PantallaResultadoPartido(
                                     ),
                                 )
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(22.dp))
-                                Spacer(Modifier.width(10.dp))
-                                Text(stringResource(R.string.competitions_scorer_add))
-                            }
-                        }
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AcademiaDimens.iconSizeSm),
+                                )
+                            },
+                        )
                     }
                     item {
                         if (avisoSuma) {
@@ -3323,14 +3133,14 @@ private fun PantallaResultadoPartido(
                     }
                     item {
                         err?.let { msg ->
-                            Surface(
+                            AppTintedPanel(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(AcademiaDimens.radiusMd),
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
                             ) {
                                 Text(
                                     msg,
-                                    modifier = Modifier.padding(12.dp),
                                     color = MaterialTheme.colorScheme.onErrorContainer,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -3453,7 +3263,6 @@ private fun PantallaResultadoPartido(
                 }
             }
         }
-    }
 
     if (mostrarCalendarioFecha || mostrarCalendarioAnticipoJugado) {
         val anticipo = mostrarCalendarioAnticipoJugado

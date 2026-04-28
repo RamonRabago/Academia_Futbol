@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
 import com.escuelafutbol.academia.data.local.entity.Jugador
 import com.escuelafutbol.academia.ui.util.coilFotoModel
 
@@ -66,7 +67,7 @@ fun AttendanceAlumnoResumenPicker(
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
     ) {
         Text(
             stringResource(R.string.attendance_student_picker_label),
@@ -74,12 +75,12 @@ fun AttendanceAlumnoResumenPicker(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 108.dp),
+            modifier = Modifier.widthIn(max = 120.dp),
         )
         if (jugadorSel != null) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(AcademiaDimens.avatarRow)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
@@ -95,7 +96,7 @@ fun AttendanceAlumnoResumenPicker(
                     Icon(
                         Icons.Outlined.Person,
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(AcademiaDimens.iconInset),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

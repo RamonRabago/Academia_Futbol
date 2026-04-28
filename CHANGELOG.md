@@ -4,7 +4,57 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ## [Sin publicar]
 
+### Cambiado
+
+- **Finanzas — pestañas y alumnos:** el **balance del mes** solo aparece en la pestaña **Resumen** (ya no queda fijo encima de las pestañas); la pestaña **Alumnos** muestra solo la lista con **AppCard** por alumno: nombre, categoría, columnas Esperado / Cobrado / Pendiente, **badge** de estado (Pagado / Pendiente / Sin registro / Becado) y acciones Editar o Registrar (`FinanzasScreen`, `strings.xml`). Sin cambios en `FinanzasViewModel` ni backend.
+- **Inicio — cumpleaños (fase 1/2 local):** tarjeta visual de **cumpleaños de hoy** en Inicio para padre y staff, usando `fechaNacimientoMillis` existente; padre ve solo hijos vinculados, staff respeta alcance visible (todas, categoría activa o categorías permitidas de coach). Se calcula día/mes local y, para staff, se muestra edad cuando hay dato. Se añadió acción directa en la tarjeta (**Felicitar** / **Enviar felicitación**) con mensaje prellenado: intenta abrir **WhatsApp** vía `wa.me` cuando hay teléfono compatible y, si no hay número o falla el intent, conserva fallback con `Toast`. Además se incorporó bloque **Próximos cumpleaños (7 días)** para anticipación en padre y staff (sin backend ni notificaciones) (`AcademiaRoot`, `InicioScreen`, `strings.xml`).
+- **Notificaciones locales — cumpleaños staff (fase 2):** `LocalEngagementNotificationWorker` ahora prioriza aviso **“Mañana cumple”** para staff cuando detecta alumnos con cumpleaños al día siguiente (comparación local de día/mes con `fechaNacimientoMillis`), respeta alcance de coach por categorías asignadas y evita duplicados por fecha en preferencias locales; abre Inicio al tocar la notificación (`LocalEngagementNotificationWorker`, `strings.xml`).
+- **Notificaciones locales — cumpleaños staff (fase 2):** además del aviso **“Mañana cumple”**, se añadió aviso **“🎉 Cumpleaños de hoy”** con mayor prioridad en el worker; formato: un alumno (`Hoy cumple Nombre · Categoría`) y varios (`Hoy cumplen Nombre y X más.`). Ambos respetan alcance por categorías permitidas del coach, usan deduplicación diaria por fecha objetivo en preferencias locales y abren Inicio al tocar (`LocalEngagementNotificationWorker`, `strings.xml`).
+- **Notificaciones locales — cumpleaños padre (fase 2):** para cuenta padre en nube, el worker emite aviso local cuando hoy cumple un hijo vinculado (`🎉 Hoy es el cumpleaños de Nombre` o `Hoy celebramos a Nombre y X más.`), resolviendo vínculos por `academia_padres_alumnos` vía repositorio existente + `remoteId` local de jugadores; deduplicación diaria independiente en prefs y deep link a Inicio (`LocalEngagementNotificationWorker`, `strings.xml`).
+- **Cumpleaños — fase 3 calendario en Inicio:** la tarjeta **Próximos cumpleaños** ahora funciona como calendario compacto (rango 7/30 días) con avatar/foto, nombre, categoría, fecha próxima y edad que cumplirá; ignora jugadores sin `fechaNacimientoMillis` y mantiene el alcance por rol/categoría ya filtrado en `AcademiaRoot` (padre: hijos vinculados; staff: alcance visible y categorías permitidas del coach) (`InicioScreen`, `AcademiaRoot`, `strings.xml`).
+- **Cumpleaños — tarjeta compacta en Inicio:** `Próximos cumpleaños` limita la vista inicial a 4 filas para evitar crecer demasiado; si hay más de 4 en el rango, muestra además `+X más`; desde la tarjeta se puede abrir la vista completa del módulo, sin scroll interno ni cambios en el cálculo de fechas (`InicioScreen`, `strings.xml`).
+- **Cumpleaños — acceso desde Inicio (`Ver calendario`):** la tarjeta `Próximos cumpleaños` muestra siempre **Ver calendario** cuando hay al menos un cumpleaños en el rango (7 o 30 días), para abrir **Cumpleaños del club** aunque no haya `+X más`; el título refleja el rango seleccionado (`birthday_upcoming_title_days`, `InicioScreen`, `strings.xml`).
+- **Cumpleaños — pantalla completa del club:** nueva vista `Cumpleaños del club` con secciones **Hoy**, **Próximos 7 días** y **Este mes**, filas con avatar, nombre, categoría, fecha y edad que cumple, ordenadas por fecha más cercana. Se abre desde `Inicio` al tocar `+X más`/`Ver todos` en la tarjeta de próximos cumpleaños, evitando saturar la pantalla principal (`CumpleanosClubScreen`, `InicioScreen`, `AcademiaRoot`, `strings.xml`).
+
+### Corregido
+
+- **Finanzas — pestañas:** «Alumnos» / «Nómina» no respondían al toque: el contenido con `weight` quedaba encima en el orden de dibujo y el área táctil de cada pestaña era demasiado estrecha; bloque pestañas+alcance+acciones con **`zIndex` alto**, contenido de pestaña con **`zIndex` 0**, y cada pestaña en un **`Box`** ancho con **`heightIn(min = 48.dp)`** + `clickable` (`FinanzasScreen`).
+
+### Cambiado
+
+- **Finanzas (`FinanzasScreen`):** el **balance del mes** pasa justo debajo del encabezado (mes); luego pestañas, **Alcance** con chips y **Acciones** con prellenado en `OutlinedButton` más bajo; pestañas más compactas en altura; sin cambios en `FinanzasViewModel` ni cálculos.
+
+- **Novedades (`ContenidoScreen`):** cabecera más compacta (título + subtítulo en una línea); eliminados paneles/secciones introductorias de filtros y feed; **ChipsGroup** con atajos Todas / Avisos (tema noticia) / Fotos (tema entrenamiento) / Pendientes (solo staff); hoja de filtros avanzados sin cambios; **FAB** pequeño y **padding inferior** del listado para no solapar tarjetas; tarjeta con título más grande y estado pendiente/rechazado en **badge** (`strings.xml`).
+
+### Corregido
+
+- **Competencias — resumen staff:** las etiquetas de las tres celdas (p. ej. «Categorías inscritas») se truncaban en una línea por la altura fija y el centrado vertical del bloque; icono + cifra arriba, etiqueta al pie con espacio para **dos líneas**, centrada y `Ellipsis` solo si aún no cabe (`CompetenciaListaCards`).
+
+### Cambiado
+
+- **Estadísticas — asistencia:** el % y los «días con lista» usan el **mismo mes calendario** que «Cobros del mes elegido» (antes mezclaban todo el histórico de `dias_entrenamiento`, lo que podía chocar con el resumen mensual de Asistencia); subtítulo de la sección indica el mes (`StatsViewModel`, `StatsScreen`, `strings.xml`).
+
+- **Estadísticas — asistencia (claridad):** título con mes explícito (p. ej. «Asistencia (abril 2026)»), subtítulo que enlaza con el selector de economía y frase bajo el % «Solo días marcados como entrenamiento en este mes» (`StatsScreen`, `strings.xml`).
+
+- **Hub de equipo (`EquipoHubScreen`):** `SectionHeader`, `AppCard` (destinos en lugar de `OutlinedCard`), `EmptyState` y `AppTintedPanel` (ayuda si no hay destinos), espaciados con `AcademiaDimens`; textos de vacío en `strings.xml`. Sin cambios en ViewModel ni permisos.
+
+- **Selector de categoría (`CategoriaSelectionScreen`):** `AppCard` (tarjeta «Todas» con borde primario y filas por categoría), `AppTintedPanel` (carga de membresía, avisos coach), `SectionHeader`, `PrimaryButton` (entrar / guardar categoría nueva), `EmptyState` (lista vacía o coach sin asignación), espaciados con `AcademiaDimens`; tokens `categoryPickerHeroHeight` y `categoryPickerCardImageHeight` (`AcademiaDesignTokens`, `strings.xml`). Sin cambios en `CategoriaPickerViewModel` / `SessionViewModel` ni lógica de selección.
+
+- **Academia (`AcademiaScreen`):** UI alineada al design system (`AppCard`, `AppTintedPanel`, `SectionHeader` en hub y vista padre, `PrimaryButton`, `EmptyState`, `AcademiaDimens`); menú de ajustes y detalles sin `OutlinedCard`/`Card` de contenedor; invitaciones, identidad, mensualidad, equipo, diálogo de staff y vista padre nube con copy más breve donde aplica (`strings.xml`). Sin cambios en ViewModels ni backend.
+
 ### Añadido
+
+- **Jugadores — detalle:** iconos junto a teléfono y email del tutor para abrir **WhatsApp** (`wa.me` con dígitos del número) y el cliente de **correo** (`ACTION_SENDTO` / `mailto`); solo si hay dato válido; sin cambios en ViewModel ni backend (`JugadorDetalleScreen`, `strings.xml`).
+
+- **Notificaciones locales (etapa 1):** tres canales (próximo partido, aviso, recordatorio), `LocalNotificationPublisher` con título, texto y `PendingIntent` a `MainActivity` y `extra_nav_route`; `MainActivity` unifica deep link con push; FCM admite `nav_route` en `data`; recordatorio periódico con **WorkManager** (24 h, espaciado mín. 30 h en prefs) que rota mensajes padre/staff hacia Competencias, Padres, Asistencia, etc. (`notification/`, `AcademiaFcmMessagingService`, `build.gradle.kts`, `strings.xml`).
+
+- **Notificaciones padre con datos reales:** `ParentRealNotificationCoordinator` + `LaunchedEffect` en `ParentsPadreConHijosContent`: próximo partido (rival + fecha) desde `rendimientoCompPadrePorJugador` con dedup por huella en prefs por academia; aviso nuevo al crecer el último mensaje por `createdAt`/`id` (primera carga solo fija baseline). El worker genérico ya **no** notifica a padres en nube (`LocalEngagementNotificationWorker`).
+
+- **Onboarding primer uso:** pantalla de bienvenida solo la primera vez por cuenta (`SharedPreferences` vía `OnboardingPreferences`); guías en **Inicio** (staff sin categorías / sin jugadores) con `AppTintedPanel` y accesos a Academia y Jugadores; estado vacío en **Padres** con `AppCard` y `SectionHeader` para tutor sin hijos vinculados (`WelcomeFirstLaunchScreen`, `AcademiaRoot`, `InicioScreen`, `ParentsScreen`, `EmptyChildrenState`, `strings.xml`).
+
+- **Onboarding — UX bienvenida:** scroll desde arriba (evita `Center` + scroll en pantallas bajas), `navigationBarsPadding` y padding inferior extra para que **Comenzar** no quede bajo la barra de gestos (`WelcomeFirstLaunchScreen`).
+
+- **Onboarding — atrás:** `BackHandler` en bienvenida ejecuta la misma lógica que **Comenzar** (marca completado y cierra) para no quedar atrapado (`WelcomeFirstLaunchScreen`).
 
 - **Distribución (WhatsApp):** historial de APK release en **`docs/APK_REVISIONES_WHATSAPP.md`**; entrada 2026-04-23 — v1.0.2 (code 3), commit `213593b`, `assembleRelease` (~17,4 MB).
 
@@ -13,6 +63,40 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 - **Estadísticas — economía por categoría:** bloque con **ingreso mensual estimado (ficha)**, orden por estimado, barra comparativa, resumen de **cuatro categorías destacadas** (mayor estimado, mayor cobrado del mes, mayor adeudo del mes, más becados) y textos que distinguen estimado vs cobros reales; si no hay filas en `cobros_mensuales_alumno`, aviso claro y sin columnas de cobrado/adeudo (`StatsViewModel`, `StatsEconomia`, `StatsScreen`, `strings.xml`).
 
 ### Cambiado
+
+- **Novedades / Contenido (`ContenidoScreen`):** lista, estados (carga, vacío, error con reintentar), hoja de filtros y diálogo de publicar con `AppCard`, `AppTintedPanel`, `SectionHeader`, `ChipsGroup`, `EmptyState`, `PrimaryButton` y `AcademiaDimens`; intro breve en panel tintado; feed, editor, carrusel y diálogos usando tokens dedicados y `dividerThickness`; sin cambios en `ContenidoViewModel` ni backend (`strings.xml`, `AcademiaDesignTokens`).
+
+- **Estadísticas (`StatsScreen`, `StatsCards`, `StatsEconomiaDashboard`):** UI alineada al design system (`AppCard`, `AppTintedPanel`, `SectionHeader`, `ChipsGroup`, `EmptyState`, `AcademiaDimens`); tarjetas de métricas unificadas; filas de economía sin `Surface`; bloqueo padre nube con `EmptyState`; copy con «entrenamiento» más breve (`strings.xml`). Token `statsMetricTileHeight` en `AcademiaDesignTokens`. Sin cambios en `StatsViewModel` ni cálculos.
+
+- **Finanzas (`FinanzasScreen`):** UI alineada al design system (`AppCard`, `AppTintedPanel`, `SectionHeader`, `ChipsGroup`, `EmptyState`, `PrimaryButton`, `AcademiaDimens`); alcance con chips (toda la academia + categorías) sin diálogo; pestañas en panel tintado; vacío de alumnos con `EmptyState`; copy más corto y términos «Cobrado», «Mensualidad esperada», «Adeudo» (`strings.xml`). Sin cambios en `FinanzasViewModel` ni backend.
+
+- **Asistencia (`AttendanceScreen`):** UI alineada al design system (`AppCard`, `AppTintedPanel`, `SectionHeader`, `ChipsGroup`, `EmptyState`, `AcademiaDimens`); carga breve antes de vacío sin alumnos; aviso de presentes sin «día de entrenamiento» en panel tintado; resumen en `AttendanceSummaryCard` con `AppCard` elevado, chips de período en `ChipsGroup`, selector de año en `AppTintedPanel` y vacío de datos con `EmptyState`; copy «entrenamiento» en subtítulo del interruptor (`strings.xml`). Sin cambios en ViewModel ni backend.
+
+- **Padres — avisos del club (historial):** lista completa con filtros por **categoría** y **tipo** (`ChipsGroup`), tarjetas `AppCard` con prioridad visual (tipo → importante/normal/informativo), estado **leído/no leído** (persistencia local en `ParentsViewModel` + prefs), detalle en diálogo y **Entendido** para marcar leído (`ParentsClubNoticesSection`, `ParentsPadreConHijosContent`, `ParentsViewModel`, `strings.xml`).
+
+- **Academia — Padres y tutores (`AcademiaMiembrosAdminScreen`):** UI alineada al design system (`AppCard`, `AppTintedPanel`, `SectionHeader`, `ChipsGroup`, `EmptyState`, `AcademiaDimens`); ayuda breve + «Ver ayuda» con el texto largo anterior; filtro «Filtrar por categoría»; tarjetas con jerarquía clara, badge Activo/Inactivo, fila «Acceso» con switch compacto y menú ⋮ (cambiar rol, gestionar vínculos, quitar del club); sin cambios en ViewModel ni RPC (`strings.xml`).
+
+- **Jugadores — detalle:** sección **Registro** (`AppCard` + `SectionHeader`) bajo Información: fecha de alta, registrado por (solo si hay nombre o UID de alta) y estado activo/baja con fecha si aplica (`JugadorDetalleScreen`, `strings.xml`).
+
+- **Jugadores — detalle (CRM):** nueva `JugadorDetalleScreen` (perfil, edad si aplica, datos en `AppCard`, acciones a Asistencia/Finanzas/Estadísticas vía `onNavigateToMainTab` en `AcademiaRoot`); tocar nombre/categoría en la tarjeta abre el detalle; **Editar** llama a `abrirEdicionJugador` y cierra el detalle; FAB «Nuevo jugador» sin cambios (`PlayersScreen`, `strings.xml`).
+
+- **Jugadores — formulario alta/edición:** cabecera «Nuevo jugador»; **avatar grande** centrado con **FAB cámara**; hoja inferior **Galería / Cámara / Quitar** (sin botones duplicados); bloques en **`AppCard`** + `SectionHeader` (datos, documentos, contacto); **`PrimaryButton`** Guardar y **`TextButton`** Cancelar; espaciado con **`AcademiaDimens`** y token **`avatarFormHero`** (`PlayersScreen`, `AcademiaDesignTokens`, `strings.xml`).
+
+- **Copy — entrenamiento(s):** textos de la app unificados a «entrenamiento / entrenamientos» (hints de Inicio, notificaciones locales, mensaje de resumen de asistencia); clave de string `attendance_summary_no_data_without_training_day` sustituye a `attendance_summary_no_data_entreno` (`strings.xml`, `AttendanceSummaryCard`).
+
+- **Notificaciones padre (dedup y anti-spam):** prefs `academia_real_notif_v2_*` con `last_notified_match_id` (huella estable si no hay id remoto en UI) y `last_notified_notice_id` (más marca temporal interna para orden); un solo `LaunchedEffect` llama a `evaluate` (prioridad aviso sobre partido; como mucho un envío por recomposición); hueco mínimo de 1 h entre dos notificaciones reales (tiempo de pared); **como mucho una notificación real por sesión de proceso** (`AtomicBoolean` en `ParentRealNotificationCoordinator`, sin prefs).
+
+- **Padres (vista tutor con hijos):** lista con `SectionHeader` + `AcademiaDimens`; tarjeta de hijo en `AppCard`; al expandir: `AcademiaContextBanner` (nombre · categoría), `AppCard` de resumen (asistencia, goles, partidos recientes), próximo partido con `AppCard` elevado, bloque de rendimiento con `SectionHeader` + resultados G/E/P, entrenamientos y pagos con `AppTintedPanel` / `SectionHeader`; avisos del club al final en `AppCard` con máximo 2 mensajes y «Ver más»; accesos de navegación (Inicio + pestañas del menú) con `PrimaryButton` + `OutlinedButton` (`ParentsPadreConHijosContent`, `ChildExpandedContent`, `LinkedChildCard`, `ParentsClubNoticesSection`, `ParentsChildPerformanceSection`, `ParentsScreen`, `AcademiaRoot`, `PadresNavegacionAtajoUi`, `strings.xml`).
+
+- **Inicio (vista padre) — pulido UX:** overlay oscuro suave en la portada; saludo de sesión opcional sobre el hero; CTA principal antes de la tarjeta con copy más claro; nombre del club algo más contenido para no competir con el botón; atajos con icono en contenedor circular y alto mínimo de fila; token `homeShortcutIconContainer` (`InicioScreen`, `strings.xml`, `AcademiaDesignTokens`).
+
+- **Inicio (vista padre y staff):** cabecera con tokens de altura/logo; bloque principal en **`AppCard`** con **`SectionHeader`**, **`AcademiaContextBanner`** (alcance familia), **`AppTintedPanel`** (categoría staff e indicación padres), selector de portada en **`AppCard`**; **`PrimaryButton`** «Abrir Padres» cuando aplica (sin duplicar la tarjeta en atajos); atajos con **`AppCard`** elevada y sección con **`SectionHeader`**; textos más cercanos en `strings.xml` (`InicioScreen`, `AcademiaDesignTokens`).
+
+- **Competencias — design system:** sustitución de `Surface` / `OutlinedCard` / `FilledTonalButton` por `AppCard`, `AppTintedPanel`, `PrimaryButton` y tokens `AcademiaDimens`; colores de resultado de partido y chips de estado alineados al `ColorScheme` (`CompetenciasScreen`, `CompetenciaListaCards`, `NuevaCompetenciaScreen`, `AppCard`, `PrimaryButton`, `AppTintedPanel`, `AcademiaDesignTokens`).
+
+- **Competencias (padre):** filtro **por hijo** con **foto circular** en cada chip (`coilFotoJugadorModel`, `AcademiaDimens.iconSizeMd`, icono persona si no hay foto), alineado a Inicio y a la cabecera de hijo en Padres (`CompetenciasScreen`).
+
+- **Competencias — tarjetas de lista:** toque en la **zona compacta** abre el **detalle**; **«+N»** o **«Ver más»** expanden; **«Ver menos»** colapsa (sin paso intermedio «Ver competencia») (`CompetenciaListaCards`, `strings.xml`).
 
 - **Competencias — detalle partidos:** bloque superior con **categoría activa** (chip destacado o selector **Todas** + categorías), **resumen** (jugados / victorias / empates / derrotas / pendientes) y **Registrar partido** como `Button` principal; lista filtrada **solo en UI** por categoría; mensaje si el filtro no tiene partidos (`CompetenciasScreen`, `strings.xml`).
 
@@ -56,25 +140,25 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 
 - **Barra inferior (Inicio / Padres / Academia):** el fondo del tab activo usa **`primaryContainer`**, derivado del **color primario** de la academia en la paleta, en lugar del tinte sobre **`secondaryContainer`** (`AcademiaRoot`).
 
-- **Padres — densidad vertical (solo layout):** menos padding/márgenes en contenedor de pestaña, `LazyColumn`, tarjeta de hijo expandida y bloques (próximo partido, competiciones, entrenos, adeudos, hint); filas de asistencia y chips algo más compactos (`ParentsScreen`, `ParentsPadreConHijosContent`, `LinkedChildCard`, `ChildExpandedContent`, `ParentsChildPerformanceSection`, `AttendanceSection`, `DebtSection`, `ChildHeaderRow`).
+- **Padres — densidad vertical (solo layout):** menos padding/márgenes en contenedor de pestaña, `LazyColumn`, tarjeta de hijo expandida y bloques (próximo partido, competiciones, entrenamientos, adeudos, hint); filas de asistencia y chips algo más compactos (`ParentsScreen`, `ParentsPadreConHijosContent`, `LinkedChildCard`, `ChildExpandedContent`, `ParentsChildPerformanceSection`, `AttendanceSection`, `DebtSection`, `ChildHeaderRow`).
 
 - **Padres — insets anidados y cabecera:** el `Scaffold` interno usa **`contentWindowInsets` vacíos** (como Recursos) para no duplicar hueco respecto al `Scaffold` de `AcademiaRoot`; título de pestaña **«PADRES»** centrado en mayúsculas; `LazyColumn` con menos **padding superior/inferior** (`ParentsScreen`, `ParentsPadreConHijosContent`).
 
 - **Copy padres (MX):** competiciones «rendimiento reciente del equipo»; «Entrenamientos» en títulos y asistencia; frase de goles con singular en ventana de 1 partido (`strings.xml`, `ParentsChildPerformanceSection`).
 
-- **Padres — tarjeta expandida (acabado visual):** tipografía y espaciado alineados entre bloques; **estados vacíos** unificados (`ParentBlockEmptyState`) en competiciones, resultados recientes, entrenos y pagos; sección **Pagos** con cabecera propia; chips de asistencia y superficies algo más suaves; hint final más ligero (`ParentsChildPerformanceSection`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `strings.xml`).
+- **Padres — tarjeta expandida (acabado visual):** tipografía y espaciado alineados entre bloques; **estados vacíos** unificados (`ParentBlockEmptyState`) en competiciones, resultados recientes, entrenamientos y pagos; sección **Pagos** con cabecera propia; chips de asistencia y superficies algo más suaves; hint final más ligero (`ParentsChildPerformanceSection`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `strings.xml`).
 
-- **Padres — tarjeta expandida del hijo (solo UX):** orden fijo **próximo partido → competiciones → entrenos → adeudos → desvincular**; **Próximo partido** en `ElevatedCard` con barra de acento y más jerarquía; secciones con **títulos y subtítulos**; entrenos separados de ligas; hint en contenedor suave al final (`ParentsChildPerformanceSection`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `strings.xml`).
+- **Padres — tarjeta expandida del hijo (solo UX):** orden fijo **próximo partido → competiciones → entrenamientos → adeudos → desvincular**; **Próximo partido** en `ElevatedCard` con barra de acento y más jerarquía; secciones con **títulos y subtítulos**; entrenamientos separados de ligas; hint en contenedor suave al final (`ParentsChildPerformanceSection`, `ChildExpandedContent`, `AttendanceSection`, `DebtSection`, `strings.xml`).
 
-- **Padres (rol tutor en nube):** al expandir un hijo, bloque de **rendimiento**: **próximo partido** (rival, fecha, hora, sede, liga), **resumen compacto** (goles en ligas desde Supabase + **% asistencia a entrenos** desde Room), **últimos resultados del equipo** (G/E/P, máx. 5) y texto **«marcó en X de los últimos Y»**; lista de entrenos recortada a **5** fechas con leyenda de histórico. Cálculo solo lectura vía `AcademiaCompetenciasRepository` + `ParentsRendimientoComputo` (`ParentsViewModel`, `ParentsScreen`, `ParentsPadreConHijosContent`, `ParentsChildPerformanceSection`, `ChildExpandedContent`, `LinkedChildCard`, `strings.xml`).
+- **Padres (rol tutor en nube):** al expandir un hijo, bloque de **rendimiento**: **próximo partido** (rival, fecha, hora, sede, liga), **resumen compacto** (goles en ligas desde Supabase + **% asistencia a entrenamientos** desde Room), **últimos resultados del equipo** (G/E/P, máx. 5) y texto **«marcó en X de los últimos Y»**; lista de entrenamientos recortada a **5** fechas con leyenda de histórico. Cálculo solo lectura vía `AcademiaCompetenciasRepository` + `ParentsRendimientoComputo` (`ParentsViewModel`, `ParentsScreen`, `ParentsPadreConHijosContent`, `ParentsChildPerformanceSection`, `ChildExpandedContent`, `LinkedChildCard`, `strings.xml`).
 
 - **Competencias — Inscripciones (padre):** pestaña con **tarjetas por hijo** vinculado: nombre del alumno, texto «Tu hijo juega en:», **equipo**, **categoría** y **liga o competencia** con etiquetas claras; **staff** conserva la lista técnica anterior. Asociación hijo ↔ inscripción solo por **presentación**: categoría del `Jugador` en Room normalizada = `categoria_nombre` de la inscripción (`CompetenciasScreen`, `CompetenciasViewModel`, `strings.xml`).
 
 ### Corregido
 
-- **Asistencia — «Día de entrenamiento» al volver a una fecha:** si la marca se guardó con **categoría concreta** en el menú y después el filtro global pasa a **«todas las categorías»**, el interruptor y el resumen ignoraban filas con `scopeKey` no vacío. Ahora la vista «todas» trata como entreno cualquier marca de ese día de calendario (`DiaEntrenamientoReglas.diaMarcadoComoEntrenamiento`, `AttendanceViewModel.esDiaEntrenamientoMarcado`).
+- **Asistencia — «Día de entrenamiento» al volver a una fecha:** si la marca se guardó con **categoría concreta** en el menú y después el filtro global pasa a **«todas las categorías»**, el interruptor y el resumen ignoraban filas con `scopeKey` no vacío. Ahora la vista «todas» trata como día de entrenamiento cualquier marca de ese día de calendario (`DiaEntrenamientoReglas.diaMarcadoComoEntrenamiento`, `AttendanceViewModel.esDiaEntrenamientoMarcado`).
 
-- **Asistencia — resumen al final y aviso:** la lista y el resumen van en **un solo** `LazyColumn` (scroll continuo), `navigationBarsPadding` y aviso si hay **presentes** pero el día **no** está como entreno; **«Marcar todos presentes»** (y variante visible) **activa también** el día de entrenamiento para que el resumen cuente (`AttendanceScreen`, `AttendanceViewModel`, `strings.xml`).
+- **Asistencia — resumen al final y aviso:** la lista y el resumen van en **un solo** `LazyColumn` (scroll continuo), `navigationBarsPadding` y aviso si hay **presentes** pero el día **no** está como día de entrenamiento; **«Marcar todos presentes»** (y variante visible) **activa también** el día de entrenamiento para que el resumen cuente (`AttendanceScreen`, `AttendanceViewModel`, `strings.xml`).
 
 - **Logo del club en la cabecera tras binding con reintentos:** Coil podía no volver a descargar la misma URL si la primera petición falló o quedó «atascada» hasta un pull manual. Tras cada binding exitoso se incrementa una generación y la petición del logo usa otra clave de memoria (`AcademiaBrandingImageReload`, `CoilAcademyImages.kt`, `AcademiaBindingViewModel`).
 
@@ -134,7 +218,7 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 
 - **Padres (Fase 4 — vínculo tutor ↔ alumno):** política RLS **`padres_alumnos_delete_parent_own`** para que el tutor elimine **solo su fila** en `academia_padres_alumnos` (varios tutores por alumno sin límite en esta fase); pantalla **Padres** con **desvincular** por hijo (confirmación), **vincular otro hijo** reutilizando candidatos por email, y refresco de ids de vínculo (`ParentsViewModel`, `ParentsScreen`, `PadresAlumnosRepository`, migración `20260521140000_padres_alumnos_delete_parent_own.sql`, `strings.xml`).
 
-- **Asistencia — más clara y compacta:** cabecera con **título y fecha en una fila**; interruptor de entreno con **icono de ayuda** (textos largos en diálogo); selector **«Ver resumen de»** en línea con el desplegable y avatar más pequeño; **resumen** con chips Mes/Año, **% y barra de progreso en la misma zona visual**, textos de alcance y nota al pie tras **información** en diálogo (`AttendanceScreen`, `AttendanceSummaryCard`, `AttendanceAlumnoResumenPicker`, `strings.xml`).
+- **Asistencia — más clara y compacta:** cabecera con **título y fecha en una fila**; interruptor de día de entrenamiento con **icono de ayuda** (textos largos en diálogo); selector **«Ver resumen de»** en línea con el desplegable y avatar más pequeño; **resumen** con chips Mes/Año, **% y barra de progreso en la misma zona visual**, textos de alcance y nota al pie tras **información** en diálogo (`AttendanceScreen`, `AttendanceSummaryCard`, `AttendanceAlumnoResumenPicker`, `strings.xml`).
 
 - **Build release para compartir APK:** el tipo `release` usa la misma **firma *debug*** del SDK (`signingConfig = debug`), de modo que `assembleRelease` genera un **`app-release.apk` firmado** e instalable fuera de Play Store (p. ej. WhatsApp). **No** sustituye un keystore de publicación en tienda (`app/build.gradle.kts`).
 
@@ -229,7 +313,7 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 
 - **Recursos — imágenes tipo blog:** foto de **portada opcional** al publicar (galería → subida a Storage `academia-media` con ruta `{uid}/{academiaId}/contenido/…`), columna **`imagen_url`** en Supabase; tarjetas y detalle con vista tipo **artículo** (`ContenidoScreen`, `ContenidoViewModel`, migración `20260502120000_academia_contenido_imagen_url.sql`).
 
-- **Recursos por categoría:** pestaña **Recursos** (contenido educativo: noticias, entreno, nutrición, ejercicio, bienestar, otros), filtros por **tema**, publicación con categoría destino y **quitar del listado** (archivo en nube). Tabla Supabase **`academia_contenido_categoria`**, RLS alineado con avisos a padres (`AcademiaContenidoCategoriaRepository`, `ContenidoScreen`, `AcademiaRoot`). Documento de seguimiento **`docs/APP_CONSTRUCCION.md`**.
+- **Recursos por categoría:** pestaña **Recursos** (contenido educativo: noticias, entrenamiento, nutrición, ejercicio, bienestar, otros), filtros por **tema**, publicación con categoría destino y **quitar del listado** (archivo en nube). Tabla Supabase **`academia_contenido_categoria`**, RLS alineado con avisos a padres (`AcademiaContenidoCategoriaRepository`, `ContenidoScreen`, `AcademiaRoot`). Documento de seguimiento **`docs/APP_CONSTRUCCION.md`**.
 
 - **Asistencia — resumen visual del período:** modo **Mes** / **Año** con botones **relleno + contorno** (queda claro cuál está activo), texto que explica el alcance (mes del día de la cabecera vs año natural), **días distintos con lista**, porcentaje grande y **barra de progreso lineal** Material; año en franja con flechas (`AsistenciaResumenUi.diasConRegistro`, `AttendanceSummaryCard`).
 - **Asistencia — resumen por alumno:** lista desplegable **«Ver resumen de»** (todo el equipo o un jugador); el mismo resumen mes/año se filtra a sus marcas (`AttendanceAlumnoResumenPicker`, `focoResumenJugadorId`, `AsistenciaResumenUi.nombreAlumnoFoco`).
@@ -248,7 +332,7 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 
 - **Icono del launcher:** primer plano del icono adaptativo con el **arte tipo clipboard / deportes** aportado (PNG en `drawable-nodpi/ic_launcher_foreground.png`); fondo **azul oscuro** (`ic_launcher_background`); se elimina el vector genérico anterior.
 
-- **Asistencia y estadísticas — conteo de sesiones:** textos de **días con lista** / **días de entreno** y **asistencia media** aclaran que el criterio son los días marcados como entrenamiento (`strings.xml`, `AttendanceSummaryCard`, `StatsScreen`).
+- **Asistencia y estadísticas — conteo de sesiones:** textos de **días con lista** / **días de entrenamiento** y **asistencia media** aclaran que el criterio son los días marcados como entrenamiento (`strings.xml`, `AttendanceSummaryCard`, `StatsScreen`).
 
 - **Finanzas — prellenado de cobros:** el mes visible se **rellena solo** con las cuotas de ficha (misma regla que el botón) al cambiar **mes**, **alcance** (toda la academia / categoría) o **ficha de jugadores** (alta, becado, mensualidad, etc.); el botón sigue sirviendo para **forzar** una pasada manual (`FinanzasViewModel`).
 
@@ -296,7 +380,7 @@ Revisión lista para compartir por WhatsApp: APK **release** (`assembleRelease`)
 
 - **Push FCM:** dependencias Firebase Messaging, `google-services` (copia automática desde `google-services.json.example` si no existe `google-services.json`), `AcademiaFcmMessagingService`, registro de token vía RPC `register_fcm_token`, permiso `POST_NOTIFICATIONS`, navegación a pestaña **Padres** al tocar la notificación. Edge Function **`send-academia-mensaje-push`** (FCM HTTP v1) + guía **`docs/PUSH_FCM_SETUP.md`** (Firebase, secretos, webhook INSERT en `academia_mensajes_categoria`). SQL **`user_fcm_tokens`**, RPC **`parent_user_ids_for_categoria_mensaje`** (solo `service_role`).
 
-- **Padres — avisos por categoría (nube):** tabla Supabase **`academia_mensajes_categoria`**, RLS para que **padres** lean solo mensajes de categorías donde tienen hijo vinculado (`academia_padres_alumnos` + `jugadores.categoria`); **dueño/admin/coordinador** publican a cualquier categoría; **coach** solo a categorías asignadas (`academia_miembro_categorias`). Tipos: partido/entreno, convivio/logística, administrativo, otro. App: envío y lista en pestaña **Padres** (staff); bandeja con filtros y **Actualizar** para padres (`20260428120000_academia_mensajes_categoria.sql`, `AcademiaMensajesCategoriaRepository`, `ParentsViewModel`, `ParentsScreen`, `AcademiaRoot`).
+- **Padres — avisos por categoría (nube):** tabla Supabase **`academia_mensajes_categoria`**, RLS para que **padres** lean solo mensajes de categorías donde tienen hijo vinculado (`academia_padres_alumnos` + `jugadores.categoria`); **dueño/admin/coordinador** publican a cualquier categoría; **coach** solo a categorías asignadas (`academia_miembro_categorias`). Tipos: partido/entrenamiento, convivio/logística, administrativo, otro. App: envío y lista en pestaña **Padres** (staff); bandeja con filtros y **Actualizar** para padres (`20260428120000_academia_mensajes_categoria.sql`, `AcademiaMensajesCategoriaRepository`, `ParentsViewModel`, `ParentsScreen`, `AcademiaRoot`).
 
 - **Pull-to-refresh (deslizar hacia abajo):** en el contenido principal (pestañas y selector de categoría) dispara **sincronización con Supabase** al instante, sin esperar el intervalo automático de 70 s (`CloudSyncViewModel.requestManualSync`, `PullToRefreshBox` en `AcademiaRoot`, `pull_to_refresh_cd` en `strings.xml`).
 
