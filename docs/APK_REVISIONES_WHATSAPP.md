@@ -12,6 +12,7 @@ Tras cada generación que vaya a pruebas o reparto, añade una fila a la tabla i
 
 | # | Fecha (local) | Versión (`versionName` / code) | Commit | Tamaño (bytes) | Notas |
 |---|----------------|----------------------------------|--------|----------------|--------|
+| 3 | 2026-04-28 | 1.0.2 / 3 | `186c0ef` | 17867045 (~17,0 MiB) | `assembleRelease` tras módulo Cumpleaños (tarjetas Inicio, calendario completo y notificaciones locales). |
 | 2 | 2026-04-24 | 1.0.2 / 3 | `d421848` | 17796209 (~17,0 MiB) | `assembleRelease` (firma debug). Mismo `versionCode` que rev. 1; reinstalar o desinstalar antes si el dispositivo ya tenía la anterior. |
 | 1 | 2026-04-23 | 1.0.2 / 3 | `213593b` | 17451676 (~16,6 MiB) | Build tras commit de UI (competencias, estadísticas, asistencia, padres, etc.). Copiar `app-release.apk` desde la ruta de salida indicada arriba. |
 
