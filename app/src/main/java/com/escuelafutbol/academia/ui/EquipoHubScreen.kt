@@ -60,9 +60,9 @@ fun EquipoHubScreen(
             .verticalScroll(rememberScrollState())
             .padding(
                 horizontal = AcademiaDimens.paddingScreenHorizontal,
-                vertical = AcademiaDimens.paddingCardCompact,
+                vertical = AcademiaDimens.gapSm,
             ),
-        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
     ) {
         SectionHeader(
             title = stringResource(R.string.team_hub_title),

@@ -6,6 +6,24 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/). L
 
 ### Cambiado
 
+- **Academia — códigos de invitación (lista principal):** se **quita la segunda `TopAppBar`** del `Scaffold` (evita franja vacía bajo la cabecera global); la fila **atrás + título** pasa a ser el **primer ítem** del `LazyColumn` (~48 dp de alto + divisor). Detalle de ajustes: **`contentPadding` vertical 0** en subpantallas, **`spacedBy(gapSm)`** entre filas, sin `navigationBarsPadding` duplicado (`AcademiaScreen`).
+
+- **Finanzas (`FinanzasScreen`):** listado en **un solo `LazyColumn`** con scroll unificado; **sin `navigationBarsPadding()`** duplicado, **`contentPadding` 0** y **`spacedBy(gapMd)`** entre ítems para **más filas visibles** y menos franja vacía sobre la barra inferior.
+
+- **Competencias (`CompetenciasScreen`):** lista y detalle con **`contentWindowInsets = WindowInsets(0)`** en el `Scaffold` interno (alineado a Finanzas / códigos de invitación); lista con **`LazyColumn` a `weight(1f)`**, **`spacedBy(gapMd)`** y **menos `contentPadding` inferior** para ganar área útil.
+
+### Añadido
+
+- **Login:** icono en el campo **contraseña** para **mostrar u ocultar** el texto (`Visibility` / `VisibilityOff`, `rememberSaveable`, `strings.xml`).
+
+### Corregido
+
+- **Jugadores — padre en nube (ruta defensiva):** el bloqueo alineado con Asistencia/Estadísticas usa **`EmptyState`** (título + cuerpo) y padding horizontal **`AcademiaDimens`**, en lugar de un solo `Text` centrado (`PlayersScreen`).
+- **Login:** botón principal sustituido por **`PrimaryButton`** (altura y progreso coherentes con el resto de la app) y márgenes del formulario con **`AcademiaDimens`** (`LoginScreen`).
+- **Academia — vista padre en nube:** el scroll principal usa el mismo **padding horizontal estándar** que el resto de pantallas (se quitó el extra `+ gapMd`) (`AcademiaScreen`).
+
+### Cambiado
+
 - **Finanzas — pestañas y alumnos:** el **balance del mes** solo aparece en la pestaña **Resumen** (ya no queda fijo encima de las pestañas); la pestaña **Alumnos** muestra solo la lista con **AppCard** por alumno: nombre, categoría, columnas Esperado / Cobrado / Pendiente, **badge** de estado (Pagado / Pendiente / Sin registro / Becado) y acciones Editar o Registrar (`FinanzasScreen`, `strings.xml`). Sin cambios en `FinanzasViewModel` ni backend.
 - **Inicio — cumpleaños (fase 1/2 local):** tarjeta visual de **cumpleaños de hoy** en Inicio para padre y staff, usando `fechaNacimientoMillis` existente; padre ve solo hijos vinculados, staff respeta alcance visible (todas, categoría activa o categorías permitidas de coach). Se calcula día/mes local y, para staff, se muestra edad cuando hay dato. Se añadió acción directa en la tarjeta (**Felicitar** / **Enviar felicitación**) con mensaje prellenado: intenta abrir **WhatsApp** vía `wa.me` cuando hay teléfono compatible y, si no hay número o falla el intent, conserva fallback con `Toast`. Además se incorporó bloque **Próximos cumpleaños (7 días)** para anticipación en padre y staff (sin backend ni notificaciones) (`AcademiaRoot`, `InicioScreen`, `strings.xml`).
 - **Notificaciones locales — cumpleaños staff (fase 2):** `LocalEngagementNotificationWorker` ahora prioriza aviso **“Mañana cumple”** para staff cuando detecta alumnos con cumpleaños al día siguiente (comparación local de día/mes con `fechaNacimientoMillis`), respeta alcance de coach por categorías asignadas y evita duplicados por fecha en preferencias locales; abre Inicio al tocar la notificación (`LocalEngagementNotificationWorker`, `strings.xml`).

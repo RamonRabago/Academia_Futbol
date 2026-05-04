@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -121,6 +120,7 @@ import com.escuelafutbol.academia.R
 import androidx.compose.ui.text.style.TextAlign
 import com.escuelafutbol.academia.ui.design.AcademiaDimens
 import com.escuelafutbol.academia.ui.design.AppCard
+import com.escuelafutbol.academia.ui.design.EmptyState
 import com.escuelafutbol.academia.ui.design.PrimaryButton
 import com.escuelafutbol.academia.ui.design.SectionHeader
 import com.escuelafutbol.academia.ui.SessionViewModel
@@ -260,15 +260,14 @@ fun PlayersScreen(
 ) {
     if (configAcademia.esPadreMembresiaNube()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                stringResource(R.string.role_route_blocked_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(24.dp),
+            EmptyState(
+                title = stringResource(R.string.role_route_blocked_title),
+                subtitle = stringResource(R.string.role_route_blocked_body),
             )
         }
         return
@@ -1759,8 +1758,7 @@ private fun JugadorFormDialog(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
-                    .navigationBarsPadding()
-                    .padding(bottom = AcademiaDimens.paddingCard),
+                    .padding(bottom = AcademiaDimens.gapSm),
             ) {
                 Text(
                     text = stringResource(R.string.player_photo_sheet_title),

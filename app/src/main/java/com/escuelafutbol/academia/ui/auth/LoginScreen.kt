@@ -2,20 +2,20 @@ package com.escuelafutbol.academia.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -32,8 +32,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.escuelafutbol.academia.R
+import com.escuelafutbol.academia.ui.design.AcademiaDimens
+import com.escuelafutbol.academia.ui.design.PrimaryButton
 
 @Composable
 fun LoginScreen(viewModel: AuthViewModel) {
@@ -48,6 +51,7 @@ fun LoginScreen(viewModel: AuthViewModel) {
     var modoRegistro by rememberSaveable { mutableStateOf(false) }
     var showForgot by rememberSaveable { mutableStateOf(false) }
     var forgotEmail by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(info, showForgot) {
         if (showForgot && info != null) {
@@ -118,7 +122,10 @@ fun LoginScreen(viewModel: AuthViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(
+                horizontal = AcademiaDimens.paddingScreenHorizontal,
+                vertical = AcademiaDimens.paddingCard,
+            ),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -189,8 +196,30 @@ fun LoginScreen(viewModel: AuthViewModel) {
             onValueChange = { password = it },
             label = { Text(stringResource(R.string.auth_password)) },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (passwordVisible) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        imageVector = if (passwordVisible) {
+                            Icons.Default.VisibilityOff
+                        } else {
+                            Icons.Default.Visibility
+                        },
+                        contentDescription = stringResource(
+                            if (passwordVisible) {
+                                R.string.auth_password_hide_cd
+                            } else {
+                                R.string.auth_password_show_cd
+                            },
+                        ),
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
         )
         if (!showForgot) {
@@ -212,7 +241,12 @@ fun LoginScreen(viewModel: AuthViewModel) {
             )
         }
         Spacer(Modifier.height(20.dp))
-        Button(
+        PrimaryButton(
+            text = if (modoRegistro) {
+                stringResource(R.string.auth_create_account)
+            } else {
+                stringResource(R.string.auth_sign_in)
+            },
             onClick = {
                 viewModel.clearError()
                 viewModel.clearInfo()
@@ -222,30 +256,11 @@ fun LoginScreen(viewModel: AuthViewModel) {
                     viewModel.signIn(email, password)
                 }
             },
-            enabled = !busy && email.isNotBlank() && password.isNotBlank() &&
+            enabled = email.isNotBlank() && password.isNotBlank() &&
                 (!modoRegistro || (nombre.isNotBlank() && apellido.isNotBlank())),
+            loading = busy,
             modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                    Spacer(Modifier.width(10.dp))
-                }
-                Text(
-                    if (modoRegistro) {
-                        stringResource(R.string.auth_create_account)
-                    } else {
-                        stringResource(R.string.auth_sign_in)
-                    },
-                )
-            }
-        }
+        )
         if (!modoRegistro) {
             TextButton(
                 onClick = {

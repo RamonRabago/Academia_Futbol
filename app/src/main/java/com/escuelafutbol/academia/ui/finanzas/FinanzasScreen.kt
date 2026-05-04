@@ -13,14 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -46,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -116,150 +112,164 @@ fun FinanzasScreen(
         if (mostrarTabNomina) add(stringResource(R.string.finance_tab_payroll))
     }
 
-    Column(
+    /** Un solo scroll: al desplazar, pestañas / alcance / acciones ceden espacio al bloque de datos.
+     * Sin `navigationBarsPadding()` aquí: el `Scaffold` principal ya reserva espacio sobre la barra inferior. */
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
-            .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
+            .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
+        verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+        contentPadding = PaddingValues(0.dp),
     ) {
-        SectionHeader(
-            title = stringResource(R.string.tab_finances),
-            subtitle = state.periodoTitulo.ifEmpty { state.periodoYyyyMm },
-            action = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro),
-                ) {
-                    IconButton(
-                        onClick = { viewModel.periodoAnterior() },
-                        modifier = Modifier.size(AcademiaDimens.avatarRow),
+        item {
+            SectionHeader(
+                title = stringResource(R.string.tab_finances),
+                subtitle = state.periodoTitulo.ifEmpty { state.periodoYyyyMm },
+                action = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMicro),
                     ) {
-                        Icon(
-                            Icons.Filled.ChevronLeft,
-                            contentDescription = stringResource(R.string.finance_month_prev_cd),
-                        )
+                        IconButton(
+                            onClick = { viewModel.periodoAnterior() },
+                            modifier = Modifier.size(AcademiaDimens.avatarRow),
+                        ) {
+                            Icon(
+                                Icons.Filled.ChevronLeft,
+                                contentDescription = stringResource(R.string.finance_month_prev_cd),
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.periodoSiguiente() },
+                            modifier = Modifier.size(AcademiaDimens.avatarRow),
+                        ) {
+                            Icon(
+                                Icons.Filled.ChevronRight,
+                                contentDescription = stringResource(R.string.finance_month_next_cd),
+                            )
+                        }
                     }
-                    IconButton(
-                        onClick = { viewModel.periodoSiguiente() },
-                        modifier = Modifier.size(AcademiaDimens.avatarRow),
-                    ) {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = stringResource(R.string.finance_month_next_cd),
-                        )
-                    }
-                }
-            },
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .zIndex(2f),
-            verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
-        ) {
+                },
+            )
+        }
+        item {
             FinanzasCompactTabRow(
                 titles = tabTitles,
                 selectedIndex = tabIndex,
                 onSelect = { tabIndex = it },
             )
-
-            SectionHeader(
-                title = stringResource(R.string.finance_header_scope_title),
-                subtitle = stringResource(R.string.finance_header_scope_subtitle),
-            )
-            ChipsGroup {
-                FilterChip(
-                    selected = state.alcance is FinanzasAlcance.GeneralAcademia,
-                    onClick = { viewModel.setAlcanceGeneral() },
-                    label = {
-                        Text(
-                            stringResource(R.string.finance_scope_all_academy),
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
+        }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
+            ) {
+                SectionHeader(
+                    title = stringResource(R.string.finance_header_scope_title),
+                    subtitle = stringResource(R.string.finance_header_scope_subtitle),
                 )
-                state.categoriasDisponibles.forEach { cat ->
-                    val sel = (state.alcance as? FinanzasAlcance.SoloCategoria)?.nombre == cat
+                ChipsGroup {
                     FilterChip(
-                        selected = sel,
-                        onClick = { viewModel.setAlcanceCategoria(cat) },
+                        selected = state.alcance is FinanzasAlcance.GeneralAcademia,
+                        onClick = { viewModel.setAlcanceGeneral() },
                         label = {
                             Text(
-                                cat,
+                                stringResource(R.string.finance_scope_all_academy),
                                 style = MaterialTheme.typography.labelLarge,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         },
                     )
+                    state.categoriasDisponibles.forEach { cat ->
+                        val sel = (state.alcance as? FinanzasAlcance.SoloCategoria)?.nombre == cat
+                        FilterChip(
+                            selected = sel,
+                            onClick = { viewModel.setAlcanceCategoria(cat) },
+                            label = {
+                                Text(
+                                    cat,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                    }
                 }
             }
-
-            SectionHeader(
-                title = stringResource(R.string.finance_header_actions_title),
-                subtitle = stringResource(R.string.finance_header_actions_subtitle),
-            )
-            OutlinedButton(
-                onClick = { viewModel.prellenarMesConCuotasAlumnos() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 40.dp, max = 48.dp),
+        }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapSm),
             ) {
-                Text(
-                    stringResource(R.string.finance_fill_month_button),
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                SectionHeader(
+                    title = stringResource(R.string.finance_header_actions_title),
+                    subtitle = stringResource(R.string.finance_header_actions_subtitle),
                 )
+                OutlinedButton(
+                    onClick = { viewModel.prellenarMesConCuotasAlumnos() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 40.dp, max = 48.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.finance_fill_month_button),
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
 
         when (tabIndex) {
-            0 -> Column(
-                Modifier
-                    .weight(1f, fill = true)
-                    .fillMaxWidth()
-                    .zIndex(0f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
-            ) {
-                SectionHeader(
-                    title = stringResource(R.string.finance_summary_section),
-                    subtitle = stringResource(R.string.finance_header_balance_subtitle),
-                )
-                BalanceMesCompactCard(
-                    titulo = when (val a = state.alcance) {
-                        is FinanzasAlcance.SoloCategoria ->
-                            stringResource(R.string.finance_balance_month_title_category, a.nombre)
-                        else -> stringResource(R.string.finance_balance_month_title)
-                    },
-                    adeudoHistorico = state.adeudoHistorico,
-                    esperado = state.totalEsperadoMes,
-                    pagado = state.totalPagadoMes,
-                    pendiente = state.pendienteMes,
-                )
+            0 -> {
+                item {
+                    SectionHeader(
+                        title = stringResource(R.string.finance_summary_section),
+                        subtitle = stringResource(R.string.finance_header_balance_subtitle),
+                    )
+                }
+                item {
+                    BalanceMesCompactCard(
+                        titulo = when (val a = state.alcance) {
+                            is FinanzasAlcance.SoloCategoria ->
+                                stringResource(R.string.finance_balance_month_title_category, a.nombre)
+                            else -> stringResource(R.string.finance_balance_month_title)
+                        },
+                        adeudoHistorico = state.adeudoHistorico,
+                        esperado = state.totalEsperadoMes,
+                        pagado = state.totalPagadoMes,
+                        pendiente = state.pendienteMes,
+                    )
+                }
                 if (state.alcance is FinanzasAlcance.SoloCategoria) {
-                    AppTintedPanel(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
-                        contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
-                    ) {
-                        Text(
-                            stringResource(R.string.finance_payroll_only_general_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
+                    item {
+                        AppTintedPanel(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                            contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                        ) {
+                            Text(
+                                stringResource(R.string.finance_payroll_only_general_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
                     }
                 }
                 if (state.alcance is FinanzasAlcance.GeneralAcademia && state.porCategoria.isNotEmpty()) {
-                    SectionHeader(
-                        title = stringResource(R.string.finance_by_category),
-                        subtitle = stringResource(R.string.finance_header_categories_subtitle),
-                    )
-                    state.porCategoria.forEach { cat ->
+                    item {
+                        SectionHeader(
+                            title = stringResource(R.string.finance_by_category),
+                            subtitle = stringResource(R.string.finance_header_categories_subtitle),
+                        )
+                    }
+                    items(
+                        state.porCategoria,
+                        key = { it.categoria },
+                    ) { cat ->
                         AppCard(
                             elevated = false,
                         ) {
@@ -286,16 +296,8 @@ fun FinanzasScreen(
                         }
                     }
                 }
-                Spacer(Modifier.padding(bottom = AcademiaDimens.paddingCard))
             }
-            1 -> LazyColumn(
-                modifier = Modifier
-                    .weight(1f, fill = true)
-                    .fillMaxWidth()
-                    .zIndex(0f),
-                contentPadding = PaddingValues(bottom = AcademiaDimens.paddingCard),
-                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
-            ) {
+            1 -> {
                 item {
                     SectionHeader(
                         title = stringResource(R.string.finance_students_section),
@@ -310,7 +312,10 @@ fun FinanzasScreen(
                         )
                     }
                 } else {
-                    items(state.lineas, key = { it.jugador.id }) { linea ->
+                    items(
+                        state.lineas,
+                        key = { it.jugador.id },
+                    ) { linea ->
                         AlumnoCobroRow(
                             linea = linea,
                             onEditar = { lineaEditar = linea },
@@ -319,55 +324,54 @@ fun FinanzasScreen(
                     }
                 }
             }
-            2 -> Column(
-                Modifier
-                    .weight(1f, fill = true)
-                    .fillMaxWidth()
-                    .zIndex(0f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
-            ) {
-                SectionHeader(
-                    title = stringResource(R.string.finance_tab_payroll),
-                    subtitle = stringResource(R.string.finance_header_payroll_subtitle),
-                )
-                ResumenCard(
-                    titulo = stringResource(R.string.finance_staff_total_monthly),
-                    valor = formatMoney(state.totalSueldosStaff),
-                )
-                state.staffOrdenado
-                    .filter { it.sueldoMensual != null && it.sueldoMensual!! > 0 }
-                    .forEach { s ->
-                        AppCard(elevated = false) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    s.nombre,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    formatMoney(s.sueldoMensual!!),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-                AppTintedPanel(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
-                ) {
-                    Text(
-                        stringResource(R.string.finance_staff_edit_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            2 -> {
+                item {
+                    SectionHeader(
+                        title = stringResource(R.string.finance_tab_payroll),
+                        subtitle = stringResource(R.string.finance_header_payroll_subtitle),
                     )
                 }
-                Spacer(Modifier.padding(bottom = AcademiaDimens.paddingCard))
+                item {
+                    ResumenCard(
+                        titulo = stringResource(R.string.finance_staff_total_monthly),
+                        valor = formatMoney(state.totalSueldosStaff),
+                    )
+                }
+                items(
+                    state.staffOrdenado.filter { it.sueldoMensual != null && it.sueldoMensual!! > 0 },
+                    key = { it.id },
+                ) { s ->
+                    AppCard(elevated = false) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                s.nombre,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                formatMoney(s.sueldoMensual!!),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+                item {
+                    AppTintedPanel(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentPadding = PaddingValues(AcademiaDimens.paddingCardCompact),
+                    ) {
+                        Text(
+                            stringResource(R.string.finance_staff_edit_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }

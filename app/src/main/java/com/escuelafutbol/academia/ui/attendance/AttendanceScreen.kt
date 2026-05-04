@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -325,13 +324,12 @@ fun AttendanceScreen(
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
-                        .navigationBarsPadding(),
+                        .fillMaxWidth(),
                     contentPadding = PaddingValues(
                         top = AcademiaDimens.gapSm,
-                        bottom = AcademiaDimens.paddingCard,
+                        bottom = AcademiaDimens.gapSm,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingListSection),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 ) {
                     item {
                         SectionHeader(

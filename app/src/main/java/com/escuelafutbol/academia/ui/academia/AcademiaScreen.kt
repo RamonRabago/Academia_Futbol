@@ -315,9 +315,18 @@ fun AcademiaScreen(
                 else -> destinoAjusteAcademia = null
             }
         }
+    val esDetalleAjusteAcademia = destinoAjusteAcademia != null
+    /** Lista principal de códigos: sin segunda `TopAppBar` (cabecera compacta en `stickyHeader` del listado). */
+    val invitacionesHubLista = destinoAjusteAcademia == AcademiaDestinoAjuste.InvitacionesYAcceso &&
+        invitacionesSub == null &&
+        esPersonalClub &&
+        puedeGestionarAcademiaCabecera
     Scaffold(
+        /** Evita doble consumo de insets con el `Scaffold` principal; el listado respeta la barra de gestos. */
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         topBar = {
             when {
+                invitacionesHubLista -> {}
                 destinoAjusteAcademia != null && esPersonalClub && puedeGestionarAcademiaCabecera -> {
                     val tituloInvSub = tituloInvitacionesSubRes(invitacionesSub)
                     val tituloRes = if (
@@ -380,12 +389,26 @@ fun AcademiaScreen(
                         top = AcademiaDimens.gapVerticalTight,
                         bottom = AcademiaDimens.gapMd,
                     )
-                else -> PaddingValues(AcademiaDimens.paddingScreenHorizontal)
+                esDetalleAjusteAcademia ->
+                    PaddingValues(
+                        start = AcademiaDimens.paddingScreenHorizontal,
+                        end = AcademiaDimens.paddingScreenHorizontal,
+                        top = 0.dp,
+                        bottom = 0.dp,
+                    )
+                else ->
+                    PaddingValues(
+                        start = AcademiaDimens.paddingScreenHorizontal,
+                        end = AcademiaDimens.paddingScreenHorizontal,
+                        top = AcademiaDimens.gapMd,
+                        bottom = AcademiaDimens.gapMd,
+                    )
             },
             verticalArrangement = Arrangement.spacedBy(
                 when {
                     hubMenuGestion -> AcademiaDimens.spacingListSection
                     contenidoAcademiaDetalleCompacto -> AcademiaDimens.spacingListSection
+                    esDetalleAjusteAcademia -> AcademiaDimens.gapSm
                     else -> AcademiaDimens.paddingCardCompact
                 },
             ),
@@ -549,6 +572,40 @@ fun AcademiaScreen(
                         AcademiaDestinoAjuste.InvitacionesYAcceso -> {
                             when (invitacionesSub) {
                                 null -> {
+                                    item(key = "invite_codes_hub_toolbar") {
+                                        Column(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .background(MaterialTheme.colorScheme.surface),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(min = 48.dp)
+                                                    .padding(horizontal = AcademiaDimens.gapSm),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                IconButton(
+                                                    onClick = { destinoAjusteAcademia = null },
+                                                ) {
+                                                    Icon(
+                                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                                        contentDescription = stringResource(R.string.nav_back_cd),
+                                                    )
+                                                }
+                                                Text(
+                                                    text = stringResource(R.string.academy_club_code_section),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(end = AcademiaDimens.gapSm),
+                                                )
+                                            }
+                                            HorizontalDivider()
+                                        }
+                                    }
                                     item {
                                         if (config.remoteAcademiaId != null) {
                                             AppTintedPanel(
@@ -2979,7 +3036,7 @@ private fun AcademiaPadreNubeSimpleScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scroll)
-                    .padding(horizontal = AcademiaDimens.paddingScreenHorizontal + AcademiaDimens.gapMd)
+                    .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
                     .padding(top = 0.dp, bottom = AcademiaDimens.gapMd),
                 verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
             ) {

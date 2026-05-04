@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -503,6 +503,7 @@ private fun CompetenciasListaScaffold(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -655,8 +656,9 @@ private fun CompetenciasListaScaffold(
                     )
                 }
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
+                    contentPadding = PaddingValues(bottom = AcademiaDimens.gapSm),
                 ) {
                     items(itemsLista, key = { it.competencia.id }) { row ->
                         if (padreSoloLectura) {
@@ -716,6 +718,7 @@ private fun CompetenciaDetalleScaffold(
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
+            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(ui.competencia?.nombre ?: stringResource(R.string.competitions_detail_loading)) },
@@ -2311,10 +2314,9 @@ private fun DialogoNuevoPartido(
                             Modifier
                                 .fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .navigationBarsPadding()
                                 .padding(
                                     horizontal = AcademiaDimens.paddingScreenHorizontal,
-                                    vertical = AcademiaDimens.gapMd,
+                                    vertical = AcademiaDimens.gapSm,
                                 ),
                             horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                             verticalAlignment = Alignment.CenterVertically,
@@ -2358,7 +2360,7 @@ private fun DialogoNuevoPartido(
                         .padding(padding)
                         .padding(horizontal = AcademiaDimens.paddingCard + AcademiaDimens.gapSm),
                     verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
-                    contentPadding = PaddingValues(top = AcademiaDimens.gapSm, bottom = AcademiaDimens.paddingCard),
+                    contentPadding = PaddingValues(top = AcademiaDimens.gapSm, bottom = AcademiaDimens.gapSm),
                 ) {
                     item {
                         Text(
@@ -2909,10 +2911,9 @@ private fun PantallaResultadoPartido(
                             Modifier
                                 .fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .navigationBarsPadding()
                                 .padding(
                                     horizontal = AcademiaDimens.paddingScreenHorizontal,
-                                    vertical = AcademiaDimens.gapMd,
+                                    vertical = AcademiaDimens.gapSm,
                                 ),
                             horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                             verticalAlignment = Alignment.CenterVertically,
@@ -2936,7 +2937,7 @@ private fun PantallaResultadoPartido(
                         .padding(padding)
                         .padding(horizontal = AcademiaDimens.paddingScreenHorizontal),
                     verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
-                    contentPadding = PaddingValues(bottom = AcademiaDimens.paddingCardCompact),
+                    contentPadding = PaddingValues(bottom = AcademiaDimens.gapSm),
                 ) {
                     item {
                         AppTintedPanel(
@@ -3156,9 +3157,7 @@ private fun PantallaResultadoPartido(
                     sheetState = sheetState,
                 ) {
                     Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding(),
+                        Modifier.fillMaxWidth(),
                     ) {
                         Text(
                             stringResource(R.string.competitions_result_picker_title),

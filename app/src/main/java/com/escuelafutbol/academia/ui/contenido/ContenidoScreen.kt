@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -185,7 +184,7 @@ fun ContenidoScreen(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                 contentPadding = PaddingValues(
-                    bottom = if (fabVisible) 88.dp else AcademiaDimens.paddingCardCompact,
+                    bottom = if (fabVisible) 88.dp else AcademiaDimens.gapSm,
                 ),
                 modifier = Modifier
                     .fillMaxSize()
@@ -820,10 +819,9 @@ private fun DialogoPublicarContenido(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .navigationBarsPadding()
                                 .padding(
                                     horizontal = AcademiaDimens.paddingScreenHorizontal,
-                                    vertical = AcademiaDimens.paddingCardCompact,
+                                    vertical = AcademiaDimens.gapSm,
                                 ),
                             horizontalArrangement = Arrangement.spacedBy(AcademiaDimens.gapMd),
                             verticalAlignment = Alignment.CenterVertically,
@@ -859,7 +857,7 @@ private fun DialogoPublicarContenido(
                             .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
                             .padding(
                                 top = AcademiaDimens.gapMd,
-                                bottom = AcademiaDimens.paddingCard,
+                                bottom = AcademiaDimens.gapSm,
                             ),
                         verticalArrangement = Arrangement.spacedBy(AcademiaDimens.spacingDialogBlock),
                     ) {
@@ -1316,9 +1314,8 @@ private fun ContenidoRecursosFiltrosSheetContent(
         Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .navigationBarsPadding()
             .padding(horizontal = AcademiaDimens.paddingScreenHorizontal)
-            .padding(bottom = AcademiaDimens.paddingCard + AcademiaDimens.gapMd),
+            .padding(bottom = AcademiaDimens.gapMd),
     ) {
         SectionHeader(
             title = stringResource(R.string.resources_filter_sheet_title),
